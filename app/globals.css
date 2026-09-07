@@ -1,1 +1,161 @@
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 @import "tailwindcss";
+
+@theme {
+  --color-on-error-container: #93000a;
+  --color-on-background: #191c1d;
+  --color-inverse-primary: #ebbda1;
+  --color-background: #f8f9fa;
+  --color-secondary-fixed: #ffdcc6;
+  --color-status-success: #10B981;
+  --color-surface-container-high: #e7e8e9;
+  --color-surface-container-low: #f3f4f5;
+  --color-on-secondary: #ffffff;
+  --color-surface-container: #edeeef;
+  --color-error: #ba1a1a;
+  --color-on-primary: #ffffff;
+  --color-primary: #3c220e;
+  --color-secondary-container: #ffd1b3;
+  --color-on-primary-fixed-variant: #5f402a;
+  --color-status-info: #3B82F6;
+  --color-secondary-fixed-dim: #eabda0;
+  --color-surface-card: #ffffff;
+  --color-on-secondary-fixed-variant: #5f402a;
+  --color-on-surface-variant: #50443e;
+  --color-inverse-on-surface: #f0f1f2;
+  --color-on-error: #ffffff;
+  --color-secondary: #79573f;
+  --color-surface-container-lowest: #ffffff;
+  --color-on-tertiary-fixed-variant: #2a4c50;
+  --color-error-container: #ffdad6;
+  --color-on-surface: #191c1d;
+  --color-on-primary-container: #cba085;
+  --color-surface-variant: #e1e3e4;
+  --color-surface-dim: #d9dadb;
+  --color-outline: #82746d;
+  --color-status-warning: #F59E0B;
+  --color-surface-tint: #795740;
+  --color-primary-fixed: #ffdcc6;
+  --color-on-secondary-fixed: #2d1604;
+  --color-surface-bright: #f8f9fa;
+  --color-tertiary-fixed-dim: #a9cdd1;
+  --color-tertiary-fixed: #c5e9ee;
+  --color-on-tertiary: #ffffff;
+  --color-inverse-surface: #2e3132;
+  --color-tertiary-container: #214347;
+  --color-on-tertiary-fixed: #001f23;
+  --color-primary-container: #553722;
+  --color-on-tertiary-container: #8cafb4;
+  --color-surface: #f8f9fa;
+  --color-on-primary-fixed: #2d1504;
+  --color-on-secondary-container: #7a5840;
+  --color-surface-container-highest: #e1e3e4;
+  --color-tertiary: #072d31;
+  --color-outline-variant: #d4c3ba;
+  --color-primary-fixed-dim: #ebbda1;
+  --color-border-subtle: #E9ECEF;
+
+  --spacing-stack-lg: 24px;
+  --spacing-unit: 4px;
+  --spacing-stack-sm: 8px;
+  --spacing-margin-page: 32px;
+  --spacing-stack-md: 16px;
+  --spacing-gutter: 24px;
+}
+
+/* Material Symbols Outlined */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined', sans-serif;
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.material-symbols-outlined[data-weight="fill"],
+.filled-icon {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Typography styles matching Stitch Design System */
+.text-label-md {
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.02em;
+  font-weight: 600;
+}
+
+.text-body-sm {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+}
+
+.text-body-md {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+
+.text-body-lg {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+}
+
+.text-headline-md {
+  font-size: 20px;
+  line-height: 28px;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+}
+
+.text-headline-lg-mobile {
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 700;
+}
+
+.text-headline-lg {
+  font-size: 28px;
+  line-height: 36px;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+.text-headline-xl {
+  font-size: 36px;
+  line-height: 44px;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+}
+
+/* Animations for multistep transitions */
+.step-container {
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+
+.hidden-step {
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  position: absolute;
+  visibility: hidden;
+}
+
+.active-step {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+  position: relative;
+  visibility: visible;
+}
