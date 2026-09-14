@@ -3,17 +3,31 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import {
+  LayoutDashboard,
+  UtensilsCrossed,
+  Receipt,
+  QrCode,
+  Users,
+  BarChart3,
+  Settings,
+  Coffee,
+  X,
+  Menu,
+  Bell,
+  LogOut,
+} from "lucide-react";
 
 const navItems = [
-  { name: "Dashboard", href: "/dashboard", icon: "dashboard" },
-  { name: "Menu", href: "/dashboard/menu", icon: "restaurant_menu" },
-  { name: "Orders", href: "/dashboard/orders", icon: "receipt_long" },
-  { name: "QR Code", href: "/dashboard/qr-code", icon: "qr_code" },
-  { name: "Manage Staff", href: "/dashboard/staff", icon: "group" },
-  { name: "Reports", href: "/dashboard/reports", icon: "assessment" },
-  { name: "Settings", href: "/dashboard/settings", icon: "settings" },
+  { name: "แดชบอร์ด", href: "/dashboard", icon: LayoutDashboard },
+  { name: "เมนูอาหาร", href: "/dashboard/menu", icon: UtensilsCrossed },
+  { name: "ออเดอร์", href: "/dashboard/orders", icon: Receipt },
+  { name: "คิวอาร์โค้ด", href: "/dashboard/qr-code", icon: QrCode },
+  { name: "จัดการพนักงาน", href: "/dashboard/staff", icon: Users },
+  { name: "รายงานยอดขาย", href: "/dashboard/reports", icon: BarChart3 },
+  { name: "ตั้งค่าร้านค้า", href: "/dashboard/settings", icon: Settings },
 ];
 
 export default function DashboardLayout({
@@ -22,6 +36,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<{
     name: string;
@@ -38,7 +53,7 @@ export default function DashboardLayout({
             data.user.user_metadata?.full_name ||
             data.user.user_metadata?.name ||
             data.user.email?.split("@")[0] ||
-            "Owner",
+            "เจ้าของร้าน",
           email: data.user.email || "",
           avatarUrl:
             data.user.user_metadata?.avatar_url ||
@@ -48,17 +63,21 @@ export default function DashboardLayout({
     });
   }, []);
 
-  const [storeInfo] = useState<{ storeName?: string }>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem("scansip_store_info");
-        if (stored) return JSON.parse(stored);
-      } catch {
-        // ignore
-      }
-    }
-    return {};
-  });
+  const [storeName, setStoreName] = useState<string>("แดชบอร์ดเจ้าของร้าน");
+
+  useEffect(() => {
+    fetch("/api/store")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && json.data?.name) {
+          setStoreName(json.data.name);
+        } else if (!json.data) {
+          // If logged-in user doesn't have a store yet, redirect to onboarding
+          router.push("/onboarding");
+        }
+      })
+      .catch(() => {});
+  }, [router]);
 
   // Determine current page title
   const currentItem = navItems.find((item) => {
@@ -67,7 +86,7 @@ export default function DashboardLayout({
     }
     return pathname.startsWith(item.href);
   });
-  const pageTitle = currentItem ? currentItem.name : "Dashboard";
+  const pageTitle = currentItem ? currentItem.name : "แดชบอร์ด";
 
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden font-body-md text-body-md text-on-background">
@@ -89,27 +108,22 @@ export default function DashboardLayout({
         <div className="px-stack-lg pb-stack-lg border-b border-border-subtle mb-stack-md flex items-center justify-between">
           <Link href="/dashboard" className="flex items-center gap-stack-sm group">
             <div className="w-8 h-8 bg-primary rounded flex items-center justify-center text-on-primary shadow-xs">
-              <span
-                className="material-symbols-outlined text-sm"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                local_cafe
-              </span>
+              <Coffee className="w-4 h-4" />
             </div>
             <div className="flex flex-col">
               <span className="font-headline-md text-headline-md font-bold text-primary group-hover:opacity-90">
                 ScanSip
               </span>
               <span className="font-label-md text-label-md text-on-surface-variant">
-                {storeInfo.storeName || "Owner Dashboard"}
+                {storeName}
               </span>
             </div>
           </Link>
           <button
             onClick={() => setMobileMenuOpen(false)}
-            className="md:hidden text-on-surface-variant hover:text-on-surface p-1 rounded"
+            className="md:hidden text-on-surface-variant hover:text-on-surface p-1 rounded cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[20px]">close</span>
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -120,6 +134,7 @@ export default function DashboardLayout({
               item.href === "/dashboard"
                 ? pathname === "/dashboard"
                 : pathname.startsWith(item.href);
+            const IconComponent = item.icon;
 
             return (
               <Link
@@ -130,14 +145,9 @@ export default function DashboardLayout({
                   isActive
                     ? "bg-secondary-container text-primary border-l-2 border-secondary scale-[0.98] font-semibold rounded-r-lg"
                     : "text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg font-normal"
-                } ${item.name === "Settings" ? "mt-auto" : ""}`}
+                } ${item.href === "/dashboard/settings" ? "mt-auto" : ""}`}
               >
-                <span
-                  className="material-symbols-outlined text-[20px]"
-                  style={isActive ? { fontVariationSettings: "'FILL' 1" } : undefined}
-                >
-                  {item.icon}
-                </span>
+                <IconComponent className={`w-5 h-5 ${isActive ? "text-primary" : "text-on-surface-variant"}`} />
                 <span className="font-label-md text-label-md">{item.name}</span>
               </Link>
             );
@@ -163,20 +173,20 @@ export default function DashboardLayout({
               )}
               <div className="flex-1 min-w-0">
                 <p className="font-label-md text-label-md text-on-surface truncate">
-                  {currentUser?.name || "ScanSip Owner"}
+                  {currentUser?.name || "เจ้าของร้าน ScanSip"}
                 </p>
                 <p className="font-body-sm text-[11px] text-on-surface-variant truncate">
-                  {currentUser?.email || "Google Account"}
+                  {currentUser?.email || "บัญชี Google"}
                 </p>
               </div>
             </div>
             <form action="/auth/signout" method="post">
               <button
                 type="submit"
-                title="Sign out"
+                title="ออกจากระบบ"
                 className="text-on-surface-variant hover:text-error p-1 rounded-md hover:bg-error-container/20 transition-colors cursor-pointer"
               >
-                <span className="material-symbols-outlined text-[18px]">logout</span>
+                <LogOut className="w-4 h-4" />
               </button>
             </form>
           </div>
@@ -193,7 +203,7 @@ export default function DashboardLayout({
               className="md:hidden text-on-surface-variant p-2 -ml-2 rounded-full hover:bg-surface-container-low cursor-pointer"
               aria-label="Open menu"
             >
-              <span className="material-symbols-outlined">menu</span>
+              <Menu className="w-5 h-5" />
             </button>
             <h1 className="font-headline-md text-headline-md font-bold text-primary opacity-90">
               {pageTitle}
@@ -205,7 +215,7 @@ export default function DashboardLayout({
               className="relative text-on-surface-variant hover:bg-surface-container-low rounded-full p-2 transition-colors duration-200 cursor-pointer"
               aria-label="Notifications"
             >
-              <span className="material-symbols-outlined">notifications</span>
+              <Bell className="w-5 h-5" />
               <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full border border-surface"></span>
             </button>
 

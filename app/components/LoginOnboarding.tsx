@@ -5,6 +5,25 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import Link from "next/link";
+import {
+  Coffee,
+  Store,
+  AlertTriangle,
+  AlertCircle,
+  ShieldCheck,
+  SlidersHorizontal,
+  LayoutDashboard,
+  User,
+  ArrowRight,
+  ArrowLeft,
+  Shield,
+  Edit2,
+  ImagePlus,
+  UploadCloud,
+  CreditCard,
+  Clock,
+  CheckCircle2,
+} from "lucide-react";
 
 interface LoginOnboardingProps {
   initialUser?: {
@@ -141,17 +160,15 @@ export default function LoginOnboarding({
         {/* Header */}
         <header className="pt-stack-lg px-stack-lg pb-stack-md text-center border-b border-border-subtle bg-surface-bright">
           <div className="flex justify-center mb-stack-sm">
-            <div className="w-12 h-12 rounded-lg bg-primary flex items-center justify-center shadow-xs">
-              <span className="material-symbols-outlined text-on-primary text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                local_cafe
-              </span>
+            <div className="w-12 h-12 rounded-lg bg-primary flex items-center justify-center shadow-xs text-on-primary">
+              <Coffee className="w-7 h-7" />
             </div>
           </div>
           <h1 className="font-headline-lg text-headline-lg text-on-surface mb-unit font-bold">
             ScanSip
           </h1>
-          <div className="flex items-center justify-center gap-1 text-on-surface-variant">
-            <span className="material-symbols-outlined text-[16px]">storefront</span>
+          <div className="flex items-center justify-center gap-1.5 text-on-surface-variant">
+            <Store className="w-4 h-4" />
             <p className="font-body-md text-body-md">Owner Dashboard</p>
           </div>
         </header>
@@ -160,13 +177,11 @@ export default function LoginOnboarding({
           {/* Supabase Not Configured Warning (if any) */}
           {!isConfigured && (
             <div className="mb-stack-md p-stack-sm rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
-              <span className="material-symbols-outlined text-amber-600 text-[18px]">
-                warning
-              </span>
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-semibold">Supabase Keys Not Configured</p>
+                <p className="font-semibold">ยังไม่ได้ตั้งค่าคีย์ Supabase</p>
                 <p className="text-[11px] text-amber-700">
-                  Please configure NEXT_PUBLIC_SUPABASE_URL in .env.local for Google login.
+                  โปรดกำหนดค่า NEXT_PUBLIC_SUPABASE_URL ใน .env เพื่อใช้งานการเข้าสู่ระบบผ่าน Google
                 </p>
               </div>
             </div>
@@ -175,9 +190,7 @@ export default function LoginOnboarding({
           {/* Error message */}
           {errorMessage && (
             <div className="mb-stack-md p-stack-sm rounded-lg bg-error-container text-on-error-container text-xs flex items-center gap-2">
-              <span className="material-symbols-outlined text-error text-[18px]">
-                error
-              </span>
+              <AlertCircle className="w-4 h-4 text-error shrink-0" />
               <p className="break-words flex-1">{errorMessage}</p>
             </div>
           )}
@@ -186,28 +199,26 @@ export default function LoginOnboarding({
           {initialUser && (
             <div className="mb-stack-md p-stack-sm rounded-lg bg-secondary-container/40 border border-secondary-container text-primary flex items-center justify-between text-xs animate-fadeIn">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-status-success text-[18px]">
-                  verified_user
-                </span>
+                <ShieldCheck className="w-4 h-4 text-status-success shrink-0" />
                 <span>
-                  Signed in as <strong>{initialUser.name || initialUser.email}</strong>
+                  เข้าสู่ระบบโดย <strong>{initialUser.name || initialUser.email}</strong>
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setCurrentStep(2)}
-                  className="font-bold text-secondary hover:underline flex items-center gap-0.5 cursor-pointer"
+                  className="font-bold text-secondary hover:underline flex items-center gap-1 cursor-pointer"
                 >
-                  <span className="material-symbols-outlined text-[14px]">tune</span>
-                  Setup
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  ตั้งค่าร้าน
                 </button>
                 <Link
                   href="/dashboard"
-                  className="font-bold text-primary hover:underline flex items-center gap-0.5"
+                  className="font-bold text-primary hover:underline flex items-center gap-1"
                 >
-                  <span className="material-symbols-outlined text-[14px]">dashboard</span>
-                  App
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  แดชบอร์ด
                 </Link>
               </div>
             </div>
@@ -218,13 +229,13 @@ export default function LoginOnboarding({
             <div className="w-full flex flex-col h-full justify-center py-stack-md animate-fadeIn">
               <div className="text-center mb-stack-lg">
                 <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-secondary-container/60 text-primary mb-stack-sm">
-                  <span className="material-symbols-outlined text-[22px]">account_circle</span>
+                  <User className="w-5 h-5" />
                 </div>
                 <h2 className="font-headline-md text-headline-md text-on-surface mb-stack-sm font-bold">
-                  Welcome back
+                  ยินดีต้อนรับกลับเข้าสู่ระบบ
                 </h2>
                 <p className="font-body-sm text-body-sm text-on-surface-variant">
-                  Sign in with your Google account to manage your restaurant operations
+                  เข้าสู่ระบบด้วยบัญชี Google เพื่อจัดการร้านอาหารและออเดอร์ของคุณ
                 </p>
               </div>
 
@@ -263,34 +274,29 @@ export default function LoginOnboarding({
                     </svg>
                   )}
                   <span className="font-label-md text-label-md text-on-surface font-bold">
-                    {isGoogleLoading ? "Connecting to Google..." : "Continue with Google"}
+                    {isGoogleLoading ? "กำลังเชื่อมต่อไปยัง Google..." : "ดำเนินการต่อด้วย Google"}
                   </span>
-                  <span className="material-symbols-outlined text-on-surface-variant text-[18px] ml-auto group-hover:translate-x-0.5 transition-transform">
-                    arrow_forward
-                  </span>
+                  <ArrowRight className="w-4 h-4 text-on-surface-variant ml-auto group-hover:translate-x-0.5 transition-transform" />
                 </button>
               </div>
 
               {/* Security guarantee badge */}
               <div className="mt-stack-lg flex items-center justify-center gap-1.5 text-on-surface-variant text-xs">
-                <span className="material-symbols-outlined text-[16px] text-status-success">
-                  verified
-                </span>
-                <span>Fast &amp; Secure Authentication via Supabase OAuth</span>
+                <ShieldCheck className="w-4 h-4 text-status-success" />
+                <span>เข้าสู่ระบบอย่างรวดเร็วและปลอดภัยผ่าน Supabase OAuth</span>
               </div>
 
               <div className="mt-stack-md text-center">
                 <p className="font-body-sm text-[12px] text-on-surface-variant flex items-center justify-center gap-1 flex-wrap">
-                  <span className="material-symbols-outlined text-[14px]">shield</span>
-                  By continuing, you agree to our{" "}
+                  <Shield className="w-3.5 h-3.5 inline shrink-0" />
+                  เมื่อดำเนินการต่อ แสดงว่าคุณยอมรับ{" "}
                   <a className="text-primary hover:underline font-semibold inline-flex items-center gap-0.5" href="#">
-                    Terms of Service
+                    ข้อกำหนดการให้บริการ
                   </a>{" "}
-                  and{" "}
+                  และ{" "}
                   <a className="text-primary hover:underline font-semibold inline-flex items-center gap-0.5" href="#">
-                    Privacy Policy
+                    นโยบายความเป็นส่วนตัว
                   </a>
-                  .
                 </p>
               </div>
 
@@ -301,16 +307,16 @@ export default function LoginOnboarding({
                   onClick={() => setCurrentStep(2)}
                   className="text-on-surface-variant hover:text-primary transition-colors inline-flex items-center gap-1 font-semibold cursor-pointer"
                 >
-                  <span className="material-symbols-outlined text-[16px]">storefront</span>
-                  Store Setup
+                  <Store className="w-4 h-4" />
+                  ตั้งค่าร้านค้า
                 </button>
                 <Link
                   href="/dashboard"
                   className="text-on-surface-variant hover:text-primary transition-colors inline-flex items-center gap-1 font-semibold"
                 >
-                  <span className="material-symbols-outlined text-[16px]">dashboard</span>
-                  Dashboard
-                  <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                  <LayoutDashboard className="w-4 h-4" />
+                  แดชบอร์ด
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
             </div>
@@ -324,21 +330,19 @@ export default function LoginOnboarding({
                   type="button"
                   className="p-1 rounded-full hover:bg-surface-container-low text-on-surface-variant transition-colors cursor-pointer"
                   onClick={() => setCurrentStep(1)}
-                  title="Back to Login"
+                  title="กลับสู่หน้าเข้าสู่ระบบ"
                 >
-                  <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+                  <ArrowLeft className="w-5 h-5" />
                 </button>
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-primary text-[20px]">
-                      storefront
-                    </span>
+                    <Store className="w-5 h-5 text-primary" />
                     <h2 className="font-headline-md text-headline-md text-on-surface font-bold">
-                      Store Setup
+                      ตั้งค่าร้านค้า
                     </h2>
                   </div>
                   <p className="font-body-sm text-body-sm text-on-surface-variant">
-                    Let&apos;s get your business ready for ordering.
+                    เตรียมความพร้อมข้อมูลร้านของคุณก่อนเปิดรับออเดอร์
                   </p>
                 </div>
               </div>
@@ -360,27 +364,25 @@ export default function LoginOnboarding({
                     <div className="flex flex-col items-center">
                       <img
                         src={logoPreview}
-                        alt="Store Logo Preview"
+                        alt="โลโก้ร้านค้า"
                         className="w-16 h-16 rounded-full object-cover mb-stack-sm border border-border-subtle"
                       />
                       <span className="font-label-md text-label-md text-primary flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[16px]">edit</span>
-                        Change Logo
+                        <Edit2 className="w-4 h-4" />
+                        เปลี่ยนโลโก้
                       </span>
                     </div>
                   ) : (
                     <>
                       <div className="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center mb-stack-sm group-hover:bg-secondary-container transition-colors">
-                        <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary text-[24px]">
-                          add_photo_alternate
-                        </span>
+                        <ImagePlus className="w-6 h-6 text-on-surface-variant group-hover:text-primary transition-colors" />
                       </div>
-                      <span className="font-label-md text-label-md text-on-surface flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[16px]">cloud_upload</span>
-                        Upload Store Logo
+                      <span className="font-label-md text-label-md text-on-surface flex items-center gap-1.5">
+                        <UploadCloud className="w-4 h-4" />
+                        อัปโหลดโลโก้ร้านค้า
                       </span>
                       <span className="font-body-sm text-body-sm text-on-surface-variant text-[11px] mt-unit">
-                        JPG, PNG up to 2MB
+                        ไฟล์ JPG, PNG ขนาดไม่เกิน 2MB
                       </span>
                     </>
                   )}
@@ -389,17 +391,15 @@ export default function LoginOnboarding({
                 {/* Store Name */}
                 <div>
                   <label className="block font-label-md text-label-md text-on-surface mb-unit">
-                    Store Name
+                    ชื่อร้านค้า
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-stack-sm flex items-center pointer-events-none">
-                      <span className="material-symbols-outlined text-on-surface-variant text-[18px]">
-                        storefront
-                      </span>
+                      <Store className="w-4 h-4 text-on-surface-variant" />
                     </div>
                     <input
                       className="w-full h-[36px] pl-[36px] pr-stack-sm font-body-md text-body-md bg-surface-card border border-border-subtle rounded focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all placeholder:text-on-surface-variant/50 text-on-surface"
-                      placeholder="e.g. The Coffee Corner"
+                      placeholder="เช่น คาเฟ่ เดอ ปารีส"
                       type="text"
                       required
                       value={storeName}
@@ -411,17 +411,15 @@ export default function LoginOnboarding({
                 {/* PromptPay Number */}
                 <div>
                   <label className="block font-label-md text-label-md text-on-surface mb-unit">
-                    PromptPay Number (For Payments)
+                    เบอร์พร้อมเพย์ (สำหรับรับชำระเงิน)
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-stack-sm flex items-center pointer-events-none">
-                      <span className="material-symbols-outlined text-on-surface-variant text-[18px]">
-                        payments
-                      </span>
+                      <CreditCard className="w-4 h-4 text-on-surface-variant" />
                     </div>
                     <input
                       className="w-full h-[36px] pl-[36px] pr-stack-sm font-body-md text-body-md bg-surface-card border border-border-subtle rounded focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all placeholder:text-on-surface-variant/50 text-on-surface"
-                      placeholder="08X-XXX-XXXX or National ID"
+                      placeholder="เบอร์โทรศัพท์ 08X-XXX-XXXX หรือเลขบัตรประชาชน"
                       type="text"
                       required
                       value={promptPayNumber}
@@ -434,13 +432,11 @@ export default function LoginOnboarding({
                 <div className="flex gap-stack-sm">
                   <div className="flex-1">
                     <label className="block font-label-md text-label-md text-on-surface mb-unit">
-                      Opening Time
+                      เวลาเปิดทำการ
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
-                        <span className="material-symbols-outlined text-on-surface-variant text-[16px]">
-                          alarm_on
-                        </span>
+                        <Clock className="w-4 h-4 text-on-surface-variant" />
                       </div>
                       <input
                         className="w-full h-[36px] pl-8 pr-2 font-body-md text-body-md bg-surface-card border border-border-subtle rounded focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all text-on-surface"
@@ -452,13 +448,11 @@ export default function LoginOnboarding({
                   </div>
                   <div className="flex-1">
                     <label className="block font-label-md text-label-md text-on-surface mb-unit">
-                      Closing Time
+                      เวลาปิดทำการ
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
-                        <span className="material-symbols-outlined text-on-surface-variant text-[16px]">
-                          alarm_off
-                        </span>
+                        <Clock className="w-4 h-4 text-on-surface-variant" />
                       </div>
                       <input
                         className="w-full h-[36px] pl-8 pr-2 font-body-md text-body-md bg-surface-card border border-border-subtle rounded focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all text-on-surface"
@@ -476,10 +470,8 @@ export default function LoginOnboarding({
                     disabled={isSubmittingSetup}
                     className="w-full h-[38px] flex items-center justify-center gap-2 bg-primary text-on-primary font-label-md text-label-md rounded hover:bg-primary/90 shadow-xs transition-colors cursor-pointer disabled:opacity-60"
                   >
-                    <span className="material-symbols-outlined text-[18px]">
-                      task_alt
-                    </span>
-                    {isSubmittingSetup ? "Saving & Redirecting..." : "Complete Setup"}
+                    <CheckCircle2 className="w-4 h-4" />
+                    {isSubmittingSetup ? "กำลังบันทึกและเปลี่ยนเส้นทาง..." : "เสร็จสิ้นการตั้งค่า"}
                   </button>
                 </div>
               </form>

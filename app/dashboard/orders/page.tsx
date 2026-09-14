@@ -1,74 +1,130 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import {
+  ListFilter,
+  Hourglass,
+  CheckCircle2,
+  CheckCheck,
+  Tag,
+  Armchair,
+  UtensilsCrossed,
+  Banknote,
+  Info,
+  MousePointerClick,
+  Check,
+  Loader2,
+  Inbox,
+} from "lucide-react";
+
+interface OrderItem {
+  id: string;
+  menuName: string;
+  unitPrice: string | number;
+  quantity: number;
+  specialInstruction: string | null;
+}
 
 interface Order {
   id: string;
-  table: string;
-  items: string[];
-  total: string;
-  time: string;
-  status: "Prep" | "Ready" | "Done";
+  orderNumber: string;
+  tableNumber: number | null;
+  totalAmount: string | number;
+  status: "pending" | "preparing" | "served" | "completed" | "cancelled";
+  paymentStatus: "unpaid" | "paid" | "refunded";
+  customerNote: string | null;
+  createdAt: string;
+  items: OrderItem[];
 }
 
-const initialOrders: Order[] = [
-  {
-    id: "#2045",
-    table: "Table 04",
-    items: ["2x Artisan Latte", "1x Butter Croissant"],
-    total: "$14.50",
-    time: "2m ago",
-    status: "Prep",
-  },
-  {
-    id: "#2044",
-    table: "Table 02",
-    items: ["1x Iced Matcha"],
-    total: "$6.00",
-    time: "15m ago",
-    status: "Ready",
-  },
-  {
-    id: "#2043",
-    table: "Table 08",
-    items: ["1x Espresso Martini", "1x Truffle Fries"],
-    total: "$22.00",
-    time: "28m ago",
-    status: "Ready",
-  },
-  {
-    id: "#2042",
-    table: "Table 01",
-    items: ["2x Oat Flat White", "1x Avocado Toast"],
-    total: "$18.50",
-    time: "45m ago",
-    status: "Done",
-  },
-  {
-    id: "#2041",
-    table: "Table 06",
-    items: ["1x Artisan Cold Brew", "1x Croissant"],
-    total: "$9.75",
-    time: "1h ago",
-    status: "Done",
-  },
-];
-
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
-  const [activeTab, setActiveTab] = useState<"All" | "Prep" | "Ready" | "Done">("All");
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"ทั้งหมด" | "pending" | "preparing" | "served" | "completed">("ทั้งหมด");
+
+  const fetchOrders = async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch("/api/orders");
+      const json = await res.json();
+      if (json.success) {
+        setOrders(json.data || []);
+      }
+    } catch (err) {
+      console.error("Failed to load orders:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+    // Poll orders every 10 seconds (หรือใช้ realtime)
+    const timer = setInterval(fetchOrders, 10000);
+    return () => clearInterval(timer);
+  }, []);
 
   const filteredOrders = orders.filter((order) => {
-    if (activeTab === "All") return true;
+    if (activeTab === "ทั้งหมด") return true;
     return order.status === activeTab;
   });
 
-  const updateOrderStatus = (id: string, newStatus: "Prep" | "Ready" | "Done") => {
-    setOrders((prev) =>
-      prev.map((order) =>
-        order.id === id ? { ...order, status: newStatus } : order
-      )
-    );
+  const updateOrderStatus = async (id: string, newStatus: Order["status"]) => {
+    try {
+      const res = await fetch(`/api/orders/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        setOrders((prev) =>
+          prev.map((order) =>
+            order.id === id ? { ...order, status: newStatus } : order
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Failed to update status:", err);
+    }
+  };
+
+  const getStatusBadge = (status: Order["status"]) => {
+    switch (status) {
+      case "pending":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+            <Hourglass className="w-3 h-3" />
+            รอยืนยัน
+          </span>
+        );
+      case "preparing":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+            <Hourglass className="w-3 h-3 animate-spin" />
+            กำลังเตรียม
+          </span>
+        );
+      case "served":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 border border-indigo-200">
+            <CheckCircle2 className="w-3 h-3" />
+            เสิร์ฟแล้ว
+          </span>
+        );
+      case "completed":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+            <CheckCheck className="w-3 h-3" />
+            เสร็จสิ้น
+          </span>
+        );
+      case "cancelled":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-200">
+            ยกเลิก
+          </span>
+        );
+    }
   };
 
   return (
@@ -76,37 +132,33 @@ export default function OrdersPage() {
       <div className="max-w-7xl mx-auto space-y-gutter">
         {/* Status Filter Tabs */}
         <div className="flex items-center gap-stack-sm border-b border-border-subtle pb-stack-sm overflow-x-auto">
-          {(["All", "Prep", "Ready", "Done"] as const).map((tab) => {
+          {[
+            { label: "ทั้งหมด", key: "ทั้งหมด" },
+            { label: "รอยืนยัน", key: "pending" },
+            { label: "กำลังเตรียม", key: "preparing" },
+            { label: "เสิร์ฟแล้ว", key: "served" },
+            { label: "เสร็จสิ้น", key: "completed" },
+          ].map((tab) => {
             const count =
-              tab === "All"
+              tab.key === "ทั้งหมด"
                 ? orders.length
-                : orders.filter((o) => o.status === tab).length;
-
-            const icon =
-              tab === "All"
-                ? "list_alt"
-                : tab === "Prep"
-                ? "hourglass_top"
-                : tab === "Ready"
-                ? "check_circle"
-                : "done_all";
+                : orders.filter((o) => o.status === tab.key).length;
 
             return (
               <button
-                key={tab}
+                key={tab.key}
                 type="button"
-                onClick={() => setActiveTab(tab)}
+                onClick={() => setActiveTab(tab.key as any)}
                 className={`px-4 py-2 rounded-lg font-label-md text-label-md flex items-center gap-2 transition-colors cursor-pointer ${
-                  activeTab === tab
+                  activeTab === tab.key
                     ? "bg-primary text-on-primary font-bold shadow-xs"
                     : "text-on-surface-variant hover:bg-surface-container-high"
                 }`}
               >
-                <span className="material-symbols-outlined text-[16px]">{icon}</span>
-                <span>{tab}</span>
+                <span>{tab.label}</span>
                 <span
                   className={`text-xs px-1.5 py-0.2 rounded-full ${
-                    activeTab === tab
+                    activeTab === tab.key
                       ? "bg-on-primary/20 text-on-primary"
                       : "bg-surface-container text-on-surface"
                   }`}
@@ -118,131 +170,135 @@ export default function OrdersPage() {
           })}
         </div>
 
-        {/* Orders Grid / Table */}
+        {/* Orders Table */}
         <div className="bg-surface-card rounded-xl border border-border-subtle overflow-hidden shadow-xs">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[600px]">
-              <thead className="bg-surface border-b border-border-subtle text-on-surface-variant font-label-md text-label-md">
-                <tr>
-                  <th className="py-stack-sm px-gutter font-semibold">
-                    <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px]">tag</span>
-                      Order
-                    </span>
-                  </th>
-                  <th className="py-stack-sm px-gutter font-semibold">
-                    <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px]">table_restaurant</span>
-                      Table
-                    </span>
-                  </th>
-                  <th className="py-stack-sm px-gutter font-semibold">
-                    <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px]">restaurant_menu</span>
-                      Items
-                    </span>
-                  </th>
-                  <th className="py-stack-sm px-gutter font-semibold text-right">
-                    <span className="flex items-center justify-end gap-1">
-                      <span className="material-symbols-outlined text-[14px]">payments</span>
-                      Total
-                    </span>
-                  </th>
-                  <th className="py-stack-sm px-gutter font-semibold text-right">
-                    <span className="flex items-center justify-end gap-1">
-                      <span className="material-symbols-outlined text-[14px]">info</span>
-                      Status
-                    </span>
-                  </th>
-                  <th className="py-stack-sm px-gutter font-semibold text-right">
-                    <span className="flex items-center justify-end gap-1">
-                      <span className="material-symbols-outlined text-[14px]">touch_app</span>
-                      Action
-                    </span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="font-body-md text-body-md divide-y divide-border-subtle">
-                {filteredOrders.length === 0 ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20 text-on-surface-variant">
+              <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
+              <p className="font-body-md text-body-md">กำลังโหลดข้อมูลออเดอร์จากฐานข้อมูล...</p>
+            </div>
+          ) : filteredOrders.length === 0 ? (
+            <div className="p-16 text-center text-on-surface-variant">
+              <Inbox className="w-10 h-10 mx-auto mb-3 opacity-40" />
+              <h3 className="font-headline-md text-headline-md font-bold text-on-surface mb-1">
+                ยังไม่มีคำสั่งซื้อในสถานะนี้
+              </h3>
+              <p className="font-body-sm text-body-sm">
+                เมื่อลูกค้าสแกนสั่งอาหารจากโต๊ะ รายการจะปรากฏที่นี่แบบเรียลไทม์
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[600px]">
+                <thead className="bg-surface border-b border-border-subtle text-on-surface-variant font-label-md text-label-md">
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-on-surface-variant">
-                      No orders in this category.
-                    </td>
+                    <th className="py-stack-sm px-gutter font-semibold">
+                      <span className="flex items-center gap-1">
+                        <Tag className="w-3.5 h-3.5" />
+                        ออเดอร์
+                      </span>
+                    </th>
+                    <th className="py-stack-sm px-gutter font-semibold">
+                      <span className="flex items-center gap-1">
+                        <Armchair className="w-3.5 h-3.5" />
+                        โต๊ะ
+                      </span>
+                    </th>
+                    <th className="py-stack-sm px-gutter font-semibold">
+                      <span className="flex items-center gap-1">
+                        <UtensilsCrossed className="w-3.5 h-3.5" />
+                        รายการอาหาร
+                      </span>
+                    </th>
+                    <th className="py-stack-sm px-gutter font-semibold">
+                      <span className="flex items-center gap-1">
+                        <Banknote className="w-3.5 h-3.5" />
+                        ยอดรวม
+                      </span>
+                    </th>
+                    <th className="py-stack-sm px-gutter font-semibold">
+                      <span className="flex items-center gap-1">
+                        <Info className="w-3.5 h-3.5" />
+                        สถานะ
+                      </span>
+                    </th>
+                    <th className="py-stack-sm px-gutter font-semibold text-right">
+                      <span className="flex items-center justify-end gap-1">
+                        <MousePointerClick className="w-3.5 h-3.5" />
+                        จัดการ
+                      </span>
+                    </th>
                   </tr>
-                ) : (
-                  filteredOrders.map((order) => (
+                </thead>
+                <tbody className="divide-y divide-border-subtle">
+                  {filteredOrders.map((order) => (
                     <tr
                       key={order.id}
-                      className="hover:bg-surface-container-low transition-colors"
+                      className="hover:bg-surface-bright transition-colors"
                     >
-                      <td className="py-stack-md px-gutter">
-                        <div className="font-bold text-on-surface">{order.id}</div>
-                        <div className="text-on-surface-variant text-xs mt-0.5">
-                          {order.time}
-                        </div>
+                      <td className="py-stack-md px-gutter font-body-md font-bold text-on-surface">
+                        {order.orderNumber}
                       </td>
-                      <td className="py-stack-md px-gutter font-semibold text-primary">
-                        {order.table}
+                      <td className="py-stack-md px-gutter font-body-md text-on-surface">
+                        โต๊ะ {order.tableNumber ? String(order.tableNumber).padStart(2, "0") : "-"}
                       </td>
-                      <td className="py-stack-md px-gutter text-on-surface-variant">
-                        <ul className="text-xs space-y-0.5">
-                          {order.items.map((it, idx) => (
-                            <li key={idx}>{it}</li>
+                      <td className="py-stack-md px-gutter font-body-md text-on-surface">
+                        <ul className="space-y-0.5">
+                          {order.items?.map((item) => (
+                            <li key={item.id} className="text-xs">
+                              <span className="font-semibold text-primary">{item.quantity}x</span> {item.menuName}
+                              {item.specialInstruction && (
+                                <span className="text-on-surface-variant text-[11px] block pl-3">
+                                  - {item.specialInstruction}
+                                </span>
+                              )}
+                            </li>
                           ))}
                         </ul>
                       </td>
-                      <td className="py-stack-md px-gutter font-bold text-on-surface text-right">
-                        {order.total}
+                      <td className="py-stack-md px-gutter font-body-md font-bold text-primary">
+                        ฿{Number(order.totalAmount).toFixed(2)}
+                      </td>
+                      <td className="py-stack-md px-gutter">
+                        {getStatusBadge(order.status)}
                       </td>
                       <td className="py-stack-md px-gutter text-right">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
-                            order.status === "Prep"
-                              ? "bg-surface-container text-on-surface"
-                              : order.status === "Ready"
-                              ? "bg-[#D1FAE5] text-[#065F46]"
-                              : "bg-surface-variant text-on-surface-variant"
-                          }`}
-                        >
-                          {order.status}
-                        </span>
-                      </td>
-                      <td className="py-stack-md px-gutter text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {order.status === "Prep" && (
+                        <div className="flex items-center justify-end gap-1.5">
+                          {order.status === "pending" && (
                             <button
                               type="button"
-                              onClick={() => updateOrderStatus(order.id, "Ready")}
-                              className="px-2.5 py-1 bg-[#D1FAE5] text-[#065F46] hover:bg-[#A7F3D0] rounded text-xs font-semibold transition-colors cursor-pointer"
+                              onClick={() => updateOrderStatus(order.id, "preparing")}
+                              className="px-2.5 py-1 text-xs rounded bg-primary text-on-primary font-semibold hover:bg-primary/90 cursor-pointer"
                             >
-                              Mark Ready
+                              รับออเดอร์
                             </button>
                           )}
-                          {order.status === "Ready" && (
+                          {order.status === "preparing" && (
                             <button
                               type="button"
-                              onClick={() => updateOrderStatus(order.id, "Done")}
-                              className="px-2.5 py-1 bg-surface-variant text-on-surface-variant hover:bg-surface-container-high rounded text-xs font-semibold transition-colors cursor-pointer"
+                              onClick={() => updateOrderStatus(order.id, "served")}
+                              className="px-2.5 py-1 text-xs rounded bg-blue-600 text-white font-semibold hover:bg-blue-700 cursor-pointer"
                             >
-                              Mark Done
+                              เสิร์ฟแล้ว
                             </button>
                           )}
-                          {order.status === "Done" && (
-                            <span className="text-xs text-status-success flex items-center justify-end gap-0.5">
-                              <span className="material-symbols-outlined text-[16px]">
-                                check
-                              </span>
-                              Complete
-                            </span>
+                          {order.status === "served" && (
+                            <button
+                              type="button"
+                              onClick={() => updateOrderStatus(order.id, "completed")}
+                              className="px-2.5 py-1 text-xs rounded bg-emerald-600 text-white font-semibold hover:bg-emerald-700 cursor-pointer"
+                            >
+                              ปิดบิล
+                            </button>
                           )}
                         </div>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
     </div>

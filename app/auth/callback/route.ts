@@ -1,11 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { db } from "@/db";
+import { stores } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  // Default to /dashboard so login immediately proceeds to the next page!
-  const next = searchParams.get("next") ?? "/dashboard";
 
   const errorParam = searchParams.get("error");
   const errorDescription = searchParams.get("error_description");
@@ -18,13 +19,9 @@ export async function GET(request: NextRequest) {
   if (code) {
     const forwardedHost = request.headers.get("x-forwarded-host");
     const isLocalEnv = process.env.NODE_ENV === "development";
-    const redirectUrl = isLocalEnv
-      ? `${origin}${next}`
-      : forwardedHost
-      ? `https://${forwardedHost}${next}`
-      : `${origin}${next}`;
+    const baseHost = isLocalEnv ? origin : forwardedHost ? `https://${forwardedHost}` : origin;
 
-    const response = NextResponse.redirect(redirectUrl);
+    let response = NextResponse.redirect(`${baseHost}/dashboard`);
 
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -44,15 +41,26 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      return response;
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error && data?.user) {
+      // ตรวจสอบว่าผู้ใช้นี้มีร้านค้าแล้วหรือยัง
+      const userStore = await db.query.stores.findFirst({
+        where: eq(stores.ownerId, data.user.id),
+      });
+
+      // ถ้ายังไม่มีร้านค้า ให้ redirect ไปหน้า Onboarding
+      const targetUrl = userStore ? `${baseHost}/dashboard` : `${baseHost}/onboarding`;
+      return NextResponse.redirect(targetUrl, {
+        headers: response.headers,
+      });
     }
 
-    console.error("Supabase exchangeCodeForSession error:", error.message);
-    return NextResponse.redirect(
-      `${origin}/?error=${encodeURIComponent(error.message)}`
-    );
+    if (error) {
+      console.error("Supabase exchangeCodeForSession error:", error.message);
+      return NextResponse.redirect(
+        `${origin}/?error=${encodeURIComponent(error.message)}`
+      );
+    }
   }
 
   // If no code, redirect to error state
