@@ -1,93 +1,214 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import {
+  Search,
+  Plus,
+  UtensilsCrossed,
+  Layers,
+  Tag,
+  Settings2,
+  Trash2,
+  X,
+  Save,
+  Coffee,
+  CupSoda,
+  Croissant,
+  FileQuestion,
+  ImagePlus,
+  FileText,
+  Loader2,
+  Upload,
+  CheckCircle2,
+} from "lucide-react";
+
+interface Category {
+  id: string;
+  name: string;
+  sortOrder: number;
+}
 
 interface MenuItem {
   id: string;
   name: string;
-  category: string;
-  price: number;
-  image: string;
-  description?: string;
+  description: string | null;
+  price: string | number;
+  imageUrl: string | null;
+  isAvailable: boolean;
+  categoryId: string | null;
+  category?: Category | null;
 }
 
-const initialMenuItems: MenuItem[] = [
-  {
-    id: "1",
-    name: "Artisan Latte",
-    category: "Coffee",
-    price: 4.5,
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuAYEqwRAEasF1EuU7r9tyZUSkTmI8WdK8SkBXzzMFEGl1PtPnNlRL8ex3bxpZ86DoeLneYL0BwU1ns2ynN1JP7eyQuLqsbECK5mLYlCIPU2CGZRR-F_s_jjN2kzis_jfgxbTmnNMMpl8OFy3p2EjX6sDI1uS82W4T_p4wBLMSBQvKPeRmyZ90qy_TAwilgEIRS45f68XKeNyUzWkC5ZTXRZiXGO1ToZxKv9oDCM8LAfVJk02Lf4wJTeWQ",
-  },
-  {
-    id: "2",
-    name: "Butter Croissant",
-    category: "Pastries",
-    price: 3.75,
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBIhwy5YUNWUj_XHkxG2FJQyRMV-15sYB-W_zsqnfmDh6bk7khqPt26h4ftd-2UZ712Yx8kAlCfFdZH8KPwupbDXhFlDgLJcXfzzvA5TNRXpg2zDJH9uxc0vAhSEMMtyEgopy4QXwhYJ_CHozHZSRpxB4qwGGlJN24cbISU0O3FfiNI6jQ72_k9vd0qXi-hOQa1QRNmTZeo7SZNYqG_nFMHTxVkwe9PDDVQVM6Zy8e2p1M0k2aql8ZG0A",
-  },
-  {
-    id: "3",
-    name: "Iced Matcha",
-    category: "Tea",
-    price: 5.25,
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBCIFTzcWEWAfD1nGblpBVIzxLR4rFYe_7cIMUf8PnkmuUVwfNofIPX2Go_tnDzJuurvM_h1azSHa4qNOx785JZwVyMJoaM5a07Tjbbe62Re9sWKuZQmpOYlqimyf417R_PT732BmMXMxm7YzNdhG8YFgU_vJIsORBfdRk1yEmM88IK177tyRF-ZxcURShOG4Q0MSaQBa0wOZ-KGkbc5Rgt7q0o7yI8pbjdPvTBeb_-Qz4wHbpFZNfsEg",
-  },
-];
-
 export default function MenuManagementPage() {
-  const [items, setItems] = useState<MenuItem[]>(initialMenuItems);
+  const [items, setItems] = useState<MenuItem[]>([]);
+  const [categoriesList, setCategoriesList] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All Categories");
+  const [selectedCategory, setSelectedCategory] = useState("ทุกหมวดหมู่");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form state
   const [newItemName, setNewItemName] = useState("");
-  const [newItemCategory, setNewItemCategory] = useState("Coffee");
+  const [newItemCategoryId, setNewItemCategoryId] = useState("");
   const [newItemPrice, setNewItemPrice] = useState("");
   const [newItemDesc, setNewItemDesc] = useState("");
   const [newItemImage, setNewItemImage] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch menu and categories from database
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      const [menuRes, catRes] = await Promise.all([
+        fetch("/api/menu"),
+        fetch("/api/categories"),
+      ]);
+
+      const [menuData, catData] = await Promise.all([
+        menuRes.json(),
+        catRes.json(),
+      ]);
+
+      if (menuData.success) setItems(menuData.data || []);
+      if (catData.success) {
+        setCategoriesList(catData.data || []);
+        if (catData.data?.length > 0 && !newItemCategoryId) {
+          setNewItemCategoryId(catData.data[0].id);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load menu data:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const filteredItems = items.filter((item) => {
     const matchesSearch = item.name
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
+    const categoryName = item.category?.name || "ไม่ระบุหมวดหมู่";
     const matchesCategory =
-      selectedCategory === "All Categories" ||
-      item.category.toLowerCase() === selectedCategory.toLowerCase();
+      selectedCategory === "ทุกหมวดหมู่" ||
+      categoryName.toLowerCase() === selectedCategory.toLowerCase();
     return matchesSearch && matchesCategory;
   });
 
-  const handleDelete = (id: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploadingImage(true);
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const json = await res.json();
+      if (json.success && json.url) {
+        setNewItemImage(json.url);
+      } else {
+        alert(json.error || "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ");
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
+      alert("ไม่สามารถอัปโหลดรูปภาพได้");
+    } finally {
+      setIsUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
-  const handleAddItem = (e: React.FormEvent) => {
+  const handleDelete = async (id: string) => {
+    if (!confirm("คุณต้องการลบเมนูนี้ใช่หรือไม่?")) return;
+    try {
+      const res = await fetch(`/api/menu/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setItems((prev) => prev.filter((item) => item.id !== id));
+      }
+    } catch (err) {
+      console.error("Failed to delete menu item:", err);
+    }
+  };
+
+  const handleToggleAvailability = async (id: string, currentStatus: boolean) => {
+    try {
+      const res = await fetch(`/api/menu/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isAvailable: !currentStatus }),
+      });
+      if (res.ok) {
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === id ? { ...item, isAvailable: !currentStatus } : item
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Failed to toggle availability:", err);
+    }
+  };
+
+  const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newItemName || !newItemPrice) return;
 
-    const newItem: MenuItem = {
-      id: Date.now().toString(),
-      name: newItemName,
-      category: newItemCategory,
-      price: parseFloat(newItemPrice) || 0,
-      description: newItemDesc,
-      image:
-        newItemImage ||
-        "https://lh3.googleusercontent.com/aida-public/AB6AXuAYEqwRAEasF1EuU7r9tyZUSkTmI8WdK8SkBXzzMFEGl1PtPnNlRL8ex3bxpZ86DoeLneYL0BwU1ns2ynN1JP7eyQuLqsbECK5mLYlCIPU2CGZRR-F_s_jjN2kzis_jfgxbTmnNMMpl8OFy3p2EjX6sDI1uS82W4T_p4wBLMSBQvKPeRmyZ90qy_TAwilgEIRS45f68XKeNyUzWkC5ZTXRZiXGO1ToZxKv9oDCM8LAfVJk02Lf4wJTeWQ",
-    };
+    try {
+      setIsSubmitting(true);
+      const res = await fetch("/api/menu", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newItemName,
+          price: parseFloat(newItemPrice),
+          description: newItemDesc,
+          categoryId: newItemCategoryId || null,
+          imageUrl: newItemImage,
+          isAvailable: true,
+        }),
+      });
 
-    setItems((prev) => [newItem, ...prev]);
-    // reset form
-    setNewItemName("");
-    setNewItemPrice("");
-    setNewItemDesc("");
-    setNewItemImage(null);
-    setIsModalOpen(false);
+      const result = await res.json();
+      if (result.success) {
+        await fetchData(); // refresh list from db
+        // reset form
+        setNewItemName("");
+        setNewItemPrice("");
+        setNewItemDesc("");
+        setNewItemImage(null);
+        setIsModalOpen(false);
+      }
+    } catch (err) {
+      console.error("Failed to create menu item:", err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const getCategoryIcon = (categoryName?: string | null) => {
+    if (!categoryName) return <UtensilsCrossed className="w-3.5 h-3.5" />;
+    if (categoryName.includes("กาแฟ") || categoryName.includes("Coffee")) {
+      return <Coffee className="w-3.5 h-3.5" />;
+    }
+    if (categoryName.includes("ชา") || categoryName.includes("Tea")) {
+      return <CupSoda className="w-3.5 h-3.5" />;
+    }
+    if (categoryName.includes("เบเกอรี่") || categoryName.includes("ขนม")) {
+      return <Croissant className="w-3.5 h-3.5" />;
+    }
+    return <UtensilsCrossed className="w-3.5 h-3.5" />;
   };
 
   return (
@@ -96,12 +217,10 @@ export default function MenuManagementPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-stack-lg gap-stack-md">
         <div className="flex flex-wrap gap-stack-sm w-full sm:w-auto">
           <div className="relative flex-1 sm:w-64">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">
-              search
-            </span>
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant w-4 h-4" />
             <input
               className="h-9 pl-9 pr-4 w-full rounded-lg border border-border-subtle bg-surface-card text-body-md font-body-md focus:border-secondary focus:ring-2 focus:ring-secondary/20 transition-shadow outline-none text-on-surface"
-              placeholder="Search menu items..."
+              placeholder="ค้นหาเมนูอาหาร/เครื่องดื่ม..."
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -112,282 +231,320 @@ export default function MenuManagementPage() {
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
           >
-            <option>All Categories</option>
-            <option>Coffee</option>
-            <option>Tea</option>
-            <option>Pastries</option>
-            <option>Food</option>
+            <option>ทุกหมวดหมู่</option>
+            {categoriesList.map((cat) => (
+              <option key={cat.id} value={cat.name}>
+                {cat.name}
+              </option>
+            ))}
           </select>
         </div>
-
         <button
+          type="button"
           onClick={() => setIsModalOpen(true)}
-          className="bg-primary-container hover:bg-primary text-on-primary font-label-md text-label-md px-stack-md h-9 rounded-lg flex items-center gap-unit transition-colors shadow-xs cursor-pointer whitespace-nowrap"
+          className="h-9 px-stack-md bg-primary text-on-primary font-label-md text-label-md rounded-lg flex items-center gap-1.5 shadow-xs hover:bg-primary-container transition-colors cursor-pointer shrink-0"
         >
-          <span className="material-symbols-outlined text-[18px]">add</span>
-          Add New Item
+          <Plus className="w-4 h-4" />
+          <span>เพิ่มเมนูใหม่</span>
         </button>
       </div>
 
-      {/* Data Table Card */}
-      <div className="bg-surface-card rounded-xl border border-border-subtle overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[540px]">
-            <thead>
-              <tr className="bg-surface border-b border-border-subtle text-on-surface-variant font-label-md text-label-md">
-                <th className="py-stack-sm px-gutter font-semibold w-16">
-                  <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[14px]">photo_camera</span>
-                    Photo
-                  </span>
-                </th>
-                <th className="py-stack-sm px-gutter font-semibold">
-                  <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[14px]">restaurant_menu</span>
-                    Name
-                  </span>
-                </th>
-                <th className="py-stack-sm px-gutter font-semibold">
-                  <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[14px]">category</span>
-                    Category
-                  </span>
-                </th>
-                <th className="py-stack-sm px-gutter font-semibold">
-                  <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[14px]">sell</span>
-                    Price
-                  </span>
-                </th>
-                <th className="py-stack-sm px-gutter font-semibold text-right">
-                  <span className="flex items-center justify-end gap-1">
-                    <span className="material-symbols-outlined text-[14px]">settings</span>
-                    Actions
-                  </span>
-                </th>
-              </tr>
-            </thead>
-            <tbody className="font-body-md text-body-md divide-y divide-border-subtle">
-              {filteredItems.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-12 text-center text-on-surface-variant">
-                    <span className="material-symbols-outlined text-4xl mb-2 text-on-surface-variant/40 block">
-                      search_off
-                    </span>
-                    No menu items found.
-                  </td>
-                </tr>
-              ) : (
-                filteredItems.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="hover:bg-surface-container-low transition-colors group"
-                  >
-                    <td className="py-3 px-gutter">
-                      <img
-                        className="w-10 h-10 rounded-lg object-cover border border-border-subtle shadow-2xs"
-                        alt={item.name}
-                        src={item.image}
-                      />
-                    </td>
-                    <td className="py-3 px-gutter font-semibold text-on-background">
-                      {item.name}
-                    </td>
-                    <td className="py-3 px-gutter text-on-surface-variant">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs bg-surface-container text-on-surface">
-                        <span className="material-symbols-outlined text-[13px]">
-                          {item.category === "Coffee"
-                            ? "local_cafe"
-                            : item.category === "Tea"
-                            ? "emoji_food_beverage"
-                            : item.category === "Pastries"
-                            ? "bakery_dining"
-                            : "restaurant"}
-                        </span>
-                        {item.category}
-                      </span>
-                    </td>
-                    <td className="py-3 px-gutter font-bold text-on-background">
-                      ${item.price.toFixed(2)}
-                    </td>
-                    <td className="py-3 px-gutter text-right">
-                      <div className="flex items-center justify-end gap-2 opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                        <button
-                          type="button"
-                          className="text-on-surface-variant hover:text-primary p-1 rounded-md hover:bg-surface-variant transition-colors cursor-pointer"
-                          title="Edit"
-                        >
-                          <span className="material-symbols-outlined text-[20px]">edit</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(item.id)}
-                          className="text-on-surface-variant hover:text-error p-1 rounded-md hover:bg-error-container transition-colors cursor-pointer"
-                          title="Delete"
-                        >
-                          <span className="material-symbols-outlined text-[20px]">delete</span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      {/* Loading state */}
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-20 text-on-surface-variant">
+          <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
+          <p className="font-body-md text-body-md">กำลังโหลดข้อมูลเมนูจากฐานข้อมูล...</p>
         </div>
-      </div>
+      ) : filteredItems.length === 0 ? (
+        /* Empty State */
+        <div className="bg-surface-card border border-border-subtle rounded-xl p-12 text-center max-w-md mx-auto my-12 shadow-xs">
+          <div className="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center mx-auto mb-4 text-on-surface-variant">
+            <UtensilsCrossed className="w-6 h-6" />
+          </div>
+          <h3 className="font-headline-md text-headline-md font-bold text-on-surface mb-2">
+            ยังไม่มีรายการเมนู
+          </h3>
+          <p className="font-body-sm text-body-sm text-on-surface-variant mb-6">
+            เริ่มต้นเพิ่มรายการอาหาร เครื่องดื่ม หรือของหวานลงในระบบของคุณ
+          </p>
+          <button
+            type="button"
+            onClick={() => setIsModalOpen(true)}
+            className="h-9 px-stack-md bg-primary text-on-primary font-label-md text-label-md rounded-lg inline-flex items-center gap-1.5 shadow-xs hover:bg-primary-container transition-colors cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            เพิ่มเมนูแรก
+          </button>
+        </div>
+      ) : (
+        /* Menu Grid */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-gutter">
+          {filteredItems.map((item) => (
+            <div
+              key={item.id}
+              className={`bg-surface-card rounded-xl border border-border-subtle overflow-hidden flex flex-col shadow-xs hover:shadow-md transition-shadow group ${
+                !item.isAvailable ? "opacity-70 bg-surface-container-lowest" : ""
+              }`}
+            >
+              {/* Menu Item Image */}
+              <div className="aspect-[4/3] w-full bg-surface-container-high relative overflow-hidden flex items-center justify-center">
+                {item.imageUrl ? (
+                  <img
+                    alt={item.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    src={item.imageUrl}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-on-surface-variant/40 gap-1">
+                    {getCategoryIcon(item.category?.name)}
+                    <span className="text-xs">ไม่มีรูปภาพ</span>
+                  </div>
+                )}
+                <div className="absolute top-2 left-2 flex gap-1">
+                  <span className="bg-surface-card/90 backdrop-blur-xs text-on-surface font-label-md text-xs px-2 py-0.5 rounded shadow-xs flex items-center gap-1">
+                    {getCategoryIcon(item.category?.name)}
+                    {item.category?.name || "ทั่วไป"}
+                  </span>
+                </div>
+                {!item.isAvailable && (
+                  <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center">
+                    <span className="bg-error text-on-error font-label-md text-xs px-2.5 py-1 rounded shadow-md font-bold">
+                      หมดชั่วคราว
+                    </span>
+                  </div>
+                )}
+              </div>
 
-      {/* Modal Backdrop & Form */}
+              {/* Menu Item Content */}
+              <div className="p-stack-md flex-1 flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start gap-2 mb-1">
+                    <h3 className="font-headline-md text-headline-md font-bold text-on-surface leading-tight">
+                      {item.name}
+                    </h3>
+                    <span className="font-headline-md text-headline-md font-bold text-primary shrink-0">
+                      ฿{Number(item.price).toFixed(2)}
+                    </span>
+                  </div>
+                  <p className="font-body-sm text-body-sm text-on-surface-variant line-clamp-2 mb-stack-md">
+                    {item.description || "ไม่มีรายละเอียดเพิ่มเติม"}
+                  </p>
+                </div>
+
+                {/* Actions bottom bar */}
+                <div className="pt-stack-sm border-t border-border-subtle flex items-center justify-between mt-auto">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleAvailability(item.id, item.isAvailable)}
+                    className={`font-label-md text-xs px-2.5 py-1 rounded border transition-colors cursor-pointer flex items-center gap-1 ${
+                      item.isAvailable
+                        ? "border-status-success/30 bg-status-success/10 text-status-success hover:bg-status-success/20"
+                        : "border-border-subtle bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        item.isAvailable ? "bg-status-success" : "bg-on-surface-variant"
+                      }`}
+                    />
+                    <span>{item.isAvailable ? "พร้อมจำหน่าย" : "สินค้าหมด"}</span>
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(item.id)}
+                      className="p-1.5 text-on-surface-variant hover:text-error hover:bg-error-container/20 rounded transition-colors cursor-pointer"
+                      title="ลบเมนู"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add Item Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-on-background/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-surface-card rounded-xl shadow-lg w-full max-w-md border border-border-subtle overflow-hidden flex flex-col max-h-[90vh] animate-fadeIn">
-            {/* Modal Header */}
-            <div className="px-gutter py-stack-md border-b border-border-subtle flex justify-between items-center bg-surface">
+        <div className="fixed inset-0 bg-on-background/40 backdrop-blur-xs z-50 flex items-center justify-center p-gutter">
+          <div className="bg-surface-card border border-border-subtle rounded-xl max-w-lg w-full overflow-hidden shadow-xl animate-scaleUp">
+            <div className="p-stack-md border-b border-border-subtle flex justify-between items-center bg-surface-bright">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-[22px]">
-                  add_circle
-                </span>
-                <h3 className="font-headline-md text-headline-md font-semibold text-on-background">
-                  Add New Item
+                <UtensilsCrossed className="w-5 h-5 text-primary" />
+                <h3 className="font-headline-md text-headline-md font-bold text-on-surface">
+                  เพิ่มเมนูอาหารใหม่
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="text-on-surface-variant hover:text-on-background transition-colors p-1 rounded-md"
+                className="text-on-surface-variant hover:text-on-surface p-1 rounded cursor-pointer"
               >
-                <span className="material-symbols-outlined">close</span>
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Modal Body */}
-            <form onSubmit={handleAddItem} className="flex flex-col flex-1 overflow-hidden">
-              <div className="p-gutter overflow-y-auto font-body-md text-body-md flex flex-col gap-stack-md">
-                {/* Photo Upload Area */}
-                <div>
-                  <label className="flex items-center gap-1 font-label-md text-label-md text-on-surface-variant mb-unit">
-                    <span className="material-symbols-outlined text-[16px]">photo_camera</span>
-                    Item Photo
-                  </label>
-                  <label className="border-2 border-dashed border-border-subtle rounded-lg h-32 flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-low hover:border-secondary cursor-pointer transition-all overflow-hidden relative">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setNewItemImage(URL.createObjectURL(file));
-                        }
-                      }}
-                    />
-                    {newItemImage ? (
+            <form onSubmit={handleAddItem} className="p-stack-md space-y-stack-md">
+              {/* Photo Upload Section */}
+              <div>
+                <label className="flex items-center gap-1 font-label-md text-label-md text-on-surface mb-unit">
+                  <ImagePlus className="w-3.5 h-3.5 text-on-surface-variant" />
+                  รูปภาพเมนู
+                </label>
+
+                <div className="flex items-center gap-stack-md">
+                  {newItemImage ? (
+                    <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-border-subtle bg-surface-container shrink-0">
                       <img
                         src={newItemImage}
                         alt="Preview"
                         className="w-full h-full object-cover"
                       />
-                    ) : (
-                      <>
-                        <span className="material-symbols-outlined mb-1 text-[28px]">
-                          add_photo_alternate
-                        </span>
-                        <span className="font-label-md text-label-md">
-                          Click to upload image
-                        </span>
-                      </>
-                    )}
-                  </label>
-                </div>
+                      <button
+                        type="button"
+                        onClick={() => setNewItemImage(null)}
+                        className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 hover:bg-black/80"
+                        title="ลบรูป"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-20 h-20 rounded-lg border-2 border-dashed border-border-subtle flex flex-col items-center justify-center text-on-surface-variant bg-surface hover:bg-surface-container-low cursor-pointer transition-colors shrink-0"
+                    >
+                      {isUploadingImage ? (
+                        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                      ) : (
+                        <>
+                          <Upload className="w-5 h-5 mb-0.5" />
+                          <span className="text-[10px]">เลือกรูป</span>
+                        </>
+                      )}
+                    </div>
+                  )}
 
-                {/* Input: Name */}
+                  <div className="flex-1">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleImageFileChange}
+                    />
+                    <button
+                      type="button"
+                      disabled={isUploadingImage}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-1.5 text-xs font-medium border border-border-subtle rounded-lg bg-surface hover:bg-surface-container-low text-on-surface transition-colors cursor-pointer flex items-center gap-1.5"
+                    >
+                      {isUploadingImage ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                          <span>กำลังอัปโหลดเข้า Supabase...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>อัปโหลดรูปภาพจากอุปกรณ์</span>
+                        </>
+                      )}
+                    </button>
+                    <p className="text-[11px] text-on-surface-variant mt-1">
+                      รองรับไฟล์ JPG, PNG, WEBP บันทึกลง Storage <span className="font-semibold text-primary">menu-photos</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="flex items-center gap-1 font-label-md text-label-md text-on-surface mb-unit">
+                  <Tag className="w-3.5 h-3.5 text-on-surface-variant" />
+                  ชื่อเมนู
+                </label>
+                <input
+                  required
+                  className="w-full h-9 px-3 rounded-lg border border-border-subtle bg-surface text-body-md font-body-md focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-shadow text-on-surface"
+                  placeholder="เช่น มัทฉะลาเต้เย็น"
+                  type="text"
+                  value={newItemName}
+                  onChange={(e) => setNewItemName(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-stack-sm">
                 <div>
-                  <label className="flex items-center gap-1 font-label-md text-label-md text-on-surface-variant mb-unit">
-                    <span className="material-symbols-outlined text-[16px]">restaurant_menu</span>
-                    Item Name
+                  <label className="flex items-center gap-1 font-label-md text-label-md text-on-surface mb-unit">
+                    <Layers className="w-3.5 h-3.5 text-on-surface-variant" />
+                    หมวดหมู่
+                  </label>
+                  <select
+                    className="w-full h-9 px-3 rounded-lg border border-border-subtle bg-surface text-body-md font-body-md focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-shadow text-on-surface cursor-pointer"
+                    value={newItemCategoryId}
+                    onChange={(e) => setNewItemCategoryId(e.target.value)}
+                  >
+                    {categoriesList.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="flex items-center gap-1 font-label-md text-label-md text-on-surface mb-unit">
+                    <span className="font-bold text-xs text-on-surface-variant">฿</span>
+                    ราคา (บาท)
                   </label>
                   <input
-                    className="w-full h-9 px-3 rounded-lg border border-border-subtle bg-surface focus:border-secondary focus:ring-2 focus:ring-secondary/20 transition-shadow outline-none text-on-background"
-                    placeholder="e.g. Avocado Toast"
-                    type="text"
                     required
-                    value={newItemName}
-                    onChange={(e) => setNewItemName(e.target.value)}
-                  />
-                </div>
-
-                {/* Input: Category & Price Row */}
-                <div className="flex gap-stack-md">
-                  <div className="flex-1">
-                    <label className="flex items-center gap-1 font-label-md text-label-md text-on-surface-variant mb-unit">
-                      <span className="material-symbols-outlined text-[16px]">category</span>
-                      Category
-                    </label>
-                    <select
-                      className="w-full h-9 px-3 rounded-lg border border-border-subtle bg-surface focus:border-secondary focus:ring-2 focus:ring-secondary/20 transition-shadow outline-none text-on-background cursor-pointer"
-                      value={newItemCategory}
-                      onChange={(e) => setNewItemCategory(e.target.value)}
-                    >
-                      <option value="Coffee">Coffee</option>
-                      <option value="Tea">Tea</option>
-                      <option value="Pastries">Pastries</option>
-                      <option value="Food">Food</option>
-                    </select>
-                  </div>
-                  <div className="flex-1">
-                    <label className="flex items-center gap-1 font-label-md text-label-md text-on-surface-variant mb-unit">
-                      <span className="material-symbols-outlined text-[16px]">sell</span>
-                      Price
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant font-bold">
-                        $
-                      </span>
-                      <input
-                        className="w-full h-9 pl-7 pr-3 rounded-lg border border-border-subtle bg-surface focus:border-secondary focus:ring-2 focus:ring-secondary/20 transition-shadow outline-none text-on-background"
-                        placeholder="0.00"
-                        step="0.01"
-                        type="number"
-                        required
-                        value={newItemPrice}
-                        onChange={(e) => setNewItemPrice(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Input: Description */}
-                <div>
-                  <label className="flex items-center gap-1 font-label-md text-label-md text-on-surface-variant mb-unit">
-                    <span className="material-symbols-outlined text-[16px]">notes</span>
-                    Description
-                  </label>
-                  <textarea
-                    className="w-full p-3 rounded-lg border border-border-subtle bg-surface focus:border-secondary focus:ring-2 focus:ring-secondary/20 transition-shadow outline-none text-on-background resize-none"
-                    placeholder="Brief description of the item..."
-                    rows={3}
-                    value={newItemDesc}
-                    onChange={(e) => setNewItemDesc(e.target.value)}
+                    className="w-full h-9 px-3 rounded-lg border border-border-subtle bg-surface text-body-md font-body-md focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-shadow text-on-surface"
+                    placeholder="เช่น 85.00"
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={newItemPrice}
+                    onChange={(e) => setNewItemPrice(e.target.value)}
                   />
                 </div>
               </div>
 
-              {/* Modal Footer */}
-              <div className="px-gutter py-stack-md border-t border-border-subtle bg-surface flex justify-end gap-stack-sm">
+              <div>
+                <label className="flex items-center gap-1 font-label-md text-label-md text-on-surface mb-unit">
+                  <FileText className="w-3.5 h-3.5 text-on-surface-variant" />
+                  คำอธิบายเมนู
+                </label>
+                <textarea
+                  rows={2}
+                  className="w-full p-2.5 rounded-lg border border-border-subtle bg-surface text-body-md font-body-md focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-shadow text-on-surface resize-none"
+                  placeholder="รายละเอียด ส่วนผสม หรือรสชาติ..."
+                  value={newItemDesc}
+                  onChange={(e) => setNewItemDesc(e.target.value)}
+                />
+              </div>
+
+              <div className="flex justify-end gap-stack-sm pt-stack-sm border-t border-border-subtle">
                 <button
                   type="button"
-                  className="px-stack-md h-9 rounded-lg border border-border-subtle bg-surface-card text-on-background font-label-md text-label-md hover:bg-surface-container-low transition-colors cursor-pointer flex items-center gap-1"
                   onClick={() => setIsModalOpen(false)}
+                  className="px-stack-md h-9 rounded-lg border border-border-subtle bg-surface text-on-surface font-label-md text-label-md hover:bg-surface-container-high transition-colors cursor-pointer"
                 >
-                  <span className="material-symbols-outlined text-[16px]">close</span>
-                  Cancel
+                  ยกเลิก
                 </button>
                 <button
                   type="submit"
-                  className="px-stack-md h-9 rounded-lg bg-primary-container text-on-primary font-label-md text-label-md hover:bg-primary transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+                  disabled={isSubmitting || isUploadingImage}
+                  className="px-stack-md h-9 rounded-lg bg-primary text-on-primary font-label-md text-label-md hover:bg-primary-container transition-colors shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-60"
                 >
-                  <span className="material-symbols-outlined text-[16px]">check</span>
-                  Save Item
+                  {isSubmitting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  {isSubmitting ? "กำลังบันทึก..." : "บันทึกเมนู"}
                 </button>
               </div>
             </form>

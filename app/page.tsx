@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import LoginOnboarding from "./components/LoginOnboarding";
+import { db } from "@/db";
+import { stores } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 interface PageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -37,9 +40,18 @@ export default async function HomePage({ searchParams }: PageProps) {
     }
   }
 
-  // If user is already logged in, redirect directly to dashboard
+  // หากผู้ใช้ล็อกอินแล้ว ตรวจสอบว่ามีร้านค้าหรือยัง
   if (loggedInUser) {
-    redirect("/dashboard");
+    const userStore = await db.query.stores.findFirst({
+      where: eq(stores.ownerId, loggedInUser.id),
+    });
+
+    if (userStore) {
+      redirect("/dashboard");
+    } else {
+      // ผู้ใช้ใหม่ยังไม่มีร้านค้า ให้ส่งไปหน้า Onboarding ตั้งชื่อร้าน
+      redirect("/onboarding");
+    }
   }
 
   return (
