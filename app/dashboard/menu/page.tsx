@@ -21,15 +21,18 @@ import {
   Loader2,
   Upload,
   CheckCircle2,
+  Pencil,
 } from "lucide-react";
+import EditMenuItemModal from "./EditMenuItemModal";
+import { deleteMenuItem } from "@/app/actions/menu";
 
-interface Category {
+export interface Category {
   id: string;
   name: string;
   sortOrder: number;
 }
 
-interface MenuItem {
+export interface MenuItem {
   id: string;
   name: string;
   description: string | null;
@@ -48,6 +51,8 @@ export default function MenuManagementPage() {
   const [selectedCategory, setSelectedCategory] = useState("ทุกหมวดหมู่");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Form state
   const [newItemName, setNewItemName] = useState("");
@@ -133,13 +138,39 @@ export default function MenuManagementPage() {
   const handleDelete = async (id: string) => {
     if (!confirm("คุณต้องการลบเมนูนี้ใช่หรือไม่?")) return;
     try {
-      const res = await fetch(`/api/menu/${id}`, { method: "DELETE" });
-      if (res.ok) {
+      setDeletingId(id);
+      const res = await deleteMenuItem(id);
+      if (res.success) {
         setItems((prev) => prev.filter((item) => item.id !== id));
+      } else {
+        alert(res.error || "ไม่สามารถลบรายการได้");
       }
     } catch (err) {
       console.error("Failed to delete menu item:", err);
+      alert("เกิดข้อผิดพลาดในการลบเมนู");
+    } finally {
+      setDeletingId(null);
     }
+  };
+
+  const handleEditSuccess = (updatedItem: MenuItem) => {
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.id === updatedItem.id) {
+          const matchedCategory = categoriesList.find(
+            (c) => c.id === updatedItem.categoryId
+          );
+          return {
+            ...item,
+            ...updatedItem,
+            category: matchedCategory || item.category,
+          };
+        }
+        return item;
+      })
+    );
+    // Refresh list from database to ensure fresh state
+    fetchData();
   };
 
   const handleToggleAvailability = async (id: string, currentStatus: boolean) => {
@@ -353,11 +384,24 @@ export default function MenuManagementPage() {
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
+                      onClick={() => setEditingItem(item)}
+                      className="p-1.5 text-on-surface-variant hover:text-primary hover:bg-primary-container/20 rounded transition-colors cursor-pointer"
+                      title="แก้ไขเมนู"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={deletingId === item.id}
                       onClick={() => handleDelete(item.id)}
-                      className="p-1.5 text-on-surface-variant hover:text-error hover:bg-error-container/20 rounded transition-colors cursor-pointer"
+                      className="p-1.5 text-on-surface-variant hover:text-error hover:bg-error-container/20 rounded transition-colors cursor-pointer disabled:opacity-50"
                       title="ลบเมนู"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      {deletingId === item.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-error" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
                     </button>
                   </div>
                 </div>
@@ -551,6 +595,15 @@ export default function MenuManagementPage() {
           </div>
         </div>
       )}
+
+      {/* Edit Item Modal */}
+      <EditMenuItemModal
+        isOpen={!!editingItem}
+        item={editingItem}
+        categories={categoriesList}
+        onClose={() => setEditingItem(null)}
+        onSuccess={handleEditSuccess}
+      />
     </div>
   );
 }
