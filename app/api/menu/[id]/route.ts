@@ -69,7 +69,14 @@ export async function DELETE(req: Request, { params }: RouteParams) {
 
     const result = await deleteMenuItem(id);
     if (!result.success) {
-      const status = result.error === "Menu item not found" ? 404 : 500;
+      let status = 500;
+      if (result.error?.includes("not found") || result.error?.includes("ไม่พบ")) {
+        status = 404;
+      } else if (result.error?.includes("Unauthorized") || result.error?.includes("เข้าสู่ระบบ")) {
+        status = 401;
+      } else if (result.error?.includes("Forbidden") || result.error?.includes("สิทธิ์")) {
+        status = 403;
+      }
       return NextResponse.json(
         { success: false, error: result.error || "Failed to delete menu item" },
         { status }
