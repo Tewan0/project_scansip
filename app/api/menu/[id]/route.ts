@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { menuItems } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { deleteMenuItem } from "@/app/actions/menu";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -66,13 +67,13 @@ export async function DELETE(req: Request, { params }: RouteParams) {
   try {
     const { id } = await params;
 
-    const [deletedItem] = await db
-      .delete(menuItems)
-      .where(eq(menuItems.id, id))
-      .returning();
-
-    if (!deletedItem) {
-      return NextResponse.json({ success: false, error: "Menu item not found" }, { status: 404 });
+    const result = await deleteMenuItem(id);
+    if (!result.success) {
+      const status = result.error === "Menu item not found" ? 404 : 500;
+      return NextResponse.json(
+        { success: false, error: result.error || "Failed to delete menu item" },
+        { status }
+      );
     }
 
     return NextResponse.json({ success: true, message: "Menu item deleted successfully" });
