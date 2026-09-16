@@ -84,6 +84,9 @@ export default function DashboardLayout({
     if (item.href === "/dashboard") {
       return pathname === "/dashboard";
     }
+    if (item.href === "/dashboard/qr-code" && pathname.startsWith("/owner/tables")) {
+      return true;
+    }
     return pathname.startsWith(item.href);
   });
   const pageTitle = currentItem ? currentItem.name : "แดชบอร์ด";
@@ -133,7 +136,8 @@ export default function DashboardLayout({
             const isActive =
               item.href === "/dashboard"
                 ? pathname === "/dashboard"
-                : pathname.startsWith(item.href);
+                : pathname.startsWith(item.href) ||
+                  (item.href === "/dashboard/qr-code" && pathname.startsWith("/owner/tables"));
             const IconComponent = item.icon;
 
             return (
