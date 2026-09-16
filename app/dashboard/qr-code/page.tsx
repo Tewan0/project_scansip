@@ -17,7 +17,6 @@ import {
   ChevronRight,
   Coffee,
   Download,
-  Printer,
 } from "lucide-react";
 
 export default function QrCodeGeneratorPage() {
@@ -33,10 +32,6 @@ export default function QrCodeGeneratorPage() {
 
   const handleNextTable = () => {
     setCurrentTable((prev) => (prev < tableCount ? prev + 1 : 1));
-  };
-
-  const handlePrint = () => {
-    window.print();
   };
 
   const handleGenerate = () => {
@@ -134,12 +129,19 @@ export default function QrCodeGeneratorPage() {
                     <option>สีเอกลักษณ์แบรนด์</option>
                     <option>ดาร์กมินิมอล</option>
                     <option>ขาวดำคอนทราสต์สูง</option>
+                    <option>เขียวธรรมชาติ</option>
+                    <option>อิฐอบอุ่น</option>
+                    <option>น้ำเงินโมเดิร์น</option>
+                    <option>ชมพูพาสเทล</option>
+                    <option>เหลืองซันไชน์</option>
+                    <option>เทาโมโนโครม</option>
+                    <option>มิ้นต์สดชื่น</option>
                   </select>
                   <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
                 </div>
               </div>
 
-              <button
+              {/* <button
                 type="button"
                 onClick={handleGenerate}
                 disabled={isGenerating}
@@ -147,7 +149,7 @@ export default function QrCodeGeneratorPage() {
               >
                 <Sparkles className="w-4 h-4" />
                 {isGenerating ? "กำลังสร้างโค้ด..." : "สร้างคิวอาร์โค้ด"}
-              </button>
+              </button> */}
             </div>
           </div>
 
@@ -238,6 +240,22 @@ export default function QrCodeGeneratorPage() {
                     ? "bg-inverse-surface border-inverse-surface text-inverse-on-surface"
                     : preset === "ขาวดำคอนทราสต์สูง"
                     ? "bg-white border-black text-black"
+                    : preset === "เขียวธรรมชาติ"
+                    ? "bg-[#f1f7ed] border-[#8aa678] text-[#29422a]"
+                    : preset === "อิฐอบอุ่น"
+                    ? "bg-[#fff3e8] border-[#d9845b] text-[#5c2d1f]"
+                    : preset === "น้ำเงินโมเดิร์น"
+                    ? "bg-[#edf5f9] border-[#77a9c2] text-[#173c52]"
+                    : preset === "ชมพูพาสเทล"
+                    ? "bg-[#fff0f3] border-[#e5a3b2] text-[#5c2d3a]"
+                    : preset === "เหลืองซันไชน์"
+                    ? "bg-[#fff9df] border-[#e5c65c] text-[#594a18]"
+                    : preset === "เทาโมโนโครม"
+                    ? "bg-[#f1f2f3] border-[#9da3a8] text-[#30363b]"
+                    : preset === "มิ้นต์สดชื่น"
+                    ? "bg-[#eaf8f3] border-[#83c9b0] text-[#1d5142]"
+                    : preset === "สีเอกลักษณ์แบรนด์"
+                    ? "bg-[#fff7ef] border-[#c88b62] text-[#3c220e]"
                     : "bg-surface-card border-border-subtle text-on-background"
                 }`}
               >
@@ -245,24 +263,82 @@ export default function QrCodeGeneratorPage() {
                   <div className="flex items-center justify-center gap-1.5 mb-unit">
                     <Coffee
                       className={`w-6 h-6 ${
-                        preset === "ดาร์กมินิมอล" ? "text-inverse-primary" : "text-primary"
+                        preset === "ดาร์กมินิมอล"
+                          ? "text-inverse-primary"
+                          : preset === "เขียวธรรมชาติ"
+                          ? "text-[#4f7d4b]"
+                          : preset === "อิฐอบอุ่น"
+                          ? "text-[#b85c3c]"
+                          : preset === "น้ำเงินโมเดิร์น"
+                          ? "text-[#31718f]"
+                          : preset === "ชมพูพาสเทล"
+                          ? "text-[#c45c78]"
+                          : preset === "เหลืองซันไชน์"
+                          ? "text-[#b08a1c]"
+                          : preset === "เทาโมโนโครม"
+                          ? "text-[#59636b]"
+                          : preset === "มิ้นต์สดชื่น"
+                          ? "text-[#348c72]"
+                          : preset === "สีเอกลักษณ์แบรนด์"
+                          ? "text-[#9b5a32]"
+                          : "text-primary"
                       }`}
                     />
                     <span
                       className={`font-headline-md text-headline-md font-bold tracking-tight ${
-                        preset === "ดาร์กมินิมอล" ? "text-inverse-primary" : "text-primary"
+                        preset === "ดาร์กมินิมอล"
+                          ? "text-inverse-primary"
+                          : preset === "เขียวธรรมชาติ"
+                          ? "text-[#4f7d4b]"
+                          : preset === "อิฐอบอุ่น"
+                          ? "text-[#b85c3c]"
+                          : preset === "น้ำเงินโมเดิร์น"
+                          ? "text-[#31718f]"
+                          : preset === "ชมพูพาสเทล"
+                          ? "text-[#c45c78]"
+                          : preset === "เหลืองซันไชน์"
+                          ? "text-[#b08a1c]"
+                          : preset === "เทาโมโนโครม"
+                          ? "text-[#59636b]"
+                          : preset === "มิ้นต์สดชื่น"
+                          ? "text-[#348c72]"
+                          : preset === "สีเอกลักษณ์แบรนด์"
+                          ? "text-[#9b5a32]"
+                          : "text-primary"
                       }`}
                     >
                       ScanSip
                     </span>
                   </div>
                   <div className="h-[1px] w-12 bg-border-subtle mx-auto mb-stack-md"></div>
-                  <p className="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">
+                  <p
+                    className={`font-label-md text-label-md uppercase tracking-widest ${
+                      preset === "ดาร์กมินิมอล" ? "text-inverse-on-surface" : "text-on-surface-variant"
+                    }`}
+                  >
                     โต๊ะ
                   </p>
                   <p
                     className={`font-headline-xl text-headline-xl font-bold mt-unit ${
-                      preset === "ดาร์กมินิมอล" ? "text-white" : "text-primary"
+                      preset === "ดาร์กมินิมอล"
+                        ? "text-white"
+                        : preset === "เขียวธรรมชาติ"
+                        ? "text-[#3f6b3f]"
+                        : preset === "อิฐอบอุ่น"
+                        ? "text-[#a94f35]"
+                        : preset === "น้ำเงินโมเดิร์น"
+                        ? "text-[#245e7b]"
+                        : preset === "ชมพูพาสเทล"
+                        ? "text-[#aa4965]"
+                        : preset === "เหลืองซันไชน์"
+                        ? "text-[#8f7414]"
+                        : preset === "เทาโมโนโครม"
+                        ? "text-[#454d53]"
+                        : preset === "มิ้นต์สดชื่น"
+                        ? "text-[#28745d]"
+                        : preset === "สีเอกลักษณ์แบรนด์"
+                        ? "text-[#3c220e]"
+                        : "text-primary"
                     }`}
                   >
                     {formattedTable}
@@ -283,7 +359,11 @@ export default function QrCodeGeneratorPage() {
                 </div>
 
                 <div className="text-center mt-stack-md">
-                  <p className="font-body-sm text-body-sm text-on-surface-variant">
+                  <p
+                    className={`font-body-sm text-body-sm ${
+                      preset === "ดาร์กมินิมอล" ? "text-inverse-on-surface" : "text-on-surface-variant"
+                    }`}
+                  >
                     สแกนเพื่อดูเมนู
                     <br />
                     และสั่งอาหารได้ทันที
@@ -306,14 +386,6 @@ export default function QrCodeGeneratorPage() {
               >
                 <Download className="w-4 h-4" />
                 ดาวน์โหลดโต๊ะ {formattedTable}
-              </button>
-              <button
-                type="button"
-                onClick={handlePrint}
-                className="h-[36px] px-stack-md bg-primary text-on-primary font-label-md text-label-md rounded-lg hover:bg-primary-container transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
-              >
-                <Printer className="w-4 h-4" />
-                พิมพ์เอกสาร
               </button>
             </div>
           </div>
