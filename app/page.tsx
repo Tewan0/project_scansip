@@ -47,10 +47,10 @@ export default async function HomePage({ searchParams }: PageProps) {
     });
 
     if (userStore) {
-      redirect("/dashboard");
+      redirect("/owner/dashboard");
     } else {
       // ผู้ใช้ใหม่ยังไม่มีร้านค้า ให้ส่งไปหน้า Onboarding ตั้งชื่อร้าน
-      redirect("/onboarding");
+      redirect("/owner/onboarding");
     }
   }
 
