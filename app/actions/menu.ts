@@ -1,81 +1,65 @@
 "use server";
 
 import { db } from "@/db";
-import { menuItems } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { menuItems, staff } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { createClient as createServerClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 
 /**
- * Internal synchronous helper to extract relative file path from a Supabase Storage public URL.
- */
-function getStoragePath(
-  url?: string | null,
-  bucket = "menu-photos"
-): string | null {
-  if (!url || typeof url !== "string") return null;
-
-  try {
-    const bucketMarker = `/${bucket}/`;
-    const markerIndex = url.indexOf(bucketMarker);
-    if (markerIndex !== -1) {
-      const pathWithQuery = url.substring(markerIndex + bucketMarker.length);
-      const cleanPath = pathWithQuery.split("?")[0].split("#")[0];
-      return decodeURIComponent(cleanPath).trim() || null;
-    }
-  } catch (error) {
-    console.error("Failed to parse storage URL:", error);
-  }
-  return null;
-}
-
-/**
- * Extracts the relative file path from a Supabase Storage public URL.
- * e.g., "https://.../storage/v1/object/public/menu-photos/store_123/item_456.png" -> "store_123/item_456.png"
- * e.g., "https://.../storage/v1/object/public/menu-photos/items/menu_123.jpg" -> "items/menu_123.jpg"
+ * Extracts the relative file path from a Supabase Storage public URL or relative path.
+ * Supports:
+ * - Full Supabase URLs: "https://.../storage/v1/object/public/menu-photos/items/menu_123.jpg" -> "items/menu_123.jpg"
+ * - Custom store paths: "store_id/filename.png" -> "store_id/filename.png"
+ * - Leading slashes / prefixes: "/menu-photos/store_123/item.png" -> "store_123/item.png"
+ * - Safely returns null for non-bucket external URLs (e.g. Unsplash)
  */
 export async function extractStoragePath(
   url?: string | null,
   bucket = "menu-photos"
 ): Promise<string | null> {
-  return getStoragePath(url, bucket);
-}
-
-/**
- * Returns a Supabase client suitable for server actions.
- * Prioritizes SUPABASE_SERVICE_ROLE_KEY if present for administrative storage operations,
- * otherwise falls back to the server SSR client.
- */
-async function getSupabaseClient() {
-  const supabaseUrl =
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (serviceKey) {
-    const { createClient } = await import("@supabase/supabase-js");
-    return createClient(supabaseUrl, serviceKey);
-  }
+  if (!url || typeof url !== "string") return null;
 
   try {
-    const { createClient } = await import("@/utils/supabase/server");
-    return await createClient();
-  } catch {
-    const { createClient } = await import("@supabase/supabase-js");
-    const anonKey =
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-anon-key";
-    return createClient(supabaseUrl, anonKey);
+    let cleanUrl = url.trim();
+    if (!cleanUrl) return null;
+
+    // Strip query strings or hash (?t=... #...)
+    cleanUrl = cleanUrl.split("?")[0].split("#")[0];
+
+    const bucketMarker = `${bucket}/`;
+    const markerIndex = cleanUrl.indexOf(bucketMarker);
+    if (markerIndex !== -1) {
+      const pathPart = cleanUrl.substring(markerIndex + bucketMarker.length);
+      return decodeURIComponent(pathPart).replace(/^\/+/, "").trim() || null;
+    }
+
+    // If it's an external URL that doesn't contain the bucket, skip deletion
+    if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
+      return null;
+    }
+
+    // If it's already a relative path inside bucket (e.g., store_id/filename.png or items/filename.png)
+    return decodeURIComponent(cleanUrl).replace(/^\/+/, "").trim() || null;
+  } catch (error) {
+    console.error("Failed to parse storage URL:", error);
+    return null;
   }
 }
 
 /**
  * Deletes a menu item and automatically cleans up its associated photo in Supabase Storage.
  *
- * Logic Flow:
- * 1. Fetch menu item record from `menu_items` using Drizzle ORM to retrieve its imageUrl.
- * 2. If imageUrl exists and is hosted on Supabase Storage ('menu-photos' bucket):
- *    - Extract relative file path.
- *    - Call Supabase Storage API to remove the file.
- * 3. Delete menu item record from `menu_items` table via Drizzle ORM.
- * 4. Revalidate cache paths.
+ * Secure Approach:
+ * 1. Verify Ownership: Authenticate user and confirm they own the store.
+ * 2. Fetch Menu Record: Query menu_items using Drizzle ORM to get photoUrl.
+ * 3. Delete Image from Storage:
+ *    - Extract relative path inside bucket from photoUrl (e.g. store_id/filename.png — strip domains or leading slashes).
+ *    - Instantiate const supabaseAdmin = createAdminClient().
+ *    - Call await supabaseAdmin.storage.from('menu-photos').remove([filePath]).
+ * 4. Delete DB Record: Delete the record from menu_items table via Drizzle ORM.
+ * 5. Revalidate: Call revalidatePath('/owner/menu').
  */
 export async function deleteMenuItem(menuItemId: string) {
   try {
@@ -83,23 +67,62 @@ export async function deleteMenuItem(menuItemId: string) {
       return { success: false, error: "Menu item ID is required" };
     }
 
-    // 1. Fetch the menu item record from menu_items
+    // 1. Verify Ownership: Authenticate the user
+    const supabase = await createServerClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return {
+        success: false,
+        error: "กรุณาเข้าสู่ระบบก่อนทำรายการ (Unauthorized)",
+      };
+    }
+
+    // 2. Fetch Menu Record: Query menu_items using Drizzle ORM to get photoUrl and store details
     const existingItem = await db.query.menuItems.findFirst({
       where: eq(menuItems.id, menuItemId),
+      with: {
+        store: true,
+      },
     });
 
     if (!existingItem) {
-      return { success: false, error: "Menu item not found" };
+      return { success: false, error: "ไม่พบรายการเมนูที่ต้องการลบ" };
     }
 
-    // 2. If photoUrl/imageUrl exists and is hosted on Supabase Storage (menu-photos bucket)
+    // Confirm the user owns the store
+    let isOwner = existingItem.store?.ownerId === user.id;
+    if (!isOwner) {
+      // Also check if user is registered in staff with role 'owner'
+      const staffMember = await db.query.staff.findFirst({
+        where: and(
+          eq(staff.storeId, existingItem.storeId),
+          eq(staff.userId, user.id),
+          eq(staff.role, "owner")
+        ),
+      });
+      isOwner = !!staffMember;
+    }
+
+    if (!isOwner) {
+      return {
+        success: false,
+        error: "คุณไม่มีสิทธิ์ในการลบรายการอาหารของร้านค้านี้ (Forbidden)",
+      };
+    }
+
+    // 3. Delete Image from Storage:
+    // Extract the relative path inside the bucket from photoUrl (e.g., store_id/filename.png — strip domains or leading slashes)
     const photoUrl = existingItem.imageUrl;
-    const filePath = getStoragePath(photoUrl, "menu-photos");
+    const filePath = await extractStoragePath(photoUrl, "menu-photos");
 
     if (filePath) {
       try {
-        const supabase = await getSupabaseClient();
-        const { error: storageError } = await supabase.storage
+        const supabaseAdmin = createAdminClient();
+        const { error: storageError } = await supabaseAdmin.storage
           .from("menu-photos")
           .remove([filePath]);
 
@@ -121,14 +144,14 @@ export async function deleteMenuItem(menuItemId: string) {
       }
     }
 
-    // 3. Delete the menu item record from menu_items table via Drizzle ORM
+    // 4. Delete DB Record: Delete the record from menu_items table via Drizzle ORM
     await db.delete(menuItems).where(eq(menuItems.id, menuItemId));
 
-    // 4. Revalidate cache paths
+    // 5. Revalidate: Call revalidatePath('/owner/menu')
     revalidatePath("/owner/menu");
     revalidatePath("/dashboard/menu");
 
-    return { success: true };
+    return { success: true, message: "ลบเมนูและรูปภาพเรียบร้อยแล้ว" };
   } catch (error: unknown) {
     console.error("deleteMenuItem error:", error);
     const message =
@@ -143,12 +166,13 @@ export async function deleteMenuItem(menuItemId: string) {
  *
  * Logic Flow:
  * 1. Accepts menuItemId and formData (name, description, unitPrice, categoryId, isAvailable, new image file).
- * 2. If new image file provided:
- *    - Upload to 'menu-photos' bucket.
+ * 2. Authenticates user and verifies store ownership.
+ * 3. If new image file provided:
+ *    - Upload to 'menu-photos' bucket via Supabase Admin Client.
  *    - Extract and delete old image file from 'menu-photos' bucket to prevent orphan files.
  *    - Set updated photoUrl/imageUrl to new uploaded URL.
- * 3. Update `menu_items` table via Drizzle ORM.
- * 4. Revalidate cache paths.
+ * 4. Update `menu_items` table via Drizzle ORM.
+ * 5. Revalidate cache paths.
  */
 export async function updateMenuItem(menuItemId: string, formData: FormData) {
   try {
@@ -156,13 +180,49 @@ export async function updateMenuItem(menuItemId: string, formData: FormData) {
       return { success: false, error: "Menu item ID is required" };
     }
 
-    // 1. Fetch existing item
+    // Verify Ownership
+    const supabase = await createServerClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return {
+        success: false,
+        error: "กรุณาเข้าสู่ระบบก่อนทำรายการ (Unauthorized)",
+      };
+    }
+
+    // 1. Fetch existing item with store details
     const existingItem = await db.query.menuItems.findFirst({
       where: eq(menuItems.id, menuItemId),
+      with: {
+        store: true,
+      },
     });
 
     if (!existingItem) {
       return { success: false, error: "Menu item not found" };
+    }
+
+    let isOwner = existingItem.store?.ownerId === user.id;
+    if (!isOwner) {
+      const staffMember = await db.query.staff.findFirst({
+        where: and(
+          eq(staff.storeId, existingItem.storeId),
+          eq(staff.userId, user.id),
+          eq(staff.role, "owner")
+        ),
+      });
+      isOwner = !!staffMember;
+    }
+
+    if (!isOwner) {
+      return {
+        success: false,
+        error: "คุณไม่มีสิทธิ์ในการแก้ไขรายการอาหารของร้านค้านี้ (Forbidden)",
+      };
     }
 
     // Read form data values
@@ -199,7 +259,7 @@ export async function updateMenuItem(menuItemId: string, formData: FormData) {
     let finalImageUrl: string | null = existingItem.imageUrl;
 
     if (file && file instanceof File && file.size > 0) {
-      const supabase = await getSupabaseClient();
+      const supabaseAdmin = createAdminClient();
 
       // Create unique filename
       const ext = file.name.split(".").pop() || "jpg";
@@ -212,7 +272,7 @@ export async function updateMenuItem(menuItemId: string, formData: FormData) {
       const buffer = new Uint8Array(arrayBuffer);
 
       // Upload new image to 'menu-photos' bucket
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
         .from("menu-photos")
         .upload(filePath, buffer, {
           contentType: file.type || "image/jpeg",
@@ -231,20 +291,20 @@ export async function updateMenuItem(menuItemId: string, formData: FormData) {
       }
 
       // Get public URL of newly uploaded image
-      const { data: publicUrlData } = supabase.storage
+      const { data: publicUrlData } = supabaseAdmin.storage
         .from("menu-photos")
         .getPublicUrl(uploadData.path);
 
       finalImageUrl = publicUrlData.publicUrl;
 
       // Extract and delete old image file from 'menu-photos' bucket to prevent orphan files
-      const oldFilePath = getStoragePath(
+      const oldFilePath = await extractStoragePath(
         existingItem.imageUrl,
         "menu-photos"
       );
       if (oldFilePath && oldFilePath !== filePath) {
         try {
-          const { error: removeError } = await supabase.storage
+          const { error: removeError } = await supabaseAdmin.storage
             .from("menu-photos")
             .remove([oldFilePath]);
 
@@ -267,14 +327,14 @@ export async function updateMenuItem(menuItemId: string, formData: FormData) {
       }
     } else if (removeImage) {
       // User explicitly requested to remove existing image
-      const oldFilePath = getStoragePath(
+      const oldFilePath = await extractStoragePath(
         existingItem.imageUrl,
         "menu-photos"
       );
       if (oldFilePath) {
         try {
-          const supabase = await getSupabaseClient();
-          await supabase.storage.from("menu-photos").remove([oldFilePath]);
+          const supabaseAdmin = createAdminClient();
+          await supabaseAdmin.storage.from("menu-photos").remove([oldFilePath]);
           console.log(
             `[updateMenuItem] Successfully deleted old storage file on remove: ${oldFilePath}`
           );
@@ -288,7 +348,7 @@ export async function updateMenuItem(menuItemId: string, formData: FormData) {
       finalImageUrl = null;
     }
 
-    // 3. Update menu_items table via Drizzle ORM
+    // 4. Update menu_items table via Drizzle ORM
     const [updatedItem] = await db
       .update(menuItems)
       .set({
@@ -303,7 +363,7 @@ export async function updateMenuItem(menuItemId: string, formData: FormData) {
       .where(eq(menuItems.id, menuItemId))
       .returning();
 
-    // 4. Revalidate cache paths
+    // 5. Revalidate cache paths
     revalidatePath("/owner/menu");
     revalidatePath("/dashboard/menu");
 
