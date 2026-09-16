@@ -132,13 +132,15 @@ export default function OrdersPage() {
       <div className="max-w-7xl mx-auto space-y-gutter">
         {/* Status Filter Tabs */}
         <div className="flex items-center gap-stack-sm border-b border-border-subtle pb-stack-sm overflow-x-auto">
-          {[
-            { label: "ทั้งหมด", key: "ทั้งหมด" },
-            { label: "รอยืนยัน", key: "pending" },
-            { label: "กำลังเตรียม", key: "preparing" },
-            { label: "เสิร์ฟแล้ว", key: "served" },
-            { label: "เสร็จสิ้น", key: "completed" },
-          ].map((tab) => {
+          {(
+            [
+              { label: "ทั้งหมด", key: "ทั้งหมด" },
+              { label: "รอยืนยัน", key: "pending" },
+              { label: "กำลังเตรียม", key: "preparing" },
+              { label: "เสิร์ฟแล้ว", key: "served" },
+              { label: "เสร็จสิ้น", key: "completed" },
+            ] as const
+          ).map((tab) => {
             const count =
               tab.key === "ทั้งหมด"
                 ? orders.length
@@ -148,7 +150,7 @@ export default function OrdersPage() {
               <button
                 key={tab.key}
                 type="button"
-                onClick={() => setActiveTab(tab.key as any)}
+                onClick={() => setActiveTab(tab.key)}
                 className={`px-4 py-2 rounded-lg font-label-md text-label-md flex items-center gap-2 transition-colors cursor-pointer ${
                   activeTab === tab.key
                     ? "bg-primary text-on-primary font-bold shadow-xs"

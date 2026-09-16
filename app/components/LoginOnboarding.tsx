@@ -57,6 +57,8 @@ export default function LoginOnboarding({
 
   // Automatically advance to dashboard if session is detected client-side
   useEffect(() => {
+    if (!isConfigured) return;
+
     const supabase = createClient();
 
     // Check existing session
@@ -76,9 +78,9 @@ export default function LoginOnboarding({
     });
 
     return () => {
-      subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
-  }, [router]);
+  }, [router, isConfigured]);
 
   const handleGoogleSignIn = async () => {
     try {
@@ -98,7 +100,7 @@ export default function LoginOnboarding({
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${window.location.origin}/auth/callback?role=owner`,
           queryParams: {
             access_type: "offline",
             prompt: "select_account",
