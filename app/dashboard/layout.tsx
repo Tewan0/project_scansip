@@ -109,7 +109,7 @@ export default function DashboardLayout({
       >
         {/* Brand Header */}
         <div className="px-stack-lg pb-stack-lg border-b border-border-subtle mb-stack-md flex items-center justify-between">
-          <Link href="/dashboard" className="flex items-center gap-stack-sm group">
+          <Link href="/owner/dashboard" className="flex items-center gap-stack-sm group">
             <div className="w-8 h-8 bg-primary rounded flex items-center justify-center text-on-primary shadow-xs">
               <Coffee className="w-4 h-4" />
             </div>
