@@ -56,7 +56,9 @@ export default function EditMenuItemModal({
   useEffect(() => {
     if (item && isOpen) {
       setName(item.name || "");
-      setCategoryId(item.categoryId || (categories.length > 0 ? categories[0].id : ""));
+      setCategoryId(
+        item.categoryId || (categories.length > 0 ? categories[0].id : ""),
+      );
       setPrice(String(item.price ?? ""));
       setDescription(item.description || "");
       setIsAvailable(item.isAvailable ?? true);
@@ -75,7 +77,7 @@ export default function EditMenuItemModal({
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      setErrorMessage("กรุณาเลือกไฟล์รูปภาพเท่านั้น (JPG, PNG, WEBP)");
+      setErrorMessage("กรุณาเลือกไฟล์รูปภาพเท่านั้น (JPG, PNG)");
       return;
     }
 
@@ -265,12 +267,11 @@ export default function EditMenuItemModal({
                 >
                   <Upload className="w-3.5 h-3.5" />
                   <span>
-                    {imagePreview ? "เปลี่ยนรูปภาพใหม่" : "อัปโหลดรูปภาพจากอุปกรณ์"}
+                    {imagePreview
+                      ? "เปลี่ยนรูปภาพใหม่"
+                      : "อัปโหลดรูปภาพจากอุปกรณ์"}
                   </span>
                 </button>
-                <p className="text-[11px] text-on-surface-variant mt-1">
-                  เมื่อเปลี่ยนรูป ระบบจะลบรูปภาพเดิมออกจาก Supabase Storage ให้อัตโนมัติ
-                </p>
               </div>
             </div>
           </div>
@@ -313,7 +314,9 @@ export default function EditMenuItemModal({
             </div>
             <div>
               <label className="flex items-center gap-1 font-label-md text-label-md text-on-surface mb-unit">
-                <span className="font-bold text-xs text-on-surface-variant">฿</span>
+                <span className="font-bold text-xs text-on-surface-variant">
+                  ฿
+                </span>
                 ราคา (บาท) <span className="text-error">*</span>
               </label>
               <input

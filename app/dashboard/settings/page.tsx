@@ -99,7 +99,7 @@ export default function SettingsPage() {
             </h2>
           </div>
           <p className="font-body-sm text-body-sm text-on-surface-variant mb-stack-lg">
-            จัดการข้อมูลทั่วไปของร้านอาหาร/คาเฟ่ และการรับชำระเงิน (บันทึกลง Database จริง)
+            จัดการข้อมูลทั่วไปของร้าน
           </p>
 
           <form onSubmit={handleSave} className="space-y-stack-md">
@@ -130,7 +130,7 @@ export default function SettingsPage() {
                   className="w-full h-[36px] pl-10 pr-3 font-body-md text-body-md bg-surface border border-border-subtle rounded-lg focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all text-on-surface"
                   type="text"
                   required
-                  placeholder="เช่น 081-234-5678 หรือเลขบัตรประชาชน"
+                  placeholder="เช่น เบอร์โทรศัพท์หรือเลขบัตรประชาชน"
                   value={promptPayNumber}
                   onChange={(e) => setPromptPayNumber(e.target.value)}
                 />
@@ -175,7 +175,6 @@ export default function SettingsPage() {
                 onChange={(e) => setCurrency(e.target.value)}
               >
                 <option value="THB">บาทไทย (฿)</option>
-                <option value="USD">USD ($)</option>
               </select>
             </div>
 

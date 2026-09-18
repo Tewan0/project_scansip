@@ -127,6 +127,21 @@ export default function OrdersPage() {
     }
   };
 
+  const formatOrderDateTime = (dateString: string) => {
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) {
+      return "ไม่ระบุเวลา";
+    }
+
+    return new Intl.DateTimeFormat("th-TH", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+  };
+
   return (
     <div className="p-gutter lg:p-margin-page">
       <div className="max-w-7xl mx-auto space-y-gutter">
@@ -238,8 +253,13 @@ export default function OrdersPage() {
                       key={order.id}
                       className="hover:bg-surface-bright transition-colors"
                     >
-                      <td className="py-stack-md px-gutter font-body-md font-bold text-on-surface">
-                        {order.orderNumber}
+                      <td className="py-stack-md px-gutter font-body-md text-on-surface">
+                        <div className="flex flex-col gap-1">
+                          <span className="font-bold text-on-surface">{order.orderNumber}</span>
+                          <span className="text-[11px] text-on-surface-variant">
+                            {formatOrderDateTime(order.createdAt)}
+                          </span>
+                        </div>
                       </td>
                       <td className="py-stack-md px-gutter font-body-md text-on-surface">
                         โต๊ะ {order.tableNumber ? String(order.tableNumber).padStart(2, "0") : "-"}

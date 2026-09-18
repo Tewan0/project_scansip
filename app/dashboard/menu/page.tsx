@@ -284,7 +284,7 @@ export default function MenuManagementPage() {
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20 text-on-surface-variant">
           <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
-          <p className="font-body-md text-body-md">กำลังโหลดข้อมูลเมนูจากฐานข้อมูล...</p>
+          <p className="font-body-md text-body-md">กำลังโหลดข้อมูลเมนู...</p>
         </div>
       ) : filteredItems.length === 0 ? (
         /* Empty State */
@@ -489,7 +489,7 @@ export default function MenuManagementPage() {
                       {isUploadingImage ? (
                         <>
                           <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-                          <span>กำลังอัปโหลดเข้า Supabase...</span>
+                          <span>กำลังอัปโหลด...</span>
                         </>
                       ) : (
                         <>
@@ -499,7 +499,7 @@ export default function MenuManagementPage() {
                       )}
                     </button>
                     <p className="text-[11px] text-on-surface-variant mt-1">
-                      รองรับไฟล์ JPG, PNG, WEBP บันทึกลง Storage <span className="font-semibold text-primary">menu-photos</span>
+                      รองรับไฟล์ JPG, PNG
                     </p>
                   </div>
                 </div>

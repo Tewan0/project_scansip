@@ -137,7 +137,7 @@ export default function DashboardPage() {
               ภาพรวมร้านค้า
             </h1>
             <p className="text-body-sm text-on-surface-variant mt-0.5">
-              ข้อมูลสถิติและสถานะคำสั่งซื้อแบบเรียลไทม์จากระบบ
+              ข้อมูลสถิติและสถานะคำสั่งซื้อแบบเรียลไทม์
             </p>
           </div>
           <button
@@ -191,7 +191,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center gap-unit text-on-surface-variant font-label-md text-label-md mt-4">
               <CheckCircle2 className="w-4 h-4 text-status-success" />
-              <span>เสร็จสิ้น {stats?.completedOrdersCount ?? 0} ออเดอร์ (ทั้งหมด {stats?.totalOrdersCount ?? 0})</span>
+              <span>เสร็จสิ้น {stats?.completedOrdersCount ?? 0} ออเดอร์</span>
             </div>
           </div>
 

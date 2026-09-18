@@ -188,8 +188,8 @@ const QrTableCard = forwardRef<HTMLDivElement, QrTableCardProps>(
 QrTableCard.displayName = "QrTableCard";
 
 export default function QrCodeGeneratorPage() {
-  const [tableCount, setTableCount] = useState(12);
-  const [tableCountInput, setTableCountInput] = useState("12");
+  const [tableCount, setTableCount] = useState(6);
+  const [tableCountInput, setTableCountInput] = useState("6");
   const [tableCountError, setTableCountError] = useState<string | null>(null);
 
   const [currentTable, setCurrentTable] = useState(4);
@@ -477,7 +477,7 @@ export default function QrCodeGeneratorPage() {
             <div className="flex items-center gap-2 mb-stack-md">
               <QrCode className="w-5 h-5 text-primary shrink-0" />
               <h2 className="font-headline-md text-headline-md text-on-background font-bold">
-                สร้าง QR Code รายโต๊ะ
+                สร้าง QR Code
               </h2>
             </div>
             <p className="font-body-sm text-body-sm text-on-surface-variant mb-stack-lg">

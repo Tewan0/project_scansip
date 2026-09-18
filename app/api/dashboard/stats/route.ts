@@ -138,7 +138,7 @@ export async function GET() {
       const statusMap: Record<string, { label: string; class: string }> = {
         pending: { label: "รอดำเนินการ", class: "bg-surface-container text-on-surface" },
         preparing: { label: "กำลังเตรียม", class: "bg-amber-100 text-amber-800" },
-        served: { label: "พร้อมเสิร์ฟ", class: "bg-emerald-100 text-emerald-800" },
+        served: { label: "เสิร์ฟแล้ว", class: "bg-emerald-100 text-emerald-800" },
         completed: { label: "เสร็จสิ้น", class: "bg-surface-variant text-on-surface-variant" },
         cancelled: { label: "ยกเลิก", class: "bg-rose-100 text-rose-800" },
       };
