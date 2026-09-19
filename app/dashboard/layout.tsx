@@ -102,7 +102,7 @@ export default function DashboardLayout({
 
       {/* SideNavBar (Desktop & Mobile Drawer) */}
       <aside
-        className={`fixed lg:flex flex-col left-0 top-0 h-screen w-[260px] bg-surface border-r border-border-subtle z-50 py-margin-page transition-transform duration-300 ease-in-out ${
+        className={`fixed lg:flex flex-col left-0 top-0 h-screen w-[260px] max-w-[85vw] bg-surface border-r border-border-subtle z-50 py-margin-page transition-transform duration-300 ease-in-out overflow-hidden ${
           mobileMenuOpen ? "translate-x-0 flex" : "-translate-x-full lg:translate-x-0 hidden"
         }`}
       >
@@ -144,23 +144,23 @@ export default function DashboardLayout({
                 key={item.name}
                 href={item.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-stack-sm px-stack-md py-stack-sm transition-colors duration-150 ${
+                className={`flex w-full items-center gap-stack-sm px-stack-md py-stack-sm transition-colors duration-150 min-w-0 ${
                   isActive
                     ? "bg-secondary-container text-primary border-l-2 border-secondary scale-[0.98] font-semibold rounded-r-lg"
                     : "text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg font-normal"
                 } ${item.href === "/dashboard/settings" ? "mt-auto" : ""}`}
               >
-                <IconComponent className={`w-5 h-5 ${isActive ? "text-primary" : "text-on-surface-variant"}`} />
-                <span className="font-label-md text-label-md">{item.name}</span>
+                <IconComponent className={`w-5 h-5 shrink-0 ${isActive ? "text-primary" : "text-on-surface-variant"}`} />
+                <span className="font-label-md text-label-md truncate">{item.name}</span>
               </Link>
             );
           })}
         </nav>
 
         {/* User Profile Footer */}
-        <div className="px-stack-sm pt-stack-sm border-t border-border-subtle mt-auto">
-          <div className="flex items-center justify-between p-stack-sm hover:bg-surface-container-low rounded-lg transition-colors group">
-            <div className="flex items-center gap-stack-sm min-w-0">
+        <div className="px-stack-sm pt-stack-sm border-t border-border-subtle mt-auto overflow-hidden">
+          <div className="flex w-full items-center justify-between gap-2 p-stack-sm hover:bg-surface-container-low rounded-lg transition-colors group overflow-hidden">
+            <div className="flex items-center gap-stack-sm min-w-0 flex-1 overflow-hidden">
               {currentUser?.avatarUrl ? (
                 <img
                   src={currentUser.avatarUrl}
@@ -174,7 +174,7 @@ export default function DashboardLayout({
                     : "OW"}
                 </div>
               )}
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 overflow-hidden">
                 <p className="font-label-md text-label-md text-on-surface truncate">
                   {currentUser?.name || "เจ้าของร้าน ScanSip"}
                 </p>
@@ -183,7 +183,7 @@ export default function DashboardLayout({
                 </p>
               </div>
             </div>
-            <form action="/auth/signout" method="post">
+            <form action="/auth/signout" method="post" className="shrink-0">
               <button
                 type="submit"
                 title="ออกจากระบบ"
