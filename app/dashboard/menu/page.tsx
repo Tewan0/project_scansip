@@ -15,6 +15,7 @@ import {
   Coffee,
   CupSoda,
   Croissant,
+  Cookie,
   FileQuestion,
   ImagePlus,
   FileText,
@@ -59,8 +60,8 @@ export default function MenuManagementPage() {
   const [newItemCategoryId, setNewItemCategoryId] = useState("");
   const [newItemPrice, setNewItemPrice] = useState("");
   const [newItemDesc, setNewItemDesc] = useState("");
-  const [newItemImage, setNewItemImage] = useState<string | null>(null);
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [newItemImageFile, setNewItemImageFile] = useState<File | null>(null);
+  const [newItemImagePreview, setNewItemImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch menu and categories from database
@@ -99,40 +100,44 @@ export default function MenuManagementPage() {
     const matchesSearch = item.name
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
-    const categoryName = item.category?.name || "ไม่ระบุหมวดหมู่";
+    const categoryName = item.category?.name || "ทั่วไป";
     const matchesCategory =
       selectedCategory === "ทุกหมวดหมู่" ||
       categoryName.toLowerCase() === selectedCategory.toLowerCase();
     return matchesSearch && matchesCategory;
   });
 
-  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    try {
-      setIsUploadingImage(true);
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      const json = await res.json();
-      if (json.success && json.url) {
-        setNewItemImage(json.url);
-      } else {
-        alert(json.error || "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ");
-      }
-    } catch (err) {
-      console.error("Upload error:", err);
-      alert("ไม่สามารถอัปโหลดรูปภาพได้");
-    } finally {
-      setIsUploadingImage(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+    if (!file.type.startsWith("image/")) {
+      alert("กรุณาเลือกไฟล์รูปภาพเท่านั้น (JPG, PNG)");
+      return;
     }
+
+    setNewItemImageFile(file);
+    if (newItemImagePreview) {
+      URL.revokeObjectURL(newItemImagePreview);
+    }
+    setNewItemImagePreview(URL.createObjectURL(file));
+  };
+
+  const handleRemoveNewItemImage = () => {
+    setNewItemImageFile(null);
+    if (newItemImagePreview) {
+      URL.revokeObjectURL(newItemImagePreview);
+      setNewItemImagePreview(null);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleCloseModal = () => {
+    setNewItemName("");
+    setNewItemPrice("");
+    setNewItemDesc("");
+    handleRemoveNewItemImage();
+    setIsModalOpen(false);
   };
 
   const handleDelete = async (id: string) => {
@@ -194,19 +199,40 @@ export default function MenuManagementPage() {
 
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newItemName || !newItemPrice) return;
+    if (!newItemName.trim() || !newItemPrice) return;
 
     try {
       setIsSubmitting(true);
+
+      let uploadedImageUrl: string | null = null;
+      // บันทึกรูปลง Supabase Storage เมื่อกดบันทึกเมนูเท่านั้น
+      if (newItemImageFile) {
+        const formData = new FormData();
+        formData.append("file", newItemImageFile);
+
+        const uploadRes = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        const uploadData = await uploadRes.json();
+        if (!uploadData.success || !uploadData.url) {
+          alert(uploadData.error || "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ");
+          setIsSubmitting(false);
+          return;
+        }
+        uploadedImageUrl = uploadData.url;
+      }
+
       const res = await fetch("/api/menu", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: newItemName,
+          name: newItemName.trim(),
           price: parseFloat(newItemPrice),
-          description: newItemDesc,
+          description: newItemDesc.trim() || null,
           categoryId: newItemCategoryId || null,
-          imageUrl: newItemImage,
+          imageUrl: uploadedImageUrl,
           isAvailable: true,
         }),
       });
@@ -214,15 +240,13 @@ export default function MenuManagementPage() {
       const result = await res.json();
       if (result.success) {
         await fetchData(); // refresh list from db
-        // reset form
-        setNewItemName("");
-        setNewItemPrice("");
-        setNewItemDesc("");
-        setNewItemImage(null);
-        setIsModalOpen(false);
+        handleCloseModal();
+      } else {
+        alert(result.error || "เกิดข้อผิดพลาดในการสร้างเมนู");
       }
     } catch (err) {
       console.error("Failed to create menu item:", err);
+      alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
     } finally {
       setIsSubmitting(false);
     }
@@ -230,20 +254,40 @@ export default function MenuManagementPage() {
 
   const getCategoryIcon = (categoryName?: string | null) => {
     if (!categoryName) return <UtensilsCrossed className="w-3.5 h-3.5" />;
+    // ตรวจสอบเครื่องดื่มที่ไม่ใช่กาแฟก่อนกาแฟ เพื่อไม่ให้คำว่า 'กาแฟ' ไปตรงกับเงื่อนไขกาแฟ
+    if (categoryName.includes("ไม่ใช่กาแฟ") || categoryName.includes("Non-Coffee")) {
+      return <CupSoda className="w-3.5 h-3.5" />;
+    }
     if (categoryName.includes("กาแฟ") || categoryName.includes("Coffee")) {
       return <Coffee className="w-3.5 h-3.5" />;
     }
-    if (categoryName.includes("ชา") || categoryName.includes("Tea")) {
+    if (categoryName.includes("ชา") || categoryName.includes("Tea") || categoryName.includes("เครื่องดื่ม")) {
       return <CupSoda className="w-3.5 h-3.5" />;
     }
-    if (categoryName.includes("เบเกอรี่") || categoryName.includes("ขนม")) {
+    if (
+      categoryName.includes("เบเกอรี่") ||
+      categoryName.includes("ของหวาน") ||
+      categoryName.includes("ขนม") ||
+      categoryName.includes("Cake") ||
+      categoryName.includes("Bakery")
+    ) {
       return <Croissant className="w-3.5 h-3.5" />;
+    }
+    if (
+      categoryName.includes("อาหารว่าง") ||
+      categoryName.includes("ทานเล่น") ||
+      categoryName.includes("Snack")
+    ) {
+      return <Cookie className="w-3.5 h-3.5" />;
+    }
+    if (categoryName.includes("จานหลัก") || categoryName.includes("อาหาร")) {
+      return <UtensilsCrossed className="w-3.5 h-3.5" />;
     }
     return <UtensilsCrossed className="w-3.5 h-3.5" />;
   };
 
   return (
-    <div className="p-margin-page bg-surface-bright min-h-full">
+    <div className="p-4 sm:p-gutter lg:p-margin-page bg-surface-bright min-h-full">
       {/* Actions & Filters */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-stack-lg gap-stack-md">
         <div className="flex flex-wrap gap-stack-sm w-full sm:w-auto">
@@ -262,17 +306,25 @@ export default function MenuManagementPage() {
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
           >
-            <option>ทุกหมวดหมู่</option>
+            <option value="ทุกหมวดหมู่">ทุกหมวดหมู่</option>
             {categoriesList.map((cat) => (
               <option key={cat.id} value={cat.name}>
                 {cat.name}
               </option>
             ))}
+            {items.some((i) => !i.category?.name) && (
+              <option value="ทั่วไป">ทั่วไป</option>
+            )}
           </select>
         </div>
         <button
           type="button"
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => {
+            if (categoriesList.length > 0 && !newItemCategoryId) {
+              setNewItemCategoryId(categoriesList[0].id);
+            }
+            setIsModalOpen(true);
+          }}
           className="h-9 px-stack-md bg-primary text-on-primary font-label-md text-label-md rounded-lg flex items-center gap-1.5 shadow-xs hover:bg-primary-container transition-colors cursor-pointer shrink-0"
         >
           <Plus className="w-4 h-4" />
@@ -424,7 +476,7 @@ export default function MenuManagementPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setIsModalOpen(false)}
+                onClick={handleCloseModal}
                 className="text-on-surface-variant hover:text-on-surface p-1 rounded cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -440,17 +492,17 @@ export default function MenuManagementPage() {
                 </label>
 
                 <div className="flex items-center gap-stack-md">
-                  {newItemImage ? (
+                  {newItemImagePreview ? (
                     <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-border-subtle bg-surface-container shrink-0">
                       <img
-                        src={newItemImage}
+                        src={newItemImagePreview}
                         alt="Preview"
                         className="w-full h-full object-cover"
                       />
                       <button
                         type="button"
-                        onClick={() => setNewItemImage(null)}
-                        className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 hover:bg-black/80"
+                        onClick={handleRemoveNewItemImage}
+                        className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 hover:bg-black/80 cursor-pointer"
                         title="ลบรูป"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -461,14 +513,8 @@ export default function MenuManagementPage() {
                       onClick={() => fileInputRef.current?.click()}
                       className="w-20 h-20 rounded-lg border-2 border-dashed border-border-subtle flex flex-col items-center justify-center text-on-surface-variant bg-surface hover:bg-surface-container-low cursor-pointer transition-colors shrink-0"
                     >
-                      {isUploadingImage ? (
-                        <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                      ) : (
-                        <>
-                          <Upload className="w-5 h-5 mb-0.5" />
-                          <span className="text-[10px]">เลือกรูป</span>
-                        </>
-                      )}
+                      <Upload className="w-5 h-5 mb-0.5" />
+                      <span className="text-[10px]">เลือกรูป</span>
                     </div>
                   )}
 
@@ -482,24 +528,14 @@ export default function MenuManagementPage() {
                     />
                     <button
                       type="button"
-                      disabled={isUploadingImage}
                       onClick={() => fileInputRef.current?.click()}
                       className="px-3 py-1.5 text-xs font-medium border border-border-subtle rounded-lg bg-surface hover:bg-surface-container-low text-on-surface transition-colors cursor-pointer flex items-center gap-1.5"
                     >
-                      {isUploadingImage ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-                          <span>กำลังอัปโหลด...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-3.5 h-3.5" />
-                          <span>อัปโหลดรูปภาพจากอุปกรณ์</span>
-                        </>
-                      )}
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>อัปโหลดรูปภาพจากอุปกรณ์</span>
                     </button>
                     <p className="text-[11px] text-on-surface-variant mt-1">
-                      รองรับไฟล์ JPG, PNG
+                      รองรับไฟล์ JPG, PNG (รูปจะถูกบันทึกเมื่อกดบันทึกเมนู)
                     </p>
                   </div>
                 </div>
@@ -573,14 +609,14 @@ export default function MenuManagementPage() {
               <div className="flex justify-end gap-stack-sm pt-stack-sm border-t border-border-subtle">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={handleCloseModal}
                   className="px-stack-md h-9 rounded-lg border border-border-subtle bg-surface text-on-surface font-label-md text-label-md hover:bg-surface-container-high transition-colors cursor-pointer"
                 >
                   ยกเลิก
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting || isUploadingImage}
+                  disabled={isSubmitting}
                   className="px-stack-md h-9 rounded-lg bg-primary text-on-primary font-label-md text-label-md hover:bg-primary-container transition-colors shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-60"
                 >
                   {isSubmitting ? (

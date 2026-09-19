@@ -21,49 +21,124 @@ export async function GET(req: Request) {
     });
 
     const now = new Date();
-    const daysTh = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
+    const thaiDays = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
+    const thaiMonths = [
+      "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+      "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
+    ];
+    const thaiFullMonths = [
+      "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+      "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
+    ];
 
-    let numDays = 7;
-    if (range === "30d") numDays = 30;
-    else if (range === "month") {
-      numDays = now.getDate(); // ตั้งแต่วันที่ 1 ของเดือนนี้ถึงวันนี้
-    }
+    const mapBuckets = new Map<string, { dayLabel: string; dateStr: string; amount: number }>();
+    let startDate: Date;
+    let endDate: Date;
 
-    // สร้าง Bucket วันที่
-    const dailyMap = new Map<string, { dayLabel: string; dateStr: string; amount: number }>();
-    for (let i = numDays - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      const key = `${yyyy}-${mm}-${dd}`;
-      const dayLabel = numDays <= 7 ? daysTh[d.getDay()] : `${d.getDate()}/${d.getMonth() + 1}`;
-      dailyMap.set(key, { dayLabel, dateStr: key, amount: 0 });
+    if (range === "7d") {
+      // 7 วันล่าสุด
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
+      endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        const key = `${yyyy}-${mm}-${dd}`;
+        mapBuckets.set(key, { dayLabel: thaiDays[d.getDay()], dateStr: key, amount: 0 });
+      }
+    } else if (range === "month") {
+      // เดือนนี้: ตั้งแต่วันที่ 1 ถึงวันนี้
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      const lastDay = now.getDate();
+      endDate = new Date(now.getFullYear(), now.getMonth(), lastDay, 23, 59, 59, 999);
+
+      for (let day = 1; day <= lastDay; day++) {
+        const d = new Date(now.getFullYear(), now.getMonth(), day);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        const key = `${yyyy}-${mm}-${dd}`;
+        mapBuckets.set(key, { dayLabel: `${day}`, dateStr: key, amount: 0 });
+      }
+    } else if (range === "month-1" || range === "month-2" || range === "month-3") {
+      // ย้อนหลัง 1, 2, 3 เดือน (เต็มเดือนนั้นๆ)
+      const offset = range === "month-1" ? 1 : range === "month-2" ? 2 : 3;
+      const targetYear = now.getMonth() - offset < 0 ? now.getFullYear() - 1 : now.getFullYear();
+      const targetMonth = (now.getMonth() - offset + 12) % 12;
+      const daysInTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+
+      startDate = new Date(targetYear, targetMonth, 1, 0, 0, 0, 0);
+      endDate = new Date(targetYear, targetMonth, daysInTargetMonth, 23, 59, 59, 999);
+
+      for (let day = 1; day <= daysInTargetMonth; day++) {
+        const d = new Date(targetYear, targetMonth, day);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        const key = `${yyyy}-${mm}-${dd}`;
+        mapBuckets.set(key, { dayLabel: `${day}`, dateStr: key, amount: 0 });
+      }
+    } else if (range === "3m") {
+      // ภาพรวม 3 เดือนล่าสุด: แสดงแท่งรายเดือนของ 3 เดือนล่าสุด
+      const startY = now.getMonth() - 2 < 0 ? now.getFullYear() - 1 : now.getFullYear();
+      const startM = (now.getMonth() - 2 + 12) % 12;
+      startDate = new Date(startY, startM, 1, 0, 0, 0, 0);
+      endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+      for (let offset = 2; offset >= 0; offset--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const key = `${yyyy}-${mm}`;
+        const monthLabel = `${thaiMonths[d.getMonth()]} ${yyyy}`;
+        mapBuckets.set(key, {
+          dayLabel: monthLabel,
+          dateStr: `${thaiFullMonths[d.getMonth()]} ${yyyy}`,
+          amount: 0,
+        });
+      }
+    } else {
+      // Fallback 7d
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
+      endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        const key = `${yyyy}-${mm}-${dd}`;
+        mapBuckets.set(key, { dayLabel: thaiDays[d.getDay()], dateStr: key, amount: 0 });
+      }
     }
 
     const itemAgg: Record<string, { name: string; qty: number; revenue: number }> = {};
     let totalRevenue = 0;
     let totalOrdersCount = 0;
 
-    // คำนวณช่วงเวลาเริ่มต้น
-    const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (numDays - 1));
-    startDate.setHours(0, 0, 0, 0);
-
     for (const o of allOrders) {
       if (o.status === "cancelled") continue;
       const orderDate = new Date(o.createdAt);
-      if (orderDate < startDate) continue;
+      if (orderDate < startDate || orderDate > endDate) continue;
 
       totalOrdersCount++;
       const amt = Number(o.totalAmount) || 0;
       totalRevenue += amt;
 
-      const yyyy = orderDate.getFullYear();
-      const mm = String(orderDate.getMonth() + 1).padStart(2, "0");
-      const dd = String(orderDate.getDate()).padStart(2, "0");
-      const key = `${yyyy}-${mm}-${dd}`;
+      let key: string;
+      if (range === "3m") {
+        const yyyy = orderDate.getFullYear();
+        const mm = String(orderDate.getMonth() + 1).padStart(2, "0");
+        key = `${yyyy}-${mm}`;
+      } else {
+        const yyyy = orderDate.getFullYear();
+        const mm = String(orderDate.getMonth() + 1).padStart(2, "0");
+        const dd = String(orderDate.getDate()).padStart(2, "0");
+        key = `${yyyy}-${mm}-${dd}`;
+      }
 
-      const entry = dailyMap.get(key);
+      const entry = mapBuckets.get(key);
       if (entry) {
         entry.amount += amt;
       }
@@ -82,16 +157,16 @@ export async function GET(req: Request) {
       }
     }
 
-    const dailySalesArray = Array.from(dailyMap.values());
-    const maxDayAmount = Math.max(...dailySalesArray.map((d) => d.amount), 1);
+    const salesArray = Array.from(mapBuckets.values());
+    const maxAmount = Math.max(...salesArray.map((d) => d.amount), 1);
 
-    const dailySalesFormatted = dailySalesArray.map((d) => ({
+    const salesFormatted = salesArray.map((d) => ({
       day: d.dayLabel,
       dateStr: d.dateStr,
       amount: `฿${d.amount.toLocaleString("th-TH")}`,
       rawAmount: d.amount,
-      heightPct: Math.round((d.amount / maxDayAmount) * 100),
-      highlight: d.amount === maxDayAmount && d.amount > 0,
+      heightPct: Math.round((d.amount / maxAmount) * 100),
+      highlight: d.amount === maxAmount && d.amount > 0,
     }));
 
     const topItems = Object.values(itemAgg)
@@ -109,7 +184,7 @@ export async function GET(req: Request) {
         range,
         totalRevenue,
         totalOrdersCount,
-        dailySales: dailySalesFormatted,
+        dailySales: salesFormatted,
         topItems,
       },
     });

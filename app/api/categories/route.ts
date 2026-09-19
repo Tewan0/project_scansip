@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { categories } from "@/db/schema";
 import { asc, eq } from "drizzle-orm";
-import { getOrCreateStore } from "@/utils/store";
+import { getOrCreateStore, DEFAULT_STORE_CATEGORIES } from "@/utils/store";
 
 // GET /api/categories - ดึงหมวดหมู่ทั้งหมด
 export async function GET(req: Request) {
@@ -23,11 +23,30 @@ export async function GET(req: Request) {
       storeId = store.id;
     }
 
-    const data = await db
+    let data = await db
       .select()
       .from(categories)
       .where(eq(categories.storeId, storeId))
       .orderBy(asc(categories.sortOrder));
+
+    // หากร้านค้านี้ยังไม่มีหมวดหมู่ ให้สร้างหมวดหมู่เริ่มต้นอัตโนมัติ
+    if (data.length === 0) {
+      try {
+        data = await db
+          .insert(categories)
+          .values(
+            DEFAULT_STORE_CATEGORIES.map((c) => ({
+              storeId,
+              name: c.name,
+              sortOrder: c.sortOrder,
+            }))
+          )
+          .returning();
+        data.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      } catch (insertErr) {
+        console.error("Failed to auto-seed categories:", insertErr);
+      }
+    }
 
     return NextResponse.json({ success: true, data });
   } catch (error: unknown) {

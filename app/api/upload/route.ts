@@ -24,7 +24,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabase = createClient(supabaseUrl, serviceRoleKey || supabaseAnonKey);
 
     // สร้างชื่อไฟล์ที่ไม่ซ้ำกัน
     const ext = file.name.split(".").pop() || "jpg";
