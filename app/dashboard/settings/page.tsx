@@ -82,7 +82,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-stack-md md:p-margin-page">
+    <div className="p-4 sm:p-gutter lg:p-margin-page">
       <div className="max-w-3xl mx-auto space-y-stack-lg">
         {saved && (
           <div className="p-stack-sm rounded-lg bg-status-success/10 border border-status-success/30 text-status-success flex items-center gap-2 text-xs animate-fadeIn">
@@ -182,7 +182,7 @@ export default function SettingsPage() {
               <button
                 type="submit"
                 disabled={isSaving}
-                className="px-stack-lg h-9 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:bg-primary/90 transition-colors shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-60"
+                className="w-full sm:w-auto justify-center px-stack-lg h-9 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:bg-primary/90 transition-colors shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-60"
               >
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 {isSaving ? "กำลังบันทึก..." : "บันทึกข้อมูล"}

@@ -16,7 +16,6 @@ import {
   Coffee,
   X,
   Menu,
-  Bell,
   LogOut,
 } from "lucide-react";
 
@@ -96,15 +95,15 @@ export default function DashboardLayout({
       {/* Mobile Drawer Overlay */}
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 bg-on-background/40 backdrop-blur-xs z-40 md:hidden"
+          className="fixed inset-0 bg-on-background/40 backdrop-blur-xs z-40 lg:hidden"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
       {/* SideNavBar (Desktop & Mobile Drawer) */}
       <aside
-        className={`fixed md:flex flex-col left-0 top-0 h-screen w-[260px] bg-surface border-r border-border-subtle z-50 py-margin-page transition-transform duration-300 ease-in-out ${
-          mobileMenuOpen ? "translate-x-0 flex" : "-translate-x-full md:translate-x-0 hidden"
+        className={`fixed lg:flex flex-col left-0 top-0 h-screen w-[260px] bg-surface border-r border-border-subtle z-50 py-margin-page transition-transform duration-300 ease-in-out ${
+          mobileMenuOpen ? "translate-x-0 flex" : "-translate-x-full lg:translate-x-0 hidden"
         }`}
       >
         {/* Brand Header */}
@@ -124,7 +123,7 @@ export default function DashboardLayout({
           </Link>
           <button
             onClick={() => setMobileMenuOpen(false)}
-            className="md:hidden text-on-surface-variant hover:text-on-surface p-1 rounded cursor-pointer"
+            className="lg:hidden text-on-surface-variant hover:text-on-surface p-1 rounded cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -198,13 +197,13 @@ export default function DashboardLayout({
       </aside>
 
       {/* Main Content Shell */}
-      <div className="flex-1 flex flex-col md:ml-[260px] h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col lg:ml-[260px] h-screen overflow-hidden">
         {/* TopNavBar */}
         <header className="flex justify-between items-center h-16 px-gutter bg-surface border-b border-border-subtle shrink-0 w-full sticky top-0 z-30">
           <div className="flex items-center gap-stack-md">
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="md:hidden text-on-surface-variant p-2 -ml-2 rounded-full hover:bg-surface-container-low cursor-pointer"
+              className="lg:hidden text-on-surface-variant p-2 -ml-2 rounded-full hover:bg-surface-container-low cursor-pointer"
               aria-label="Open menu"
             >
               <Menu className="w-5 h-5" />
@@ -212,26 +211,6 @@ export default function DashboardLayout({
             <h1 className="font-headline-md text-headline-md font-bold text-primary opacity-90">
               {pageTitle}
             </h1>
-          </div>
-
-          <div className="flex items-center gap-stack-md">
-            <button
-              className="relative text-on-surface-variant hover:bg-surface-container-low rounded-full p-2 transition-colors duration-200 cursor-pointer"
-              aria-label="Notifications"
-            >
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full border border-surface"></span>
-            </button>
-
-            <Link href="/dashboard/settings" className="block cursor-pointer">
-              <div className="w-8 h-8 rounded-full overflow-hidden border border-border-subtle hover:opacity-85 transition-opacity">
-                <img
-                  alt="Owner Profile"
-                  className="w-full h-full object-cover"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuAYYkFY8RkvtMuRqSIvZzvo7WosSysjrIi_Miuvt1r5PHa2ZHQmY224H3TR_b1V4pfGDqEOgaa-VYN3tllyvSZLpK1pim0Jgu_yESEd2FFfzeE2aw0CaWX55UY7HE34jlJgTf9904Wu9ErVpuTJfoR6wQOitRaiaPVMG8EIoLO5e8egTcWAvVDf9q02tWOpc6HuZy_rsjHmFI37VT5XmtZIeXajf0A6pXHSaZFscGky-nEX8WsBua9Kqw"
-                />
-              </div>
-            </Link>
           </div>
         </header>
 

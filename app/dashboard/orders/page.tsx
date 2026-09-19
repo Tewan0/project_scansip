@@ -143,7 +143,7 @@ export default function OrdersPage() {
   };
 
   return (
-    <div className="p-gutter lg:p-margin-page">
+    <div className="p-4 sm:p-gutter lg:p-margin-page">
       <div className="max-w-7xl mx-auto space-y-gutter">
         {/* Status Filter Tabs */}
         <div className="flex items-center gap-stack-sm border-b border-border-subtle pb-stack-sm overflow-x-auto">

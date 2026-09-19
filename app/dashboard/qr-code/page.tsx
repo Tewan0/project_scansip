@@ -469,9 +469,9 @@ export default function QrCodeGeneratorPage() {
         })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-gutter">
         {/* Generator Setup (Left Column) */}
-        <div className="lg:col-span-4 flex flex-col gap-stack-lg">
+        <div className="xl:col-span-4 flex flex-col gap-stack-lg">
           {/* Batch Generation Card */}
           <div className="bg-surface-card rounded-xl border border-border-subtle p-stack-lg shadow-[0_4px_12px_rgba(0,0,0,0.02)]">
             <div className="flex items-center gap-2 mb-stack-md">
@@ -598,7 +598,7 @@ export default function QrCodeGeneratorPage() {
         </div>
 
         {/* Preview Area (Right Column) */}
-        <div className="lg:col-span-8">
+        <div className="xl:col-span-8">
           <div className="bg-surface-card rounded-xl border border-border-subtle h-full min-h-[500px] flex flex-col shadow-[0_4px_12px_rgba(0,0,0,0.02)] overflow-hidden">
             <div className="px-stack-lg py-stack-md border-b border-border-subtle flex justify-between items-center bg-surface-bright">
               <div className="flex items-center gap-2">
@@ -655,7 +655,7 @@ export default function QrCodeGeneratorPage() {
             </div>
 
             {/* Bottom Actions */}
-            <div className="px-stack-lg py-stack-md border-t border-border-subtle flex flex-wrap items-center justify-end gap-stack-sm sm:gap-stack-md bg-surface-bright">
+            <div className="p-3 sm:px-stack-lg sm:py-stack-md border-t border-border-subtle flex flex-wrap items-center justify-end gap-2 sm:gap-stack-md bg-surface-bright">
               {/* Format Selector Dropdown on Download Bar */}
               <div className="flex items-center gap-1.5 bg-surface-card border border-border-subtle rounded-lg px-2.5 h-[36px] shadow-2xs">
                 <span className="font-label-md text-label-md text-on-surface-variant text-xs">

@@ -128,7 +128,7 @@ export default function DashboardPage() {
   })}`;
 
   return (
-    <div className="p-gutter lg:p-margin-page">
+    <div className="p-4 sm:p-gutter lg:p-margin-page">
       <div className="max-w-7xl mx-auto space-y-gutter">
         {/* Header with Quick Refresh */}
         <div className="flex justify-between items-center">
@@ -151,23 +151,23 @@ export default function DashboardPage() {
         </div>
 
         {/* Summary Cards Bento */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-gutter">
           {/* Sales Card */}
-          <div className="bg-surface-card border border-border-subtle rounded-xl p-stack-lg flex flex-col gap-stack-sm hover:shadow-xs transition-shadow">
+          <div className="bg-surface-card border border-border-subtle rounded-xl p-4 sm:p-stack-lg flex flex-col gap-stack-sm hover:shadow-xs transition-shadow">
             <div className="flex justify-between items-start">
-              <span className="font-label-md text-label-md text-on-surface-variant">
+              <span className="font-label-md text-label-md text-on-surface-variant truncate">
                 ยอดขายวันนี้
               </span>
-              <div className="w-8 h-8 rounded bg-primary-fixed text-primary-container flex items-center justify-center">
+              <div className="w-8 h-8 rounded bg-primary-fixed text-primary-container flex items-center justify-center shrink-0">
                 <Banknote className="w-4 h-4" />
               </div>
             </div>
-            <div className="font-headline-xl text-headline-xl text-on-background mt-2">
+            <div className="font-headline-xl text-headline-xl text-on-background mt-2 truncate">
               {todaySalesDisplay}
             </div>
-            <div className="flex items-center gap-unit text-status-success font-label-md text-label-md mt-4">
-              <TrendingUp className="w-4 h-4" />
-              <span>
+            <div className="flex items-center flex-wrap gap-1 text-status-success font-label-md text-label-md mt-4">
+              <TrendingUp className="w-4 h-4 shrink-0" />
+              <span className="font-bold">
                 {stats?.growthPercent !== undefined && stats.growthPercent > 0 ? `+${stats.growthPercent}%` : `${stats?.growthPercent || 0}%`}
               </span>
               <span className="text-on-surface-variant font-body-sm text-body-sm ml-1 font-normal">
@@ -177,39 +177,39 @@ export default function DashboardPage() {
           </div>
 
           {/* Orders Card */}
-          <div className="bg-surface-card border border-border-subtle rounded-xl p-stack-lg flex flex-col gap-stack-sm hover:shadow-xs transition-shadow">
+          <div className="bg-surface-card border border-border-subtle rounded-xl p-4 sm:p-stack-lg flex flex-col gap-stack-sm hover:shadow-xs transition-shadow">
             <div className="flex justify-between items-start">
-              <span className="font-label-md text-label-md text-on-surface-variant">
+              <span className="font-label-md text-label-md text-on-surface-variant truncate">
                 จำนวนออเดอร์วันนี้
               </span>
-              <div className="w-8 h-8 rounded bg-secondary-fixed text-secondary flex items-center justify-center">
+              <div className="w-8 h-8 rounded bg-secondary-fixed text-secondary flex items-center justify-center shrink-0">
                 <Receipt className="w-4 h-4" />
               </div>
             </div>
-            <div className="font-headline-xl text-headline-xl text-on-background mt-2">
+            <div className="font-headline-xl text-headline-xl text-on-background mt-2 truncate">
               {stats?.todayOrdersCount ?? 0}
             </div>
-            <div className="flex items-center gap-unit text-on-surface-variant font-label-md text-label-md mt-4">
-              <CheckCircle2 className="w-4 h-4 text-status-success" />
-              <span>เสร็จสิ้น {stats?.completedOrdersCount ?? 0} ออเดอร์</span>
+            <div className="flex items-center gap-unit text-on-surface-variant font-label-md text-label-md mt-4 truncate">
+              <CheckCircle2 className="w-4 h-4 text-status-success shrink-0" />
+              <span className="truncate">เสร็จสิ้น {stats?.completedOrdersCount ?? 0} ออเดอร์</span>
             </div>
           </div>
 
           {/* Best Item Card */}
-          <div className="bg-surface-card border border-border-subtle rounded-xl p-stack-lg flex flex-col gap-stack-sm hover:shadow-xs transition-shadow">
+          <div className="bg-surface-card border border-border-subtle rounded-xl p-4 sm:p-stack-lg flex flex-col gap-stack-sm hover:shadow-xs transition-shadow sm:col-span-2 lg:col-span-1">
             <div className="flex justify-between items-start">
-              <span className="font-label-md text-label-md text-on-surface-variant">
+              <span className="font-label-md text-label-md text-on-surface-variant truncate">
                 เมนูขายดีประจำวัน
               </span>
-              <div className="w-8 h-8 rounded bg-surface-container-high text-on-surface flex items-center justify-center">
+              <div className="w-8 h-8 rounded bg-surface-container-high text-on-surface flex items-center justify-center shrink-0">
                 <Coffee className="w-4 h-4" />
               </div>
             </div>
-            <div className="font-headline-md text-headline-md text-on-background mt-2 leading-tight line-clamp-1" title={stats?.topMenu.name}>
+            <div className="font-headline-md text-headline-md text-on-background mt-2 leading-tight truncate" title={stats?.topMenu.name}>
               {stats?.topMenu.name || "ยังไม่มีข้อมูล"}
             </div>
             <div className="flex items-center gap-unit text-on-surface-variant font-label-md text-label-md mt-auto pt-4">
-              <Flame className="w-4 h-4 text-status-warning" />
+              <Flame className="w-4 h-4 text-status-warning shrink-0" />
               <span className="text-status-warning font-semibold">
                 {stats?.topMenu.count ?? 0} รายการ
               </span>
@@ -218,19 +218,19 @@ export default function DashboardPage() {
         </div>
 
         {/* Main Data Area */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-gutter">
           {/* Chart Area */}
-          <div className="lg:col-span-2 bg-surface-card border border-border-subtle rounded-xl p-stack-lg flex flex-col">
-            <div className="flex justify-between items-center mb-stack-lg">
+          <div className="xl:col-span-2 bg-surface-card border border-border-subtle rounded-xl p-4 sm:p-stack-lg flex flex-col">
+            <div className="flex flex-wrap justify-between items-center gap-2 mb-stack-lg">
               <div className="flex items-center gap-2">
-                <LineChart className="w-5 h-5 text-primary" />
-                <h2 className="font-headline-md text-headline-md text-on-background font-bold">
+                <LineChart className="w-5 h-5 text-primary shrink-0" />
+                <h2 className="font-headline-md text-headline-md text-on-background font-bold truncate">
                   ยอดขาย (7 วันล่าสุด)
                 </h2>
               </div>
               <Link
                 href="/dashboard/reports"
-                className="font-label-md text-label-md px-3 py-1.5 border border-border-subtle rounded hover:bg-surface-container-low transition-colors text-on-surface-variant flex items-center gap-1 cursor-pointer"
+                className="font-label-md text-label-md px-3 py-1.5 border border-border-subtle rounded hover:bg-surface-container-low transition-colors text-on-surface-variant flex items-center gap-1 cursor-pointer shrink-0"
               >
                 <BarChart3 className="w-4 h-4" />
                 <span>รายงานยอดขาย</span>
@@ -238,7 +238,7 @@ export default function DashboardPage() {
               </Link>
             </div>
 
-            <div className="relative w-full h-[280px] mt-auto">
+            <div className="relative w-full h-[280px] mt-auto pb-7">
               {/* Dynamic Line Chart */}
               <svg className="w-full h-full" preserveAspectRatio="none" viewBox={`0 0 ${chartWidth} ${chartHeight}`}>
                 {/* Grid Lines */}
@@ -280,9 +280,9 @@ export default function DashboardPage() {
               </svg>
 
               {/* X-Axis Labels */}
-              <div className="absolute bottom-[-24px] left-0 w-full flex justify-between font-label-md text-label-md text-on-surface-variant px-3">
+              <div className="absolute bottom-0 left-0 w-full flex justify-between font-label-md text-label-md text-on-surface-variant px-2 sm:px-3 select-none">
                 {points.map((pt, i) => (
-                  <span key={i} className="text-center w-12">
+                  <span key={i} className="text-center w-12 text-[11px] sm:text-xs truncate">
                     {pt.label}
                   </span>
                 ))}
@@ -292,7 +292,7 @@ export default function DashboardPage() {
 
           {/* Recent Orders Table */}
           <div className="bg-surface-card border border-border-subtle rounded-xl flex flex-col overflow-hidden shadow-xs">
-            <div className="p-stack-lg border-b border-border-subtle flex justify-between items-center bg-surface-bright">
+            <div className="p-4 sm:p-stack-lg border-b border-border-subtle flex justify-between items-center bg-surface-bright">
               <div className="flex items-center gap-2">
                 <Receipt className="w-5 h-5 text-primary" />
                 <h2 className="font-headline-md text-headline-md text-on-background font-bold">
@@ -300,17 +300,17 @@ export default function DashboardPage() {
                 </h2>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto max-h-[380px]">
+            <div className="flex-1 overflow-x-auto overflow-y-auto max-h-[380px] scrollbar-thin">
               {(!stats?.recentOrders || stats.recentOrders.length === 0) ? (
                 <div className="flex flex-col items-center justify-center p-8 text-on-surface-variant text-center gap-2">
                   <Receipt className="w-8 h-8 opacity-40" />
                   <p className="font-body-md text-sm">ยังไม่มีคำสั่งซื้อเข้ามา</p>
                 </div>
               ) : (
-                <table className="w-full text-left border-collapse">
+                <table className="w-full text-left border-collapse min-w-[320px]">
                   <thead className="bg-surface sticky top-0 z-10">
                     <tr>
-                      <th className="font-label-md text-label-md text-on-surface-variant py-stack-sm px-stack-lg border-b border-border-subtle font-normal">
+                      <th className="font-label-md text-label-md text-on-surface-variant py-stack-sm px-3 sm:px-stack-lg border-b border-border-subtle font-normal">
                         <span className="flex items-center gap-1">
                           <Tag className="w-3.5 h-3.5" />
                           ออเดอร์
@@ -336,7 +336,7 @@ export default function DashboardPage() {
                         key={order.id}
                         className="border-b border-border-subtle last:border-0 hover:bg-surface-container-low transition-colors"
                       >
-                        <td className="py-stack-md px-stack-lg">
+                        <td className="py-stack-md px-3 sm:px-stack-lg">
                           <div className="font-bold flex items-center gap-1.5 text-on-background">
                             <Receipt className="w-4 h-4 text-primary" />
                             {order.id}
@@ -351,10 +351,10 @@ export default function DashboardPage() {
                             {order.time}
                           </div>
                         </td>
-                        <td className="py-stack-md px-stack-lg text-right font-bold">
+                        <td className="py-stack-md px-3 sm:px-stack-lg text-right font-bold">
                           {order.total}
                         </td>
-                        <td className="py-stack-md px-stack-lg text-right">
+                        <td className="py-stack-md px-3 sm:px-stack-lg text-right">
                           <span
                             className={`inline-flex items-center gap-1 justify-center px-2 py-1 rounded text-xs font-semibold ${order.statusClass}`}
                           >

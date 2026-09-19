@@ -119,7 +119,7 @@ export default function ManageStaffPage() {
   };
 
   return (
-    <div className="p-stack-md md:p-margin-page">
+    <div className="p-4 sm:p-gutter lg:p-margin-page">
       <div className="max-w-4xl mx-auto space-y-stack-lg">
         {/* Status Message Banner */}
         {statusMessage && (
@@ -150,8 +150,8 @@ export default function ManageStaffPage() {
           <p className="font-body-sm text-body-sm text-on-surface-variant mb-stack-md">
             กำหนดอีเมลและตำแหน่งเพื่อให้อนุญาตการเข้าใช้งานระบบร้านค้า
           </p>
-          <form onSubmit={handleAddStaff} className="grid grid-cols-1 sm:grid-cols-12 gap-stack-md">
-            <div className="sm:col-span-4 relative">
+          <form onSubmit={handleAddStaff} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-stack-md">
+            <div className="sm:col-span-1 md:col-span-4 relative">
               <input
                 className="w-full h-9 px-3 rounded-lg border border-border-subtle bg-surface focus:border-secondary focus:ring-2 focus:ring-secondary/20 focus:outline-none transition-all font-body-sm text-body-sm text-on-surface placeholder:text-on-surface-variant"
                 placeholder="ชื่อพนักงาน (ไม่บังคับ)"
@@ -161,7 +161,7 @@ export default function ManageStaffPage() {
               />
             </div>
 
-            <div className="sm:col-span-4 relative">
+            <div className="sm:col-span-1 md:col-span-4 relative">
               <Mail className="w-4 h-4 text-on-surface-variant absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 className="w-full h-9 pl-9 pr-3 rounded-lg border border-border-subtle bg-surface focus:border-secondary focus:ring-2 focus:ring-secondary/20 focus:outline-none transition-all font-body-sm text-body-sm text-on-surface placeholder:text-on-surface-variant"
@@ -173,7 +173,7 @@ export default function ManageStaffPage() {
               />
             </div>
 
-            <div className="sm:col-span-2">
+            <div className="sm:col-span-1 md:col-span-2">
               <select
                 value={roleInput}
                 onChange={(e) => setRoleInput(e.target.value as "cashier" | "kitchen" | "manager")}
@@ -185,7 +185,7 @@ export default function ManageStaffPage() {
               </select>
             </div>
 
-            <div className="sm:col-span-2">
+            <div className="sm:col-span-1 md:col-span-2">
               <button
                 disabled={isSubmitting}
                 className="w-full h-9 px-4 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:bg-primary/90 transition-colors whitespace-nowrap flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-60"

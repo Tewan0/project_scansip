@@ -304,7 +304,6 @@ export default function EditMenuItemModal({
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
               >
-                <option value="">ไม่ระบุหมวดหมู่</option>
                 {categories.map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {cat.name}

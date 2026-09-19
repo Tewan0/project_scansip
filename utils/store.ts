@@ -1,7 +1,15 @@
 import { db } from "@/db";
-import { stores } from "@/db/schema";
+import { stores, categories } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { createClient } from "@/utils/supabase/server";
+
+export const DEFAULT_STORE_CATEGORIES = [
+  { name: "เครื่องดื่มกาแฟ", sortOrder: 1 },
+  { name: "เครื่องดื่มที่ไม่ใช่กาแฟ", sortOrder: 2 },
+  { name: "เบเกอรี่และของหวาน", sortOrder: 3 },
+  { name: "อาหารว่างและทานเล่น", sortOrder: 4 },
+  { name: "อาหารจานหลัก", sortOrder: 5 },
+];
 
 // Fallback owner UID ในกรณีที่ไม่พบ session (เช่น การทดสอบเบื้องต้น)
 export const DEFAULT_OWNER_ID = "a4261258-4a0c-4e17-80a5-4780a879d8f2";
@@ -64,7 +72,21 @@ export async function getOrCreateStore(customOwnerId?: string) {
         currency: "THB",
       })
       .returning();
-    store = newStore;
+    if (newStore) {
+      store = newStore;
+      // สร้างหมวดหมู่เริ่มต้นให้ร้านค้าใหม่
+      try {
+        await db.insert(categories).values(
+          DEFAULT_STORE_CATEGORIES.map((c) => ({
+            storeId: newStore.id,
+            name: c.name,
+            sortOrder: c.sortOrder,
+          }))
+        );
+      } catch (catErr) {
+        console.error("Failed to seed default categories:", catErr);
+      }
+    }
   } else if (!store.slug) {
     // ถ้ามีร้านแล้วแต่ยังไม่มี slug ให้อัปเดต
     const slug = generateSlug(store.name);
@@ -73,7 +95,13 @@ export async function getOrCreateStore(customOwnerId?: string) {
       .set({ slug })
       .where(eq(stores.id, store.id))
       .returning();
-    store = updated;
+    if (updated) {
+      store = updated;
+    }
+  }
+
+  if (!store) {
+    throw new Error("Failed to get or create store");
   }
 
   return store;
