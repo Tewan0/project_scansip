@@ -91,7 +91,7 @@ export default function DashboardLayout({
   const pageTitle = currentItem ? currentItem.name : "แดชบอร์ด";
 
   return (
-    <div className="flex h-screen w-full bg-background overflow-hidden font-body-md text-body-md text-on-background">
+    <div className="flex h-screen h-dvh w-full bg-background overflow-hidden font-body-md text-body-md text-on-background">
       {/* Mobile Drawer Overlay */}
       {mobileMenuOpen && (
         <div
@@ -102,35 +102,36 @@ export default function DashboardLayout({
 
       {/* SideNavBar (Desktop & Mobile Drawer) */}
       <aside
-        className={`fixed lg:flex flex-col left-0 top-0 h-screen w-[260px] max-w-[85vw] bg-surface border-r border-border-subtle z-50 py-margin-page transition-transform duration-300 ease-in-out overflow-hidden ${
-          mobileMenuOpen ? "translate-x-0 flex" : "-translate-x-full lg:translate-x-0 hidden"
+        className={`fixed inset-y-0 left-0 h-dvh max-h-dvh w-[260px] max-w-[85vw] bg-surface border-r border-border-subtle z-50 flex flex-col transition-transform duration-300 ease-in-out ${
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
         {/* Brand Header */}
-        <div className="px-stack-lg pb-stack-lg border-b border-border-subtle mb-stack-md flex items-center justify-between">
-          <Link href="/owner/dashboard" className="flex items-center gap-stack-sm group">
-            <div className="w-8 h-8 bg-primary rounded flex items-center justify-center text-on-primary shadow-xs">
+        <div className="px-4 py-3.5 sm:px-stack-lg sm:py-stack-md border-b border-border-subtle shrink-0 flex items-center justify-between">
+          <Link href="/owner/dashboard" className="flex items-center gap-stack-sm group min-w-0">
+            <div className="w-8 h-8 bg-primary rounded flex items-center justify-center text-on-primary shadow-xs shrink-0">
               <Coffee className="w-4 h-4" />
             </div>
-            <div className="flex flex-col">
-              <span className="font-headline-md text-headline-md font-bold text-primary group-hover:opacity-90">
+            <div className="flex flex-col min-w-0">
+              <span className="font-headline-md text-headline-md font-bold text-primary group-hover:opacity-90 truncate">
                 ScanSip
               </span>
-              <span className="font-label-md text-label-md text-on-surface-variant">
+              <span className="font-label-md text-label-md text-on-surface-variant truncate">
                 {storeName}
               </span>
             </div>
           </Link>
           <button
             onClick={() => setMobileMenuOpen(false)}
-            className="lg:hidden text-on-surface-variant hover:text-on-surface p-1 rounded cursor-pointer"
+            className="lg:hidden text-on-surface-variant hover:text-on-surface p-1.5 rounded cursor-pointer shrink-0 ml-2"
+            aria-label="Close menu"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Navigation Links */}
-        <nav className="flex flex-col flex-1 gap-unit px-stack-sm overflow-y-auto">
+        <nav className="flex flex-col flex-1 min-h-0 py-2 px-stack-sm gap-unit overflow-y-auto overscroll-contain">
           {navItems.map((item) => {
             const isActive =
               item.href === "/dashboard"
@@ -148,7 +149,7 @@ export default function DashboardLayout({
                   isActive
                     ? "bg-secondary-container text-primary border-l-2 border-secondary scale-[0.98] font-semibold rounded-r-lg"
                     : "text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg font-normal"
-                } ${item.href === "/dashboard/settings" ? "mt-auto" : ""}`}
+                } ${item.href === "/dashboard/settings" ? "mt-auto pt-2" : ""}`}
               >
                 <IconComponent className={`w-5 h-5 shrink-0 ${isActive ? "text-primary" : "text-on-surface-variant"}`} />
                 <span className="font-label-md text-label-md truncate">{item.name}</span>
@@ -158,8 +159,8 @@ export default function DashboardLayout({
         </nav>
 
         {/* User Profile Footer */}
-        <div className="px-stack-sm pt-stack-sm border-t border-border-subtle mt-auto overflow-hidden">
-          <div className="flex w-full items-center justify-between gap-2 p-stack-sm hover:bg-surface-container-low rounded-lg transition-colors group overflow-hidden">
+        <div className="px-stack-sm pt-stack-sm pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:pb-stack-md border-t border-border-subtle shrink-0 bg-surface mt-auto">
+          <div className="flex w-full items-center justify-between gap-2 p-stack-sm hover:bg-surface-container-low rounded-lg transition-colors group">
             <div className="flex items-center gap-stack-sm min-w-0 flex-1 overflow-hidden">
               {currentUser?.avatarUrl ? (
                 <img
@@ -187,7 +188,7 @@ export default function DashboardLayout({
               <button
                 type="submit"
                 title="ออกจากระบบ"
-                className="text-on-surface-variant hover:text-error p-1 rounded-md hover:bg-error-container/20 transition-colors cursor-pointer"
+                className="text-on-surface-variant hover:text-error p-1.5 rounded-md hover:bg-error-container/20 transition-colors cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
               </button>
@@ -197,9 +198,9 @@ export default function DashboardLayout({
       </aside>
 
       {/* Main Content Shell */}
-      <div className="flex-1 flex flex-col lg:ml-[260px] h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col lg:ml-[260px] h-full min-h-0 overflow-hidden">
         {/* TopNavBar */}
-        <header className="flex justify-between items-center h-16 px-gutter bg-surface border-b border-border-subtle shrink-0 w-full sticky top-0 z-30">
+        <header className="flex justify-between items-center h-16 px-4 sm:px-gutter bg-surface border-b border-border-subtle shrink-0 w-full sticky top-0 z-30">
           <div className="flex items-center gap-stack-md">
             <button
               onClick={() => setMobileMenuOpen(true)}
@@ -215,7 +216,7 @@ export default function DashboardLayout({
         </header>
 
         {/* Dynamic Nested Content */}
-        <main className="flex-1 overflow-y-auto bg-background">
+        <main className="flex-1 min-h-0 overflow-y-auto bg-background">
           {children}
         </main>
       </div>
