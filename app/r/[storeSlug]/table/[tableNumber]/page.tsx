@@ -80,11 +80,13 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
     promptPayNumber: string | null;
     openingTime: string;
     closingTime: string;
+    logoUrl?: string | null;
   }>({
     name: "กำลังโหลดชื่อร้าน...",
     promptPayNumber: null,
     openingTime: "08:00",
     closingTime: "18:00",
+    logoUrl: null,
   });
 
   const [menuList, setMenuList] = useState<MenuItem[]>([]);
@@ -124,6 +126,7 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
           promptPayNumber: storeJson.data.promptPayNumber,
           openingTime: storeJson.data.openingTime,
           closingTime: storeJson.data.closingTime,
+          logoUrl: storeJson.data.logoUrl || null,
         });
       }
 
@@ -253,8 +256,16 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-border-subtle shadow-xs px-4 py-3">
         <div className="max-w-md mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-on-primary shadow-xs">
-              <Coffee className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl overflow-hidden bg-primary flex items-center justify-center text-on-primary shadow-xs shrink-0 border border-primary/20">
+              {storeInfo.logoUrl ? (
+                <img
+                  src={storeInfo.logoUrl}
+                  alt={storeInfo.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <Coffee className="w-5 h-5" />
+              )}
             </div>
             <div>
               <h1 className="font-bold text-base text-primary leading-tight">

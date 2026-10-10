@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { stores } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getOrCreateStore, getCurrentUserId, generateSlug } from "@/utils/store";
+import { deleteStorageFile } from "@/utils/supabase/storage";
 
 // GET /api/store - ดึงข้อมูลร้านค้าปัจจุบัน หรือค้นหาจาก slug/id
 export async function GET(req: Request) {
@@ -82,21 +83,58 @@ export async function POST(req: Request) {
   }
 }
 
-// PUT /api/store - บันทึกการตั้งค่าร้านค้า (ชื่อร้าน, เบอร์พร้อมเพย์, เวลาเปิด-ปิด)
+// PUT /api/store - บันทึกการตั้งค่าร้านค้า (ชื่อร้าน, เบอร์พร้อมเพย์, เวลาเปิด-ปิด, โลโก้, slug)
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
-    const { name, promptPayNumber, openingTime, closingTime, currency, logoUrl } = body;
+    const { name, promptPayNumber, openingTime, closingTime, currency, logoUrl, slug } = body;
 
     const store = await getOrCreateStore();
     if (!store) {
       return NextResponse.json({ success: false, error: "Store not found" }, { status: 404 });
     }
 
+    let updatedSlug = store.slug;
+    if (slug !== undefined) {
+      const cleanSlug = typeof slug === "string"
+        ? slug
+            .trim()
+            .toLowerCase()
+            .replace(/[^\u0E00-\u0E7Fa-zA-Z0-9_-]+/g, "-")
+            .replace(/^-+|-+$/g, "")
+        : "";
+
+      if (!cleanSlug) {
+        return NextResponse.json(
+          { success: false, error: "URL Slug cannot be empty" },
+          { status: 400 }
+        );
+      }
+
+      if (cleanSlug !== store.slug) {
+        const existing = await db.query.stores.findFirst({
+          where: eq(stores.slug, cleanSlug),
+        });
+        if (existing && existing.id !== store.id) {
+          return NextResponse.json(
+            { success: false, error: `URL Slug "${cleanSlug}" มีผู้อื่นใช้งานแล้ว` },
+            { status: 400 }
+          );
+        }
+        updatedSlug = cleanSlug;
+      }
+    }
+
+    // ลบไฟล์โลโก้เก่าออกจาก Storage ทันทีเมื่อมีการเปลี่ยนรูปหรือลบรูป
+    if (logoUrl !== undefined && store.logoUrl && store.logoUrl !== logoUrl) {
+      await deleteStorageFile(store.logoUrl, "restaurant-logos");
+    }
+
     const [updatedStore] = await db
       .update(stores)
       .set({
         name: name !== undefined ? name : store.name,
+        slug: updatedSlug,
         promptPayNumber: promptPayNumber !== undefined ? promptPayNumber : store.promptPayNumber,
         openingTime: openingTime !== undefined ? openingTime : store.openingTime,
         closingTime: closingTime !== undefined ? closingTime : store.closingTime,

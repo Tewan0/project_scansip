@@ -115,9 +115,56 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <span className="text-on-surface-variant font-body-md">กำลังโหลดข้อมูลแดชบอร์ด...</span>
+      <div className="p-4 sm:p-gutter lg:p-margin-page animate-fadeIn">
+        <div className="max-w-7xl mx-auto space-y-gutter">
+          {/* Header Skeleton */}
+          <div className="flex justify-between items-center">
+            <div className="space-y-2">
+              <div className="h-8 w-44 rounded-lg skeleton-shimmer" />
+              <div className="h-4 w-64 rounded-md skeleton-shimmer" />
+            </div>
+            <div className="h-8 w-28 rounded-lg skeleton-shimmer" />
+          </div>
+
+          {/* 3 Metric Bento Cards Skeleton */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-gutter">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="bg-surface-card border border-border-subtle rounded-2xl p-5 flex flex-col justify-between h-40 shadow-xs"
+              >
+                <div className="flex justify-between items-start">
+                  <div className="h-4 w-28 rounded skeleton-shimmer" />
+                  <div className="w-9 h-9 rounded-xl skeleton-shimmer" />
+                </div>
+                <div className="h-9 w-36 rounded-lg skeleton-shimmer my-2" />
+                <div className="h-4 w-40 rounded skeleton-shimmer" />
+              </div>
+            ))}
+          </div>
+
+          {/* Chart & Recent Orders Skeleton */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-gutter">
+            <div className="xl:col-span-2 bg-surface-card border border-border-subtle rounded-2xl p-5 h-96 shadow-xs flex flex-col justify-between">
+              <div className="flex justify-between items-center">
+                <div className="h-5 w-40 rounded skeleton-shimmer" />
+                <div className="h-7 w-32 rounded-lg skeleton-shimmer" />
+              </div>
+              <div className="w-full h-64 rounded-xl skeleton-shimmer mt-4" />
+            </div>
+            <div className="bg-surface-card border border-border-subtle rounded-2xl p-5 h-96 shadow-xs flex flex-col justify-between">
+              <div className="flex justify-between items-center mb-4">
+                <div className="h-5 w-32 rounded skeleton-shimmer" />
+                <div className="h-6 w-20 rounded skeleton-shimmer" />
+              </div>
+              <div className="space-y-3 flex-1">
+                {[1, 2, 3, 4].map((j) => (
+                  <div key={j} className="h-14 w-full rounded-xl skeleton-shimmer" />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -128,7 +175,7 @@ export default function DashboardPage() {
   })}`;
 
   return (
-    <div className="p-4 sm:p-gutter lg:p-margin-page">
+    <div className="p-4 sm:p-gutter lg:p-margin-page animate-fadeIn">
       <div className="max-w-7xl mx-auto space-y-gutter">
         {/* Header with Quick Refresh */}
         <div className="flex justify-between items-center">
@@ -136,33 +183,34 @@ export default function DashboardPage() {
             <h1 className="font-headline-lg text-headline-lg font-bold text-on-background">
               ภาพรวมร้านค้า
             </h1>
-            <p className="text-body-sm text-on-surface-variant mt-0.5">
-              ข้อมูลสถิติและสถานะคำสั่งซื้อแบบเรียลไทม์
+            <p className="text-body-sm text-on-surface-variant mt-0.5 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-status-success inline-block animate-pulseGlow" />
+              <span>ข้อมูลสถิติและสถานะคำสั่งซื้อแบบเรียลไทม์</span>
             </p>
           </div>
           <button
             onClick={() => fetchStats(true)}
             disabled={isRefreshing}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-border-subtle rounded-lg bg-surface hover:bg-surface-container-low transition-colors text-on-surface-variant cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-border-subtle rounded-lg bg-surface hover:bg-surface-container-low transition-all duration-200 text-on-surface-variant cursor-pointer active:scale-95 shadow-2xs hover:shadow-xs"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-            <span>อัปเดตข้อมูล</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-primary" : ""}`} />
+            <span>{isRefreshing ? "กำลังอัปเดต..." : "อัปเดตข้อมูล"}</span>
           </button>
         </div>
 
         {/* Summary Cards Bento */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-gutter">
           {/* Sales Card */}
-          <div className="bg-surface-card border border-border-subtle rounded-xl p-4 sm:p-stack-lg flex flex-col gap-stack-sm hover:shadow-xs transition-shadow">
+          <div className="bg-surface-card border border-border-subtle rounded-2xl p-5 flex flex-col gap-stack-sm hover:-translate-y-1 hover:shadow-md transition-all duration-300 group cursor-default">
             <div className="flex justify-between items-start">
               <span className="font-label-md text-label-md text-on-surface-variant truncate">
                 ยอดขายวันนี้
               </span>
-              <div className="w-8 h-8 rounded bg-primary-fixed text-primary-container flex items-center justify-center shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-primary-fixed text-primary-container flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300">
                 <Banknote className="w-4 h-4" />
               </div>
             </div>
-            <div className="font-headline-xl text-headline-xl text-on-background mt-2 truncate">
+            <div className="font-headline-xl text-headline-xl text-on-background mt-2 truncate font-bold">
               {todaySalesDisplay}
             </div>
             <div className="flex items-center flex-wrap gap-1 text-status-success font-label-md text-label-md mt-4">
@@ -177,16 +225,16 @@ export default function DashboardPage() {
           </div>
 
           {/* Orders Card */}
-          <div className="bg-surface-card border border-border-subtle rounded-xl p-4 sm:p-stack-lg flex flex-col gap-stack-sm hover:shadow-xs transition-shadow">
+          <div className="bg-surface-card border border-border-subtle rounded-2xl p-5 flex flex-col gap-stack-sm hover:-translate-y-1 hover:shadow-md transition-all duration-300 group cursor-default">
             <div className="flex justify-between items-start">
               <span className="font-label-md text-label-md text-on-surface-variant truncate">
                 จำนวนออเดอร์วันนี้
               </span>
-              <div className="w-8 h-8 rounded bg-secondary-fixed text-secondary flex items-center justify-center shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-secondary-fixed text-secondary flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300">
                 <Receipt className="w-4 h-4" />
               </div>
             </div>
-            <div className="font-headline-xl text-headline-xl text-on-background mt-2 truncate">
+            <div className="font-headline-xl text-headline-xl text-on-background mt-2 truncate font-bold">
               {stats?.todayOrdersCount ?? 0}
             </div>
             <div className="flex items-center gap-unit text-on-surface-variant font-label-md text-label-md mt-4 truncate">
@@ -196,16 +244,16 @@ export default function DashboardPage() {
           </div>
 
           {/* Best Item Card */}
-          <div className="bg-surface-card border border-border-subtle rounded-xl p-4 sm:p-stack-lg flex flex-col gap-stack-sm hover:shadow-xs transition-shadow sm:col-span-2 lg:col-span-1">
+          <div className="bg-surface-card border border-border-subtle rounded-2xl p-5 flex flex-col gap-stack-sm hover:-translate-y-1 hover:shadow-md transition-all duration-300 group cursor-default sm:col-span-2 lg:col-span-1">
             <div className="flex justify-between items-start">
               <span className="font-label-md text-label-md text-on-surface-variant truncate">
                 เมนูขายดีประจำวัน
               </span>
-              <div className="w-8 h-8 rounded bg-surface-container-high text-on-surface flex items-center justify-center shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-surface-container-high text-on-surface flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300">
                 <Coffee className="w-4 h-4" />
               </div>
             </div>
-            <div className="font-headline-md text-headline-md text-on-background mt-2 leading-tight truncate" title={stats?.topMenu.name}>
+            <div className="font-headline-md text-headline-md text-on-background mt-2 leading-tight truncate font-bold" title={stats?.topMenu.name}>
               {stats?.topMenu.name || "ยังไม่มีข้อมูล"}
             </div>
             <div className="flex items-center gap-unit text-on-surface-variant font-label-md text-label-md mt-auto pt-4">
