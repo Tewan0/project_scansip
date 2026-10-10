@@ -332,17 +332,40 @@ export default function MenuManagementPage() {
         </button>
       </div>
 
-      {/* Loading state */}
+      {/* Loading state - Skeleton Shimmer Grid */}
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-20 text-on-surface-variant">
-          <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
-          <p className="font-body-md text-body-md">กำลังโหลดข้อมูลเมนู...</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-gutter animate-fadeIn">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+            <div
+              key={i}
+              className="bg-surface-card rounded-2xl border border-border-subtle overflow-hidden flex flex-col shadow-xs"
+            >
+              <div className="aspect-[4/3] w-full skeleton-shimmer" />
+              <div className="p-stack-md flex-1 flex flex-col justify-between space-y-3">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <div className="h-5 w-32 rounded skeleton-shimmer" />
+                    <div className="h-5 w-16 rounded skeleton-shimmer" />
+                  </div>
+                  <div className="h-3.5 w-full rounded skeleton-shimmer" />
+                  <div className="h-3.5 w-2/3 rounded skeleton-shimmer" />
+                </div>
+                <div className="pt-stack-sm border-t border-border-subtle flex justify-between items-center">
+                  <div className="h-6 w-24 rounded skeleton-shimmer" />
+                  <div className="flex gap-1.5">
+                    <div className="w-7 h-7 rounded skeleton-shimmer" />
+                    <div className="w-7 h-7 rounded skeleton-shimmer" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       ) : filteredItems.length === 0 ? (
         /* Empty State */
-        <div className="bg-surface-card border border-border-subtle rounded-xl p-12 text-center max-w-md mx-auto my-12 shadow-xs">
-          <div className="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center mx-auto mb-4 text-on-surface-variant">
-            <UtensilsCrossed className="w-6 h-6" />
+        <div className="bg-surface-card border border-border-subtle rounded-2xl p-12 text-center max-w-md mx-auto my-12 shadow-xs animate-fadeIn">
+          <div className="w-14 h-14 rounded-2xl bg-surface-container-high flex items-center justify-center mx-auto mb-4 text-on-surface-variant">
+            <UtensilsCrossed className="w-7 h-7" />
           </div>
           <h3 className="font-headline-md text-headline-md font-bold text-on-surface mb-2">
             ยังไม่มีรายการเมนู
@@ -353,7 +376,7 @@ export default function MenuManagementPage() {
           <button
             type="button"
             onClick={() => setIsModalOpen(true)}
-            className="h-9 px-stack-md bg-primary text-on-primary font-label-md text-label-md rounded-lg inline-flex items-center gap-1.5 shadow-xs hover:bg-primary-container transition-colors cursor-pointer"
+            className="h-10 px-stack-lg bg-primary text-on-primary font-label-md text-label-md rounded-xl inline-flex items-center gap-2 shadow-xs hover:bg-primary/90 transition-all duration-200 cursor-pointer active:scale-95"
           >
             <Plus className="w-4 h-4" />
             เพิ่มเมนูแรก
@@ -361,12 +384,12 @@ export default function MenuManagementPage() {
         </div>
       ) : (
         /* Menu Grid */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-gutter">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-gutter animate-fadeIn">
           {filteredItems.map((item) => (
             <div
               key={item.id}
-              className={`bg-surface-card rounded-xl border border-border-subtle overflow-hidden flex flex-col shadow-xs hover:shadow-md transition-shadow group ${
-                !item.isAvailable ? "opacity-70 bg-surface-container-lowest" : ""
+              className={`bg-surface-card rounded-2xl border border-border-subtle overflow-hidden flex flex-col shadow-xs hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group ${
+                !item.isAvailable ? "opacity-75 bg-surface-container-lowest" : ""
               }`}
             >
               {/* Menu Item Image */}
@@ -374,7 +397,7 @@ export default function MenuManagementPage() {
                 {item.imageUrl ? (
                   <img
                     alt={item.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
                     src={item.imageUrl}
                   />
                 ) : (
@@ -465,8 +488,8 @@ export default function MenuManagementPage() {
 
       {/* Add Item Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-on-background/40 backdrop-blur-xs z-50 flex items-center justify-center p-gutter">
-          <div className="bg-surface-card border border-border-subtle rounded-xl max-w-lg w-full overflow-hidden shadow-xl animate-scaleUp">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-gutter animate-fadeIn">
+          <div className="bg-surface-card border border-border-subtle rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl animate-scaleUp">
             <div className="p-stack-md border-b border-border-subtle flex justify-between items-center bg-surface-bright">
               <div className="flex items-center gap-2">
                 <UtensilsCrossed className="w-5 h-5 text-primary" />

@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
@@ -93,8 +94,12 @@ export default async function OwnerDashboardPage() {
       {/* Top Navbar */}
       <header className="sticky top-0 z-30 bg-surface border-b border-border-subtle backdrop-blur-md px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary text-on-primary flex items-center justify-center shadow-xs">
-            <Coffee className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-xl overflow-hidden bg-primary text-on-primary flex items-center justify-center shadow-xs shrink-0 border border-border-subtle">
+            {store.logoUrl ? (
+              <img src={store.logoUrl} alt={store.name} className="w-full h-full object-cover" />
+            ) : (
+              <Coffee className="w-6 h-6" />
+            )}
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -194,14 +199,14 @@ export default async function OwnerDashboardPage() {
                 <Link
                   key={card.href}
                   href={card.href}
-                  className="group bg-surface-card border border-border-subtle hover:border-secondary/50 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
+                  className="group bg-surface-card border border-border-subtle hover:border-secondary/50 rounded-2xl p-5 shadow-xs hover:shadow-lg hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between cursor-pointer"
                 >
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${card.color}`}>
+                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center border ${card.color} group-hover:scale-110 transition-transform duration-300 shadow-2xs`}>
                         <Icon className="w-5 h-5" />
                       </div>
-                      <ArrowRight className="w-4 h-4 text-neutral-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                      <ArrowRight className="w-4 h-4 text-neutral-300 group-hover:text-primary group-hover:translate-x-1.5 transition-all duration-200" />
                     </div>
                     <h4 className="font-bold text-sm text-on-surface mb-1 group-hover:text-primary transition-colors">
                       {card.title}

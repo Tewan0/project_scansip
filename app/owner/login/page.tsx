@@ -37,16 +37,16 @@ export default function OwnerLoginPage({ searchParams }: LoginPageProps) {
     <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden">
       {/* Background ambient gradient */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[20%] -right-[10%] w-[50%] h-[50%] rounded-full bg-secondary-container opacity-20 blur-[100px]" />
-        <div className="absolute -bottom-[20%] -left-[10%] w-[40%] h-[40%] rounded-full bg-primary-container opacity-15 blur-[120px]" />
+        <div className="absolute -top-[20%] -right-[10%] w-[50%] h-[50%] rounded-full bg-secondary-container opacity-20 blur-[100px] animate-floatSlow" />
+        <div className="absolute -bottom-[20%] -left-[10%] w-[40%] h-[40%] rounded-full bg-primary-container opacity-15 blur-[120px] animate-floatSlowReverse" />
       </div>
 
       {/* Main Container */}
-      <main className="w-full max-w-[460px] bg-surface-card rounded-2xl border border-border-subtle shadow-[0_8px_30px_rgb(0,0,0,0.06)] relative z-10 overflow-hidden">
+      <main className="w-full max-w-[460px] bg-surface-card rounded-2xl border border-border-subtle shadow-[0_8px_30px_rgb(0,0,0,0.06)] relative z-10 overflow-hidden animate-cardEnter">
         {/* Brand Header */}
         <header className="pt-8 px-8 pb-6 text-center border-b border-border-subtle bg-surface-bright">
           <div className="flex justify-center mb-3">
-            <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center shadow-md text-on-primary">
+            <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center shadow-md text-on-primary animate-gentleBob">
               <Coffee className="w-8 h-8" />
             </div>
           </div>
@@ -62,7 +62,7 @@ export default function OwnerLoginPage({ searchParams }: LoginPageProps) {
         <div className="p-8">
           {/* Error Banner */}
           {errorMessage && (
-            <div className="mb-6 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5 animate-fadeIn">
+            <div className="mb-6 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5 animate-shake">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="font-semibold">เข้าสู่ระบบไม่สำเร็จ</p>
@@ -85,13 +85,13 @@ export default function OwnerLoginPage({ searchParams }: LoginPageProps) {
             type="button"
             onClick={handleGoogleLogin}
             disabled={isPending}
-            className="w-full flex items-center justify-center gap-3 py-3.5 px-4 bg-white hover:bg-neutral-50 border border-border-subtle rounded-xl shadow-xs hover:shadow-sm transition-all duration-200 cursor-pointer disabled:opacity-60 group"
+            className="w-full flex items-center justify-center gap-3 py-3.5 px-4 bg-white hover:bg-neutral-50 border border-border-subtle hover:border-secondary/40 rounded-xl shadow-xs hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer disabled:opacity-60 group"
           >
             {isPending ? (
               <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             ) : (
               <svg
-                className="w-5 h-5 shrink-0 transition-transform group-hover:scale-105"
+                className="w-5 h-5 shrink-0 transition-transform group-hover:scale-110 duration-200"
                 viewBox="0 0 24 24"
                 xmlns="http://www.w3.org/2000/svg"
               >
@@ -116,11 +116,11 @@ export default function OwnerLoginPage({ searchParams }: LoginPageProps) {
             <span className="text-sm font-semibold text-neutral-800">
               {isPending ? "กำลังเชื่อมต่อไปยัง Google..." : "ดำเนินการต่อด้วย Google"}
             </span>
-            <ArrowRight className="w-4 h-4 text-neutral-400 ml-auto group-hover:translate-x-0.5 transition-transform" />
+            <ArrowRight className="w-4 h-4 text-neutral-400 ml-auto group-hover:translate-x-1 transition-transform duration-200" />
           </button>
 
           {/* Security Guarantee Note */}
-          <div className="mt-8 pt-6 border-t border-border-subtle flex items-center justify-center gap-2 text-on-surface-variant text-xs">
+          <div className="mt-8 pt-6 border-t border-border-subtle flex items-center justify-center gap-2 text-on-surface-variant text-xs hover:text-on-surface transition-colors">
             <ShieldCheck className="w-4 h-4 text-status-success shrink-0" />
             <span>ระบบยืนยันตัวตนความปลอดภัยสูงผ่าน Supabase Auth</span>
           </div>

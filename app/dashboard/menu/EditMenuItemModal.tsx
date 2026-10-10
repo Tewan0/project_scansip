@@ -159,8 +159,8 @@ export default function EditMenuItemModal({
   const hasImageChanged = newImageFile !== null || removeImage;
 
   return (
-    <div className="fixed inset-0 bg-on-background/40 backdrop-blur-xs z-50 flex items-center justify-center p-gutter">
-      <div className="bg-surface-card border border-border-subtle rounded-xl max-w-lg w-full overflow-hidden shadow-xl animate-scaleUp max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-gutter animate-fadeIn">
+      <div className="bg-surface-card border border-border-subtle rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl animate-scaleUp max-h-[90vh] flex flex-col">
         {/* Modal Header */}
         <div className="p-stack-md border-b border-border-subtle flex justify-between items-center bg-surface-bright shrink-0">
           <div className="flex items-center gap-2">

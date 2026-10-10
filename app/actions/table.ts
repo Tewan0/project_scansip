@@ -8,7 +8,7 @@ import { revalidatePath } from "next/cache";
 
 export interface TableActionResponse {
   success: boolean;
-  data?: any;
+  data?: unknown;
   error?: string;
 }
 

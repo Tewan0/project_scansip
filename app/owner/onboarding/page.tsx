@@ -1,6 +1,7 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   createStoreOnboarding,
@@ -22,6 +23,8 @@ import {
   Image as ImageIcon,
   AlertCircle,
   LogOut,
+  Upload,
+  Trash2,
 } from "lucide-react";
 
 export default function OwnerOnboardingPage() {
@@ -37,9 +40,72 @@ export default function OwnerOnboardingPage() {
   const [openingTime, setOpeningTime] = useState("08:00");
   const [closingTime, setClosingTime] = useState("18:00");
   const [logoUrl, setLogoUrl] = useState("");
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [logoUploadError, setLogoUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setLogoUploadError("กรุณาเลือกไฟล์รูปภาพเท่านั้น (JPG, PNG)");
+      return;
+    }
+
+    try {
+      setIsUploadingLogo(true);
+      setLogoUploadError(null);
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("bucket", "restaurant-logos");
+      if (logoUrl) {
+        formData.append("oldUrl", logoUrl);
+      }
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (data.success && data.url) {
+        setLogoUrl(data.url);
+      } else {
+        setLogoUploadError(data.error || "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ");
+      }
+    } catch (err) {
+      console.error("Logo upload error:", err);
+      setLogoUploadError("ไม่สามารถอัปโหลดรูปภาพได้ กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    const prevLogo = logoUrl;
+    setLogoUrl("");
+    setLogoUploadError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+
+    if (prevLogo) {
+      try {
+        await fetch("/api/upload", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: prevLogo, bucket: "restaurant-logos" }),
+        });
+      } catch (err) {
+        console.error("Failed to delete logo file:", err);
+      }
+    }
+  };
 
   // Helper to format slug from input string
   const formatSlug = (input: string) => {
@@ -148,19 +214,19 @@ export default function OwnerOnboardingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 sm:p-8 relative">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 sm:p-8 relative overflow-hidden">
       {/* Background decoration */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[15%] -right-[10%] w-[45%] h-[45%] rounded-full bg-secondary-container opacity-20 blur-[90px]" />
-        <div className="absolute -bottom-[15%] -left-[10%] w-[45%] h-[45%] rounded-full bg-primary-container opacity-15 blur-[90px]" />
+        <div className="absolute -top-[15%] -right-[10%] w-[45%] h-[45%] rounded-full bg-secondary-container opacity-20 blur-[90px] animate-floatSlow" />
+        <div className="absolute -bottom-[15%] -left-[10%] w-[45%] h-[45%] rounded-full bg-primary-container opacity-15 blur-[90px] animate-floatSlowReverse" />
       </div>
 
-      <div className="max-w-xl w-full bg-surface-card border border-border-subtle rounded-3xl p-6 sm:p-10 shadow-xl relative z-10">
+      <div className="max-w-xl w-full bg-surface-card border border-border-subtle rounded-3xl p-6 sm:p-10 shadow-xl relative z-10 animate-cardEnter">
         {/* Account Info & Sign Out Bar */}
         {currentUserEmail && (
           <div className="mb-6 px-3.5 py-2.5 rounded-xl bg-surface-container-low border border-border-subtle flex items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-2 text-on-surface-variant min-w-0">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
               <span className="truncate">
                 เข้าสู่ระบบด้วย: <strong className="text-on-surface font-semibold">{currentUserEmail}</strong>
               </span>
@@ -168,7 +234,7 @@ export default function OwnerOnboardingPage() {
             <form action={signOutOwner}>
               <button
                 type="submit"
-                className="inline-flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 font-medium px-2.5 py-1 rounded-lg hover:bg-rose-50 transition-colors shrink-0 cursor-pointer"
+                className="inline-flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 font-medium px-2.5 py-1 rounded-lg hover:bg-rose-50 active:scale-95 transition-all shrink-0 cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>เปลี่ยนบัญชี</span>
@@ -179,7 +245,7 @@ export default function OwnerOnboardingPage() {
 
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="w-14 h-14 bg-primary text-on-primary rounded-2xl flex items-center justify-center mx-auto mb-3.5 shadow-md">
+          <div className="w-14 h-14 bg-primary text-on-primary rounded-2xl flex items-center justify-center mx-auto mb-3.5 shadow-md animate-gentleBob">
             <Coffee className="w-7 h-7" />
           </div>
           <h1 className="text-2xl font-bold text-on-surface">
@@ -191,7 +257,7 @@ export default function OwnerOnboardingPage() {
         </div>
 
         {errorMessage && (
-          <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm flex items-start gap-2.5 animate-fadeIn">
+          <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm flex items-start gap-2.5 animate-shake">
             <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
             <span className="flex-1">{errorMessage}</span>
           </div>
@@ -227,12 +293,12 @@ export default function OwnerOnboardingPage() {
                 </span>
               )}
               {slugStatus === "available" && (
-                <span className="text-xs text-emerald-600 font-medium flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> URL นี้ใช้ได้
+                <span className="text-xs text-emerald-600 font-medium flex items-center gap-1 animate-popIn">
+                  <CheckCircle2 className="w-3.5 h-3.5 animate-popIn" /> URL นี้ใช้ได้
                 </span>
               )}
               {slugStatus === "unavailable" && (
-                <span className="text-xs text-rose-600 font-medium flex items-center gap-1">
+                <span className="text-xs text-rose-600 font-medium flex items-center gap-1 animate-shake">
                   <XCircle className="w-3.5 h-3.5" /> {slugError || "URL ซ้ำ"}
                 </span>
               )}
@@ -311,19 +377,96 @@ export default function OwnerOnboardingPage() {
             </div>
           </div>
 
-          {/* Logo URL */}
+          {/* Restaurant Logo Upload */}
           <div>
             <label className="flex items-center gap-1.5 text-xs font-bold text-on-surface uppercase tracking-wider mb-1.5">
               <ImageIcon className="w-4 h-4 text-primary" />
-              URL โลโก้ร้านค้า (ตัวเลือก)
+              โลโก้ร้านค้า (ตัวเลือก)
             </label>
+
             <input
-              type="url"
-              placeholder="https://example.com/logo.png"
-              value={logoUrl}
-              onChange={(e) => setLogoUrl(e.target.value)}
-              className="w-full h-11 px-3.5 rounded-xl border border-border-subtle bg-surface text-on-surface text-sm focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all"
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/jpg"
+              onChange={handleLogoFileChange}
+              className="hidden"
             />
+
+            {logoUrl ? (
+              <div className="p-3.5 rounded-2xl bg-surface border border-border-subtle flex items-center justify-between gap-3 animate-scaleUp">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-14 h-14 rounded-xl border border-border-subtle overflow-hidden bg-surface-container-low shrink-0 flex items-center justify-center group">
+                    <img
+                      src={logoUrl}
+                      alt="Logo Preview"
+                      className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-emerald-600 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0 animate-popIn" /> อัปโหลดสำเร็จ
+                    </p>
+                    <p className="text-[11px] text-on-surface-variant truncate">
+                      พร้อมใช้งานเป็นโลโก้ของร้าน
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploadingLogo}
+                    className="px-2.5 py-1.5 text-xs text-primary font-medium hover:bg-primary/5 active:scale-95 rounded-lg border border-border-subtle transition-all cursor-pointer"
+                  >
+                    เปลี่ยนรูป
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRemoveLogo}
+                    disabled={isUploadingLogo}
+                    className="p-1.5 text-xs text-rose-600 hover:bg-rose-50 active:scale-95 rounded-lg transition-all cursor-pointer"
+                    title="ลบรูปภาพ"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                onClick={() => !isUploadingLogo && fileInputRef.current?.click()}
+                className={`w-full border-2 border-dashed rounded-2xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all group ${
+                  isUploadingLogo
+                    ? "bg-surface-container-low border-neutral-300 pointer-events-none"
+                    : "border-border-subtle hover:border-secondary hover:bg-secondary/5 hover:shadow-xs"
+                }`}
+              >
+                {isUploadingLogo ? (
+                  <div className="flex flex-col items-center gap-1.5 py-2">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    <span className="text-xs font-medium text-on-surface">กำลังอัปโหลดรูปภาพโลโก้...</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-2 group-hover:-translate-y-1 transition-transform duration-200">
+                      <Upload className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-semibold text-on-surface">
+                      คลิกเพื่อเลือกไฟล์รูปภาพโลโก้
+                    </span>
+                    <span className="text-[11px] text-on-surface-variant mt-0.5">
+                      รองรับไฟล์ JPG, PNG, WEBP แนะนำขนาดสี่เหลี่ยมจัตุรัส
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
+
+            {logoUploadError && (
+              <p className="text-[11px] text-rose-600 mt-1.5 flex items-center gap-1 animate-shake">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {logoUploadError}
+              </p>
+            )}
           </div>
 
           {/* Submit Button */}
@@ -331,7 +474,7 @@ export default function OwnerOnboardingPage() {
             <button
               type="submit"
               disabled={isPending || !storeName.trim() || !slug.trim() || slugStatus === "unavailable"}
-              className="w-full h-12 bg-primary text-on-primary font-medium text-sm rounded-xl flex items-center justify-center gap-2 hover:bg-primary/90 transition-all shadow-md cursor-pointer disabled:opacity-50"
+              className="w-full h-12 bg-primary text-on-primary font-medium text-sm rounded-xl flex items-center justify-center gap-2 hover:bg-primary/90 hover:shadow-lg active:scale-[0.98] transition-all shadow-md cursor-pointer disabled:opacity-50 group"
             >
               {isPending ? (
                 <>
@@ -340,9 +483,9 @@ export default function OwnerOnboardingPage() {
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4" />
+                  <Sparkles className="w-4 h-4 group-hover:rotate-12 group-hover:scale-110 transition-transform duration-200" />
                   <span>สร้างร้านค้าและเข้าสู่แดชบอร์ด</span>
-                  <ArrowRight className="w-4 h-4 ml-1" />
+                  <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform duration-200" />
                 </>
               )}
             </button>

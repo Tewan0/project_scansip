@@ -63,6 +63,7 @@ export default function DashboardLayout({
   }, []);
 
   const [storeName, setStoreName] = useState<string>("แดชบอร์ดเจ้าของร้าน");
+  const [storeLogoUrl, setStoreLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/store")
@@ -70,6 +71,7 @@ export default function DashboardLayout({
       .then((json) => {
         if (json.success && json.data?.name) {
           setStoreName(json.data.name);
+          setStoreLogoUrl(json.data.logoUrl || null);
         } else if (!json.data) {
           // If logged-in user doesn't have a store yet, redirect to onboarding
           router.push("/onboarding");
@@ -109,8 +111,12 @@ export default function DashboardLayout({
         {/* Brand Header */}
         <div className="px-4 py-3.5 sm:px-stack-lg sm:py-stack-md border-b border-border-subtle shrink-0 flex items-center justify-between">
           <Link href="/owner/dashboard" className="flex items-center gap-stack-sm group min-w-0">
-            <div className="w-8 h-8 bg-primary rounded flex items-center justify-center text-on-primary shadow-xs shrink-0">
-              <Coffee className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-lg overflow-hidden bg-primary flex items-center justify-center text-on-primary shadow-xs shrink-0 border border-border-subtle">
+              {storeLogoUrl ? (
+                <img src={storeLogoUrl} alt={storeName} className="w-full h-full object-cover" />
+              ) : (
+                <Coffee className="w-4 h-4" />
+              )}
             </div>
             <div className="flex flex-col min-w-0">
               <span className="font-headline-md text-headline-md font-bold text-primary group-hover:opacity-90 truncate">
