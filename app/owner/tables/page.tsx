@@ -1,10 +1,11 @@
 import DashboardLayout from "@/app/dashboard/layout";
-import QrCodeGeneratorPage from "@/app/dashboard/qr-code/page";
+import TablesManagementPage from "@/app/dashboard/tables/page";
 
 export default function OwnerTablesPage() {
   return (
     <DashboardLayout>
-      <QrCodeGeneratorPage />
+      <TablesManagementPage />
     </DashboardLayout>
   );
 }
+

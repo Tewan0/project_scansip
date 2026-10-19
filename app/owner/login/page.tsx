@@ -1,8 +1,12 @@
 "use client";
 
 import { useState, useTransition, use } from "react";
+import Link from "next/link";
 import { signInWithGoogleOwner } from "@/app/actions/owner-auth";
-import { Coffee, Store, ShieldCheck, AlertCircle, ArrowRight } from "lucide-react";
+import { Coffee, Store, ShieldCheck, AlertCircle, ArrowRight, ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 interface LoginPageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -34,64 +38,65 @@ export default function OwnerLoginPage({ searchParams }: LoginPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background ambient gradient */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[20%] -right-[10%] w-[50%] h-[50%] rounded-full bg-secondary-container opacity-20 blur-[100px] animate-floatSlow" />
-        <div className="absolute -bottom-[20%] -left-[10%] w-[40%] h-[40%] rounded-full bg-primary-container opacity-15 blur-[120px] animate-floatSlowReverse" />
+    <div className="min-h-screen bg-muted/20 flex flex-col items-center justify-center p-4">
+      {/* Back to Home Link */}
+      <div className="w-full max-w-md mb-4 flex justify-between items-center">
+        <Button variant="ghost" size="sm" render={<Link href="/" />}>
+          <ArrowLeft className="w-4 h-4" data-icon="inline-start" />
+          กลับหน้าหลัก
+        </Button>
+        <Badge variant="outline" className="text-xs font-normal">
+          สำหรับเจ้าของร้าน
+        </Badge>
       </div>
 
-      {/* Main Container */}
-      <main className="w-full max-w-[460px] bg-surface-card rounded-2xl border border-border-subtle shadow-[0_8px_30px_rgb(0,0,0,0.06)] relative z-10 overflow-hidden animate-cardEnter">
-        {/* Brand Header */}
-        <header className="pt-8 px-8 pb-6 text-center border-b border-border-subtle bg-surface-bright">
+      {/* Main Login Card */}
+      <Card className="w-full max-w-md shadow-xs border-border">
+        <CardHeader className="text-center pb-4 pt-6">
           <div className="flex justify-center mb-3">
-            <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center shadow-md text-on-primary animate-gentleBob">
-              <Coffee className="w-8 h-8" />
+            <div className="w-12 h-12 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-xs">
+              <Coffee className="w-6 h-6" />
             </div>
           </div>
-          <h1 className="font-headline-lg text-2xl font-bold text-on-surface mb-1">
-            ScanSip
-          </h1>
-          <div className="flex items-center justify-center gap-1.5 text-on-surface-variant text-sm font-medium">
-            <Store className="w-4 h-4 text-primary" />
-            <span>พอร์ทัลเจ้าของร้านค้า (Owner Portal)</span>
-          </div>
-        </header>
+          <CardTitle className="text-2xl font-bold tracking-tight">
+            ScanSip Portal
+          </CardTitle>
+          <CardDescription className="text-sm">
+            ระบบจัดการร้านอาหารและออเดอร์โต๊ะอาหารแบบครบวงจร
+          </CardDescription>
+        </CardHeader>
 
-        <div className="p-8">
+        <CardContent className="space-y-4 pt-2">
           {/* Error Banner */}
           {errorMessage && (
-            <div className="mb-6 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5 animate-shake">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <div className="flex-1">
+            <div className="p-3.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div>
                 <p className="font-semibold">เข้าสู่ระบบไม่สำเร็จ</p>
-                <p className="mt-0.5 text-rose-700">{errorMessage}</p>
+                <p className="mt-0.5 opacity-90">{errorMessage}</p>
               </div>
             </div>
           )}
 
-          <div className="text-center mb-8">
-            <h2 className="text-lg font-bold text-on-surface mb-1.5">
-              ยินดีต้อนรับเจ้าของร้าน
-            </h2>
-            <p className="text-xs text-on-surface-variant leading-relaxed">
-              เข้าสู่ระบบเพื่อจัดการเมนูอาหาร โต๊ะ คิวอาร์โค้ด และติดตามยอดขายแบบ Real-time
-            </p>
+          <div className="bg-muted/40 p-3.5 rounded-lg border border-border/60 text-xs text-muted-foreground flex items-center gap-2">
+            <Store className="w-4 h-4 text-primary shrink-0" />
+            <span>เข้าถึงแดชบอร์ด รายการเมนู รายงานยอดขาย และ QR Code โต๊ะ</span>
           </div>
 
           {/* Google OAuth Login Button */}
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="lg"
             onClick={handleGoogleLogin}
             disabled={isPending}
-            className="w-full flex items-center justify-center gap-3 py-3.5 px-4 bg-white hover:bg-neutral-50 border border-border-subtle hover:border-secondary/40 rounded-xl shadow-xs hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer disabled:opacity-60 group"
+            className="w-full h-12 text-sm font-medium justify-center gap-3 border-border bg-background hover:bg-muted/50 cursor-pointer shadow-2xs"
           >
             {isPending ? (
-              <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             ) : (
               <svg
-                className="w-5 h-5 shrink-0 transition-transform group-hover:scale-110 duration-200"
+                className="w-4 h-4 shrink-0"
                 viewBox="0 0 24 24"
                 xmlns="http://www.w3.org/2000/svg"
               >
@@ -113,19 +118,17 @@ export default function OwnerLoginPage({ searchParams }: LoginPageProps) {
                 />
               </svg>
             )}
-            <span className="text-sm font-semibold text-neutral-800">
-              {isPending ? "กำลังเชื่อมต่อไปยัง Google..." : "ดำเนินการต่อด้วย Google"}
-            </span>
-            <ArrowRight className="w-4 h-4 text-neutral-400 ml-auto group-hover:translate-x-1 transition-transform duration-200" />
-          </button>
+            <span>{isPending ? "กำลังเชื่อมต่อไปยัง Google..." : "ดำเนินการต่อด้วย Google"}</span>
+            <ArrowRight className="w-4 h-4 ml-auto text-muted-foreground" />
+          </Button>
+        </CardContent>
 
-          {/* Security Guarantee Note */}
-          <div className="mt-8 pt-6 border-t border-border-subtle flex items-center justify-center gap-2 text-on-surface-variant text-xs hover:text-on-surface transition-colors">
-            <ShieldCheck className="w-4 h-4 text-status-success shrink-0" />
-            <span>ระบบยืนยันตัวตนความปลอดภัยสูงผ่าน Supabase Auth</span>
-          </div>
-        </div>
-      </main>
+        <CardFooter className="pt-2 pb-6 border-t border-border flex items-center justify-center gap-2 text-xs text-muted-foreground">
+          <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>ยืนยันตัวตนปลอดภัยผ่าน Supabase Auth</span>
+        </CardFooter>
+      </Card>
     </div>
   );
 }
+

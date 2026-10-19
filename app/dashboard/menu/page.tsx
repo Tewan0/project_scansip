@@ -6,26 +6,36 @@ import {
   Search,
   Plus,
   UtensilsCrossed,
-  Layers,
   Tag,
-  Settings2,
-  Trash2,
-  X,
-  Save,
   Coffee,
-  CupSoda,
-  Croissant,
-  Cookie,
   FileQuestion,
   ImagePlus,
-  FileText,
-  Loader2,
+  Trash2,
+  X,
   Upload,
   CheckCircle2,
   Pencil,
+  RotateCw,
+  SlidersHorizontal,
+  Layers,
 } from "lucide-react";
 import EditMenuItemModal from "./EditMenuItemModal";
 import { deleteMenuItem } from "@/app/actions/menu";
+
+// Shadcn UI Components
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export interface Category {
   id: string;
@@ -100,493 +110,403 @@ export default function MenuManagementPage() {
     const matchesSearch = item.name
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
-    const categoryName = item.category?.name || "ทั่วไป";
     const matchesCategory =
       selectedCategory === "ทุกหมวดหมู่" ||
-      categoryName.toLowerCase() === selectedCategory.toLowerCase();
+      item.category?.name === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      alert("กรุณาเลือกไฟล์รูปภาพเท่านั้น (JPG, PNG)");
-      return;
-    }
-
-    setNewItemImageFile(file);
-    if (newItemImagePreview) {
-      URL.revokeObjectURL(newItemImagePreview);
-    }
-    setNewItemImagePreview(URL.createObjectURL(file));
-  };
-
-  const handleRemoveNewItemImage = () => {
-    setNewItemImageFile(null);
-    if (newItemImagePreview) {
-      URL.revokeObjectURL(newItemImagePreview);
-      setNewItemImagePreview(null);
-    }
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const handleCloseModal = () => {
-    setNewItemName("");
-    setNewItemPrice("");
-    setNewItemDesc("");
-    handleRemoveNewItemImage();
-    setIsModalOpen(false);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm("คุณต้องการลบเมนูนี้ใช่หรือไม่?")) return;
-    try {
-      setDeletingId(id);
-      const res = await deleteMenuItem(id);
-      if (res.success) {
-        setItems((prev) => prev.filter((item) => item.id !== id));
-      } else {
-        alert(res.error || "ไม่สามารถลบรายการได้");
-      }
-    } catch (err) {
-      console.error("Failed to delete menu item:", err);
-      alert("เกิดข้อผิดพลาดในการลบเมนู");
-    } finally {
-      setDeletingId(null);
+    if (file) {
+      setNewItemImageFile(file);
+      setNewItemImagePreview(URL.createObjectURL(file));
     }
   };
 
-  const handleEditSuccess = (updatedItem: MenuItem) => {
-    setItems((prev) =>
-      prev.map((item) => {
-        if (item.id === updatedItem.id) {
-          const matchedCategory = categoriesList.find(
-            (c) => c.id === updatedItem.categoryId
-          );
-          return {
-            ...item,
-            ...updatedItem,
-            category: matchedCategory || item.category,
-          };
-        }
-        return item;
-      })
-    );
-    // Refresh list from database to ensure fresh state
-    fetchData();
-  };
-
-  const handleToggleAvailability = async (id: string, currentStatus: boolean) => {
-    try {
-      const res = await fetch(`/api/menu/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isAvailable: !currentStatus }),
-      });
-      if (res.ok) {
-        setItems((prev) =>
-          prev.map((item) =>
-            item.id === id ? { ...item, isAvailable: !currentStatus } : item
-          )
-        );
-      }
-    } catch (err) {
-      console.error("Failed to toggle availability:", err);
-    }
-  };
-
-  const handleAddItem = async (e: React.FormEvent) => {
+  const handleCreateItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newItemName.trim() || !newItemPrice) return;
 
     try {
       setIsSubmitting(true);
-
-      let uploadedImageUrl: string | null = null;
-      // บันทึกรูปลง Supabase Storage เมื่อกดบันทึกเมนูเท่านั้น
+      const formData = new FormData();
+      formData.append("name", newItemName.trim());
+      formData.append("price", newItemPrice);
+      formData.append("categoryId", newItemCategoryId);
+      formData.append("description", newItemDesc.trim());
       if (newItemImageFile) {
-        const formData = new FormData();
-        formData.append("file", newItemImageFile);
-
-        const uploadRes = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        });
-
-        const uploadData = await uploadRes.json();
-        if (!uploadData.success || !uploadData.url) {
-          alert(uploadData.error || "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ");
-          setIsSubmitting(false);
-          return;
-        }
-        uploadedImageUrl = uploadData.url;
+        formData.append("image", newItemImageFile);
       }
 
       const res = await fetch("/api/menu", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newItemName.trim(),
-          price: parseFloat(newItemPrice),
-          description: newItemDesc.trim() || null,
-          categoryId: newItemCategoryId || null,
-          imageUrl: uploadedImageUrl,
-          isAvailable: true,
-        }),
+        body: formData,
       });
 
-      const result = await res.json();
-      if (result.success) {
-        await fetchData(); // refresh list from db
-        handleCloseModal();
+      const json = await res.json();
+      if (json.success && json.data) {
+        setItems((prev) => [json.data, ...prev]);
+        setNewItemName("");
+        setNewItemPrice("");
+        setNewItemDesc("");
+        setNewItemImageFile(null);
+        setNewItemImagePreview(null);
+        setIsModalOpen(false);
       } else {
-        alert(result.error || "เกิดข้อผิดพลาดในการสร้างเมนู");
+        alert(json.error || "เกิดข้อผิดพลาดในการเพิ่มเมนู");
       }
     } catch (err) {
-      console.error("Failed to create menu item:", err);
-      alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+      console.error("Create menu item error:", err);
+      alert("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const getCategoryIcon = (categoryName?: string | null) => {
-    if (!categoryName) return <UtensilsCrossed className="w-3.5 h-3.5" />;
-    // ตรวจสอบเครื่องดื่มที่ไม่ใช่กาแฟก่อนกาแฟ เพื่อไม่ให้คำว่า 'กาแฟ' ไปตรงกับเงื่อนไขกาแฟ
-    if (categoryName.includes("ไม่ใช่กาแฟ") || categoryName.includes("Non-Coffee")) {
-      return <CupSoda className="w-3.5 h-3.5" />;
+  const handleDeleteItem = async (id: string) => {
+    if (!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบเมนูนี้?")) return;
+    try {
+      setDeletingId(id);
+      const res = await deleteMenuItem(id);
+      if (res.success) {
+        setItems((prev) => prev.filter((it) => it.id !== id));
+      } else {
+        alert(res.error || "ไม่สามารถลบรายการได้");
+      }
+    } catch (err) {
+      console.error("Delete menu error:", err);
+    } finally {
+      setDeletingId(null);
     }
-    if (categoryName.includes("กาแฟ") || categoryName.includes("Coffee")) {
-      return <Coffee className="w-3.5 h-3.5" />;
+  };
+
+  const toggleAvailability = async (item: MenuItem) => {
+    try {
+      const updatedStatus = !item.isAvailable;
+      const res = await fetch(`/api/menu/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isAvailable: updatedStatus }),
+      });
+      if (res.ok) {
+        setItems((prev) =>
+          prev.map((it) =>
+            it.id === item.id ? { ...it, isAvailable: updatedStatus } : it
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Toggle availability error:", err);
     }
-    if (categoryName.includes("ชา") || categoryName.includes("Tea") || categoryName.includes("เครื่องดื่ม")) {
-      return <CupSoda className="w-3.5 h-3.5" />;
-    }
-    if (
-      categoryName.includes("เบเกอรี่") ||
-      categoryName.includes("ของหวาน") ||
-      categoryName.includes("ขนม") ||
-      categoryName.includes("Cake") ||
-      categoryName.includes("Bakery")
-    ) {
-      return <Croissant className="w-3.5 h-3.5" />;
-    }
-    if (
-      categoryName.includes("อาหารว่าง") ||
-      categoryName.includes("ทานเล่น") ||
-      categoryName.includes("Snack")
-    ) {
-      return <Cookie className="w-3.5 h-3.5" />;
-    }
-    if (categoryName.includes("จานหลัก") || categoryName.includes("อาหาร")) {
-      return <UtensilsCrossed className="w-3.5 h-3.5" />;
-    }
-    return <UtensilsCrossed className="w-3.5 h-3.5" />;
   };
 
   return (
-    <div className="p-4 sm:p-gutter lg:p-margin-page bg-surface-bright min-h-full">
-      {/* Actions & Filters */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-stack-lg gap-stack-md">
-        <div className="flex flex-wrap gap-stack-sm w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant w-4 h-4" />
-            <input
-              className="h-9 pl-9 pr-4 w-full rounded-lg border border-border-subtle bg-surface-card text-body-md font-body-md focus:border-secondary focus:ring-2 focus:ring-secondary/20 transition-shadow outline-none text-on-surface"
-              placeholder="ค้นหาเมนูอาหาร/เครื่องดื่ม..."
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto font-sans">
+      {/* Top Header & Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              จัดการเมนูอาหาร
+            </h1>
+            <Badge variant="outline" className="text-xs">
+              {items.length} รายการทั้งหมด
+            </Badge>
           </div>
-          <select
-            className="h-9 px-3 rounded-lg border border-border-subtle bg-surface-card text-body-md font-body-md text-on-surface-variant focus:border-secondary focus:ring-2 focus:ring-secondary/20 transition-shadow outline-none cursor-pointer"
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-          >
-            <option value="ทุกหมวดหมู่">ทุกหมวดหมู่</option>
-            {categoriesList.map((cat) => (
-              <option key={cat.id} value={cat.name}>
-                {cat.name}
-              </option>
-            ))}
-            {items.some((i) => !i.category?.name) && (
-              <option value="ทั่วไป">ทั่วไป</option>
-            )}
-          </select>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+            เพิ่ม ลบ แก้ไขราคา ปรับสถานะพร้อมจำหน่าย และจัดหมวดหมู่เมนู
+          </p>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            if (categoriesList.length > 0 && !newItemCategoryId) {
-              setNewItemCategoryId(categoriesList[0].id);
-            }
-            setIsModalOpen(true);
-          }}
-          className="h-9 px-stack-md bg-primary text-on-primary font-label-md text-label-md rounded-lg flex items-center gap-1.5 shadow-xs hover:bg-primary-container transition-colors cursor-pointer shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span>เพิ่มเมนูใหม่</span>
-        </button>
+
+        <div className="flex items-center gap-2">
+          <Button onClick={() => setIsModalOpen(true)} size="sm">
+            <Plus data-icon="inline-start" />
+            <span>เพิ่มเมนูใหม่</span>
+          </Button>
+        </div>
       </div>
 
-      {/* Loading state - Skeleton Shimmer Grid */}
+      {/* Search & Category Filter Toolbar */}
+      <Card className="border-border">
+        <CardContent className="p-3 sm:p-4">
+          <div className="flex flex-col md:flex-row gap-3">
+            {/* Search Input */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <Input
+                placeholder="ค้นหาชื่อเมนู..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 h-9 text-xs"
+              />
+            </div>
+
+            {/* Category Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+              <Button
+                type="button"
+                onClick={() => setSelectedCategory("ทุกหมวดหมู่")}
+                variant={selectedCategory === "ทุกหมวดหมู่" ? "default" : "outline"}
+                size="xs"
+                className="h-8 rounded-lg shrink-0"
+              >
+                ทุกหมวดหมู่
+              </Button>
+              {categoriesList.map((cat) => (
+                <Button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat.name)}
+                  variant={selectedCategory === cat.name ? "default" : "outline"}
+                  size="xs"
+                  className="h-8 rounded-lg shrink-0"
+                >
+                  {cat.name}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Menu Items Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-gutter animate-fadeIn">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <div
-              key={i}
-              className="bg-surface-card rounded-2xl border border-border-subtle overflow-hidden flex flex-col shadow-xs"
-            >
-              <div className="aspect-[4/3] w-full skeleton-shimmer" />
-              <div className="p-stack-md flex-1 flex flex-col justify-between space-y-3">
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <div className="h-5 w-32 rounded skeleton-shimmer" />
-                    <div className="h-5 w-16 rounded skeleton-shimmer" />
-                  </div>
-                  <div className="h-3.5 w-full rounded skeleton-shimmer" />
-                  <div className="h-3.5 w-2/3 rounded skeleton-shimmer" />
-                </div>
-                <div className="pt-stack-sm border-t border-border-subtle flex justify-between items-center">
-                  <div className="h-6 w-24 rounded skeleton-shimmer" />
-                  <div className="flex gap-1.5">
-                    <div className="w-7 h-7 rounded skeleton-shimmer" />
-                    <div className="w-7 h-7 rounded skeleton-shimmer" />
-                  </div>
+            <Card key={i} className="overflow-hidden p-0">
+              <Skeleton className="h-44 w-full rounded-t-xl rounded-b-none" />
+              <div className="p-4 space-y-2">
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+                <div className="flex justify-between items-center pt-2">
+                  <Skeleton className="h-6 w-16" />
+                  <Skeleton className="h-8 w-20 rounded-lg" />
                 </div>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       ) : filteredItems.length === 0 ? (
-        /* Empty State */
-        <div className="bg-surface-card border border-border-subtle rounded-2xl p-12 text-center max-w-md mx-auto my-12 shadow-xs animate-fadeIn">
-          <div className="w-14 h-14 rounded-2xl bg-surface-container-high flex items-center justify-center mx-auto mb-4 text-on-surface-variant">
-            <UtensilsCrossed className="w-7 h-7" />
-          </div>
-          <h3 className="font-headline-md text-headline-md font-bold text-on-surface mb-2">
-            ยังไม่มีรายการเมนู
-          </h3>
-          <p className="font-body-sm text-body-sm text-on-surface-variant mb-6">
-            เริ่มต้นเพิ่มรายการอาหาร เครื่องดื่ม หรือของหวานลงในระบบของคุณ
-          </p>
-          <button
-            type="button"
-            onClick={() => setIsModalOpen(true)}
-            className="h-10 px-stack-lg bg-primary text-on-primary font-label-md text-label-md rounded-xl inline-flex items-center gap-2 shadow-xs hover:bg-primary/90 transition-all duration-200 cursor-pointer active:scale-95"
-          >
-            <Plus className="w-4 h-4" />
-            เพิ่มเมนูแรก
-          </button>
-        </div>
+        <Card className="border-border">
+          <CardContent className="py-16 text-center text-muted-foreground">
+            <UtensilsCrossed className="size-10 mx-auto mb-3 opacity-30" />
+            <h3 className="text-base font-bold text-foreground mb-1">
+              ไม่พบรายการอาหารในหมวดนี้
+            </h3>
+            <p className="text-xs max-w-sm mx-auto mb-4">
+              คุณสามารถเริ่มเพิ่มเมนูแรกเข้าสู่ระบบได้ทันที
+            </p>
+            <Button onClick={() => setIsModalOpen(true)} size="sm">
+              <Plus data-icon="inline-start" />
+              <span>เพิ่มเมนูอาหาร</span>
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
-        /* Menu Grid */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-gutter animate-fadeIn">
-          {filteredItems.map((item) => (
-            <div
-              key={item.id}
-              className={`bg-surface-card rounded-2xl border border-border-subtle overflow-hidden flex flex-col shadow-xs hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group ${
-                !item.isAvailable ? "opacity-75 bg-surface-container-lowest" : ""
-              }`}
-            >
-              {/* Menu Item Image */}
-              <div className="aspect-[4/3] w-full bg-surface-container-high relative overflow-hidden flex items-center justify-center">
-                {item.imageUrl ? (
-                  <img
-                    alt={item.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
-                    src={item.imageUrl}
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-on-surface-variant/40 gap-1">
-                    {getCategoryIcon(item.category?.name)}
-                    <span className="text-xs">ไม่มีรูปภาพ</span>
-                  </div>
-                )}
-                <div className="absolute top-2 left-2 flex gap-1">
-                  <span className="bg-surface-card/90 backdrop-blur-xs text-on-surface font-label-md text-xs px-2 py-0.5 rounded shadow-xs flex items-center gap-1">
-                    {getCategoryIcon(item.category?.name)}
-                    {item.category?.name || "ทั่วไป"}
-                  </span>
-                </div>
-                {!item.isAvailable && (
-                  <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center">
-                    <span className="bg-error text-on-error font-label-md text-xs px-2.5 py-1 rounded shadow-md font-bold">
-                      หมดชั่วคราว
-                    </span>
-                  </div>
-                )}
-              </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filteredItems.map((item) => {
+            const isDeleting = deletingId === item.id;
 
-              {/* Menu Item Content */}
-              <div className="p-stack-md flex-1 flex flex-col justify-between">
+            return (
+              <Card
+                key={item.id}
+                className={`overflow-hidden justify-between border-border transition-all duration-200 hover:border-foreground/20 ${
+                  !item.isAvailable ? "opacity-70 bg-muted/20" : ""
+                }`}
+              >
                 <div>
-                  <div className="flex justify-between items-start gap-2 mb-1">
-                    <h3 className="font-headline-md text-headline-md font-bold text-on-surface leading-tight">
-                      {item.name}
-                    </h3>
-                    <span className="font-headline-md text-headline-md font-bold text-primary shrink-0">
-                      ฿{Number(item.price).toFixed(2)}
-                    </span>
+                  {/* Photo area */}
+                  <div className="relative h-44 w-full bg-muted overflow-hidden border-b border-border flex items-center justify-center">
+                    {item.imageUrl ? (
+                      <img
+                        src={item.imageUrl}
+                        alt={item.name}
+                        className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-muted-foreground">
+                        <Coffee className="size-8 opacity-30 mb-1" />
+                        <span className="text-[10px]">ไม่มีรูปภาพ</span>
+                      </div>
+                    )}
+
+                    {/* Category Tag overlay */}
+                    <div className="absolute top-2 left-2">
+                      <Badge variant="secondary" className="text-[10px] bg-card/90 backdrop-blur-xs border border-border">
+                        {item.category?.name || "ทั่วไป"}
+                      </Badge>
+                    </div>
+
+                    {/* Stock Status Badge */}
+                    <div className="absolute top-2 right-2">
+                      <Badge
+                        variant={item.isAvailable ? "secondary" : "outline"}
+                        className={`text-[10px] ${
+                          item.isAvailable
+                            ? "text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800"
+                            : "text-destructive bg-destructive/10 border-destructive/30"
+                        }`}
+                      >
+                        {item.isAvailable ? "พร้อมขาย" : "หมด"}
+                      </Badge>
+                    </div>
                   </div>
-                  <p className="font-body-sm text-body-sm text-on-surface-variant line-clamp-2 mb-stack-md">
-                    {item.description || "ไม่มีรายละเอียดเพิ่มเติม"}
-                  </p>
+
+                  {/* Details Header */}
+                  <CardHeader className="p-4 pb-2">
+                    <CardTitle className="text-base font-bold text-foreground line-clamp-1">
+                      {item.name}
+                    </CardTitle>
+                    {item.description ? (
+                      <CardDescription className="text-xs line-clamp-2 mt-1">
+                        {item.description}
+                      </CardDescription>
+                    ) : (
+                      <p className="text-xs text-muted-foreground/50 italic mt-1">
+                        ไม่มีคำอธิบายเพิ่มเติม
+                      </p>
+                    )}
+                  </CardHeader>
                 </div>
 
-                {/* Actions bottom bar */}
-                <div className="pt-stack-sm border-t border-border-subtle flex items-center justify-between mt-auto">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleAvailability(item.id, item.isAvailable)}
-                    className={`font-label-md text-xs px-2.5 py-1 rounded border transition-colors cursor-pointer flex items-center gap-1 ${
-                      item.isAvailable
-                        ? "border-status-success/30 bg-status-success/10 text-status-success hover:bg-status-success/20"
-                        : "border-border-subtle bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
-                    }`}
-                  >
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        item.isAvailable ? "bg-status-success" : "bg-on-surface-variant"
-                      }`}
-                    />
-                    <span>{item.isAvailable ? "พร้อมจำหน่าย" : "สินค้าหมด"}</span>
-                  </button>
+                {/* Footer Controls */}
+                <CardFooter className="p-4 pt-2 border-t border-border flex items-center justify-between mt-auto">
+                  <span className="font-extrabold text-base text-foreground">
+                    ฿{Number(item.price).toFixed(2)}
+                  </span>
 
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      onClick={() => toggleAvailability(item)}
+                      variant="outline"
+                      size="xs"
+                      className="text-[11px] h-7"
+                      title={item.isAvailable ? "คลิกเพื่อปิดชั่วคราว" : "คลิกเพื่อเปิดจำหน่าย"}
+                    >
+                      {item.isAvailable ? "เปิด" : "ปิด"}
+                    </Button>
+
+                    <Button
                       onClick={() => setEditingItem(item)}
-                      className="p-1.5 text-on-surface-variant hover:text-primary hover:bg-primary-container/20 rounded transition-colors cursor-pointer"
+                      variant="outline"
+                      size="icon-xs"
+                      className="size-7 text-muted-foreground hover:text-foreground"
                       title="แก้ไขเมนู"
                     >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={deletingId === item.id}
-                      onClick={() => handleDelete(item.id)}
-                      className="p-1.5 text-on-surface-variant hover:text-error hover:bg-error-container/20 rounded transition-colors cursor-pointer disabled:opacity-50"
+                      <Pencil className="size-3.5" />
+                    </Button>
+
+                    <Button
+                      onClick={() => handleDeleteItem(item.id)}
+                      disabled={isDeleting}
+                      variant="outline"
+                      size="icon-xs"
+                      className="size-7 text-muted-foreground hover:text-destructive hover:border-destructive/40"
                       title="ลบเมนู"
                     >
-                      {deletingId === item.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-error" />
+                      {isDeleting ? (
+                        <RotateCw className="size-3 animate-spin" />
                       ) : (
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="size-3.5" />
                       )}
-                    </button>
+                    </Button>
                   </div>
-                </div>
-              </div>
-            </div>
-          ))}
+                </CardFooter>
+              </Card>
+            );
+          })}
         </div>
       )}
 
-      {/* Add Item Modal */}
+      {/* Create New Item Modal with Shadcn Card */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-gutter animate-fadeIn">
-          <div className="bg-surface-card border border-border-subtle rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl animate-scaleUp">
-            <div className="p-stack-md border-b border-border-subtle flex justify-between items-center bg-surface-bright">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fadeIn">
+          <Card className="max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border-border animate-scaleUp">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-border p-4 bg-card">
               <div className="flex items-center gap-2">
-                <UtensilsCrossed className="w-5 h-5 text-primary" />
-                <h3 className="font-headline-md text-headline-md font-bold text-on-surface">
-                  เพิ่มเมนูอาหารใหม่
-                </h3>
+                <UtensilsCrossed className="size-4 text-foreground" />
+                <CardTitle className="text-base font-bold">เพิ่มเมนูอาหารใหม่</CardTitle>
               </div>
-              <button
-                type="button"
-                onClick={handleCloseModal}
-                className="text-on-surface-variant hover:text-on-surface p-1 rounded cursor-pointer"
+              <Button
+                onClick={() => setIsModalOpen(false)}
+                variant="ghost"
+                size="icon-xs"
+                className="size-7"
               >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+                <X className="size-4" />
+              </Button>
+            </CardHeader>
 
-            <form onSubmit={handleAddItem} className="p-stack-md space-y-stack-md">
-              {/* Photo Upload Section */}
-              <div>
-                <label className="flex items-center gap-1 font-label-md text-label-md text-on-surface mb-unit">
-                  <ImagePlus className="w-3.5 h-3.5 text-on-surface-variant" />
-                  รูปภาพเมนู
-                </label>
-
-                <div className="flex items-center gap-stack-md">
+            <form onSubmit={handleCreateItem} className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Photo Upload */}
+              <div className="space-y-1.5">
+                <Label className="text-xs">รูปภาพเมนู</Label>
+                <div className="flex items-center gap-3">
                   {newItemImagePreview ? (
-                    <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-border-subtle bg-surface-container shrink-0">
-                      <img
-                        src={newItemImagePreview}
-                        alt="Preview"
-                        className="w-full h-full object-cover"
-                      />
+                    <div className="relative size-20 rounded-lg overflow-hidden border border-border bg-muted shrink-0">
+                      <img src={newItemImagePreview} alt="Preview" className="w-full h-full object-cover" />
                       <button
                         type="button"
-                        onClick={handleRemoveNewItemImage}
-                        className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 hover:bg-black/80 cursor-pointer"
-                        title="ลบรูป"
+                        onClick={() => {
+                          setNewItemImageFile(null);
+                          setNewItemImagePreview(null);
+                        }}
+                        className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 hover:bg-black/80"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <X className="size-3" />
                       </button>
                     </div>
                   ) : (
                     <div
                       onClick={() => fileInputRef.current?.click()}
-                      className="w-20 h-20 rounded-lg border-2 border-dashed border-border-subtle flex flex-col items-center justify-center text-on-surface-variant bg-surface hover:bg-surface-container-low cursor-pointer transition-colors shrink-0"
+                      className="size-20 rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center text-muted-foreground bg-muted/40 hover:bg-muted cursor-pointer transition-colors shrink-0"
                     >
-                      <Upload className="w-5 h-5 mb-0.5" />
+                      <Upload className="size-5 mb-0.5" />
                       <span className="text-[10px]">เลือกรูป</span>
                     </div>
                   )}
 
-                  <div className="flex-1">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleImageFileChange}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-3 py-1.5 text-xs font-medium border border-border-subtle rounded-lg bg-surface hover:bg-surface-container-low text-on-surface transition-colors cursor-pointer flex items-center gap-1.5"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>อัปโหลดรูปภาพจากอุปกรณ์</span>
-                    </button>
-                    <p className="text-[11px] text-on-surface-variant mt-1">
-                      รองรับไฟล์ JPG, PNG (รูปจะถูกบันทึกเมื่อกดบันทึกเมนู)
-                    </p>
-                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageChange}
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    variant="outline"
+                    size="xs"
+                    className="h-8"
+                  >
+                    <Upload data-icon="inline-start" />
+                    <span>อัปโหลดรูปภาพ</span>
+                  </Button>
                 </div>
               </div>
 
-              <div>
-                <label className="flex items-center gap-1 font-label-md text-label-md text-on-surface mb-unit">
-                  <Tag className="w-3.5 h-3.5 text-on-surface-variant" />
-                  ชื่อเมนู
-                </label>
-                <input
+              {/* Menu Name */}
+              <div className="space-y-1.5">
+                <Label htmlFor="menu-name" className="text-xs">ชื่อเมนูอาหาร / เครื่องดื่ม *</Label>
+                <Input
+                  id="menu-name"
                   required
-                  className="w-full h-9 px-3 rounded-lg border border-border-subtle bg-surface text-body-md font-body-md focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-shadow text-on-surface"
                   placeholder="เช่น มัทฉะลาเต้เย็น"
-                  type="text"
                   value={newItemName}
                   onChange={(e) => setNewItemName(e.target.value)}
+                  className="h-9 text-xs"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-stack-sm">
-                <div>
-                  <label className="flex items-center gap-1 font-label-md text-label-md text-on-surface mb-unit">
-                    <Layers className="w-3.5 h-3.5 text-on-surface-variant" />
-                    หมวดหมู่
-                  </label>
+              {/* Category & Price */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="menu-cat" className="text-xs">หมวดหมู่</Label>
                   <select
-                    className="w-full h-9 px-3 rounded-lg border border-border-subtle bg-surface text-body-md font-body-md focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-shadow text-on-surface cursor-pointer"
+                    id="menu-cat"
+                    className="w-full h-9 px-3 rounded-lg border border-border bg-background text-xs outline-none focus:border-ring"
                     value={newItemCategoryId}
                     onChange={(e) => setNewItemCategoryId(e.target.value)}
                   >
@@ -597,71 +517,69 @@ export default function MenuManagementPage() {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="flex items-center gap-1 font-label-md text-label-md text-on-surface mb-unit">
-                    <span className="font-bold text-xs text-on-surface-variant">฿</span>
-                    ราคา (บาท)
-                  </label>
-                  <input
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="menu-price" className="text-xs">ราคา (บาท) *</Label>
+                  <Input
+                    id="menu-price"
                     required
-                    className="w-full h-9 px-3 rounded-lg border border-border-subtle bg-surface text-body-md font-body-md focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-shadow text-on-surface"
-                    placeholder="เช่น 85.00"
                     type="number"
                     step="0.5"
                     min="0"
+                    placeholder="85.00"
                     value={newItemPrice}
                     onChange={(e) => setNewItemPrice(e.target.value)}
+                    className="h-9 text-xs"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="flex items-center gap-1 font-label-md text-label-md text-on-surface mb-unit">
-                  <FileText className="w-3.5 h-3.5 text-on-surface-variant" />
-                  คำอธิบายเมนู
-                </label>
+              {/* Description */}
+              <div className="space-y-1.5">
+                <Label htmlFor="menu-desc" className="text-xs">รายละเอียด / ส่วนผสม (ถ้ามี)</Label>
                 <textarea
+                  id="menu-desc"
                   rows={2}
-                  className="w-full p-2.5 rounded-lg border border-border-subtle bg-surface text-body-md font-body-md focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-shadow text-on-surface resize-none"
-                  placeholder="รายละเอียด ส่วนผสม หรือรสชาติ..."
+                  className="w-full p-2.5 rounded-lg border border-border bg-background text-xs outline-none focus:border-ring resize-none"
+                  placeholder="รสชาติกลมกล่อม หวานมันกำลังดี..."
                   value={newItemDesc}
                   onChange={(e) => setNewItemDesc(e.target.value)}
                 />
               </div>
 
-              <div className="flex justify-end gap-stack-sm pt-stack-sm border-t border-border-subtle">
-                <button
+              <div className="pt-3 border-t border-border flex justify-end gap-2">
+                <Button
                   type="button"
-                  onClick={handleCloseModal}
-                  className="px-stack-md h-9 rounded-lg border border-border-subtle bg-surface text-on-surface font-label-md text-label-md hover:bg-surface-container-high transition-colors cursor-pointer"
+                  onClick={() => setIsModalOpen(false)}
+                  variant="outline"
+                  size="sm"
                 >
                   ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-stack-md h-9 rounded-lg bg-primary text-on-primary font-label-md text-label-md hover:bg-primary-container transition-colors shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-60"
-                >
+                </Button>
+                <Button type="submit" disabled={isSubmitting} size="sm">
                   {isSubmitting ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <RotateCw className="size-4 animate-spin" />
                   ) : (
-                    <Save className="w-4 h-4" />
+                    <span>บันทึกเมนูใหม่</span>
                   )}
-                  {isSubmitting ? "กำลังบันทึก..." : "บันทึกเมนู"}
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
+          </Card>
         </div>
       )}
 
-      {/* Edit Item Modal */}
+      {/* Edit Modal Component */}
       <EditMenuItemModal
-        isOpen={!!editingItem}
+        isOpen={Boolean(editingItem)}
+        onClose={() => setEditingItem(null)}
         item={editingItem}
         categories={categoriesList}
-        onClose={() => setEditingItem(null)}
-        onSuccess={handleEditSuccess}
+        onSuccess={(updated) => {
+          setItems((prev) =>
+            prev.map((it) => (it.id === updated.id ? updated : it))
+          );
+        }}
       />
     </div>
   );

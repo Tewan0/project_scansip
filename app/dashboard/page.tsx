@@ -2,6 +2,30 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+
+// Shadcn UI Components
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+
+// Lucide Icons
 import {
   Banknote,
   TrendingUp,
@@ -12,15 +36,13 @@ import {
   LineChart,
   ArrowRight,
   BarChart3,
-  Tag,
-  Info,
   Clock,
   Hourglass,
   CheckCheck,
   Eye,
-  Loader2,
   RefreshCw,
   Armchair,
+  ShoppingBag,
 } from "lucide-react";
 
 interface RecentOrder {
@@ -86,7 +108,7 @@ export default function DashboardPage() {
   // Compute SVG chart coordinates based on chartData
   const chartPoints = stats?.chartData || [];
   const maxSales = Math.max(...chartPoints.map((c) => c.sales), 100);
-  const chartHeight = 240;
+  const chartHeight = 220;
   const chartWidth = 800;
 
   // Generate smooth SVG polyline / curve points
@@ -113,57 +135,53 @@ export default function DashboardPage() {
     ? `${pathD} L ${points[points.length - 1].x} ${chartHeight} L ${points[0].x} ${chartHeight} Z`
     : "";
 
+  // Loading Skeleton State with Shadcn Skeleton
   if (isLoading) {
     return (
-      <div className="p-4 sm:p-gutter lg:p-margin-page animate-fadeIn">
-        <div className="max-w-7xl mx-auto space-y-gutter">
-          {/* Header Skeleton */}
-          <div className="flex justify-between items-center">
-            <div className="space-y-2">
-              <div className="h-8 w-44 rounded-lg skeleton-shimmer" />
-              <div className="h-4 w-64 rounded-md skeleton-shimmer" />
-            </div>
-            <div className="h-8 w-28 rounded-lg skeleton-shimmer" />
+      <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+        {/* Header Skeleton */}
+        <div className="flex justify-between items-center">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-44 rounded-lg" />
+            <Skeleton className="h-4 w-64 rounded-md" />
           </div>
+          <Skeleton className="h-9 w-28 rounded-lg" />
+        </div>
 
-          {/* 3 Metric Bento Cards Skeleton */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-gutter">
-            {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="bg-surface-card border border-border-subtle rounded-2xl p-5 flex flex-col justify-between h-40 shadow-xs"
-              >
-                <div className="flex justify-between items-start">
-                  <div className="h-4 w-28 rounded skeleton-shimmer" />
-                  <div className="w-9 h-9 rounded-xl skeleton-shimmer" />
-                </div>
-                <div className="h-9 w-36 rounded-lg skeleton-shimmer my-2" />
-                <div className="h-4 w-40 rounded skeleton-shimmer" />
+        {/* 3 Metric Cards Skeleton */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="p-5 justify-between h-36">
+              <div className="flex justify-between items-start">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="size-9 rounded-lg" />
               </div>
-            ))}
-          </div>
+              <Skeleton className="h-8 w-36 my-2" />
+              <Skeleton className="h-4 w-40" />
+            </Card>
+          ))}
+        </div>
 
-          {/* Chart & Recent Orders Skeleton */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-gutter">
-            <div className="xl:col-span-2 bg-surface-card border border-border-subtle rounded-2xl p-5 h-96 shadow-xs flex flex-col justify-between">
-              <div className="flex justify-between items-center">
-                <div className="h-5 w-40 rounded skeleton-shimmer" />
-                <div className="h-7 w-32 rounded-lg skeleton-shimmer" />
-              </div>
-              <div className="w-full h-64 rounded-xl skeleton-shimmer mt-4" />
+        {/* Chart & Recent Orders Skeleton */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <Card className="xl:col-span-2 p-5 h-96 justify-between">
+            <div className="flex justify-between items-center">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-8 w-28" />
             </div>
-            <div className="bg-surface-card border border-border-subtle rounded-2xl p-5 h-96 shadow-xs flex flex-col justify-between">
-              <div className="flex justify-between items-center mb-4">
-                <div className="h-5 w-32 rounded skeleton-shimmer" />
-                <div className="h-6 w-20 rounded skeleton-shimmer" />
-              </div>
-              <div className="space-y-3 flex-1">
-                {[1, 2, 3, 4].map((j) => (
-                  <div key={j} className="h-14 w-full rounded-xl skeleton-shimmer" />
-                ))}
-              </div>
+            <Skeleton className="w-full h-64 rounded-lg mt-4" />
+          </Card>
+          <Card className="p-5 h-96 justify-between">
+            <div className="flex justify-between items-center mb-4">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-6 w-20" />
             </div>
-          </div>
+            <div className="space-y-3 flex-1">
+              {[1, 2, 3, 4].map((j) => (
+                <Skeleton key={j} className="h-12 w-full rounded-lg" />
+              ))}
+            </div>
+          </Card>
         </div>
       </div>
     );
@@ -175,265 +193,263 @@ export default function DashboardPage() {
   })}`;
 
   return (
-    <div className="p-4 sm:p-gutter lg:p-margin-page animate-fadeIn">
-      <div className="max-w-7xl mx-auto space-y-gutter">
-        {/* Header with Quick Refresh */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="font-headline-lg text-headline-lg font-bold text-on-background">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto font-sans">
+      {/* Top Header with Live Refresh Button */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
               ภาพรวมร้านค้า
             </h1>
-            <p className="text-body-sm text-on-surface-variant mt-0.5 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-status-success inline-block animate-pulseGlow" />
-              <span>ข้อมูลสถิติและสถานะคำสั่งซื้อแบบเรียลไทม์</span>
-            </p>
+            <Badge variant="outline" className="gap-1.5 text-xs font-normal">
+              <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+              Live Sync
+            </Badge>
           </div>
-          <button
-            onClick={() => fetchStats(true)}
-            disabled={isRefreshing}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-border-subtle rounded-lg bg-surface hover:bg-surface-container-low transition-all duration-200 text-on-surface-variant cursor-pointer active:scale-95 shadow-2xs hover:shadow-xs"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-primary" : ""}`} />
-            <span>{isRefreshing ? "กำลังอัปเดต..." : "อัปเดตข้อมูล"}</span>
-          </button>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+            สถิติยอดขาย คำสั่งซื้อประจำวัน และข้อมูลความเคลื่อนไหวในร้าน
+          </p>
         </div>
 
-        {/* Summary Cards Bento */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-gutter">
-          {/* Sales Card */}
-          <div className="bg-surface-card border border-border-subtle rounded-2xl p-5 flex flex-col gap-stack-sm hover:-translate-y-1 hover:shadow-md transition-all duration-300 group cursor-default">
-            <div className="flex justify-between items-start">
-              <span className="font-label-md text-label-md text-on-surface-variant truncate">
+        <Button
+          onClick={() => fetchStats(true)}
+          disabled={isRefreshing}
+          variant="outline"
+          size="sm"
+          className="w-fit"
+        >
+          <RefreshCw className={isRefreshing ? "animate-spin" : ""} data-icon="inline-start" />
+          <span>{isRefreshing ? "กำลังอัปเดต..." : "อัปเดตข้อมูล"}</span>
+        </Button>
+      </div>
+
+      {/* 3 Metric Cards Bento Grid using Shadcn Card */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Metric 1: Sales */}
+        <Card className="justify-between border-border hover:border-foreground/20 transition-colors">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardDescription className="text-xs font-semibold uppercase tracking-wider">
                 ยอดขายวันนี้
-              </span>
-              <div className="w-9 h-9 rounded-xl bg-primary-fixed text-primary-container flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300">
-                <Banknote className="w-4 h-4" />
+              </CardDescription>
+              <div className="size-9 rounded-lg bg-muted flex items-center justify-center border border-border text-foreground">
+                <Banknote className="size-4" />
               </div>
             </div>
-            <div className="font-headline-xl text-headline-xl text-on-background mt-2 truncate font-bold">
+            <CardTitle className="text-3xl font-extrabold tracking-tight mt-1">
               {todaySalesDisplay}
-            </div>
-            <div className="flex items-center flex-wrap gap-1 text-status-success font-label-md text-label-md mt-4">
-              <TrendingUp className="w-4 h-4 shrink-0" />
-              <span className="font-bold">
-                {stats?.growthPercent !== undefined && stats.growthPercent > 0 ? `+${stats.growthPercent}%` : `${stats?.growthPercent || 0}%`}
-              </span>
-              <span className="text-on-surface-variant font-body-sm text-body-sm ml-1 font-normal">
-                เทียบกับเมื่อวาน
-              </span>
-            </div>
-          </div>
+            </CardTitle>
+          </CardHeader>
+          <CardFooter className="pt-0 text-xs flex items-center gap-1.5">
+            <span className="font-semibold text-emerald-600 flex items-center gap-0.5">
+              <TrendingUp className="size-3.5" />
+              {stats?.growthPercent !== undefined && stats.growthPercent > 0
+                ? `+${stats.growthPercent}%`
+                : `${stats?.growthPercent || 0}%`}
+            </span>
+            <span className="text-muted-foreground">เทียบกับเมื่อวาน</span>
+          </CardFooter>
+        </Card>
 
-          {/* Orders Card */}
-          <div className="bg-surface-card border border-border-subtle rounded-2xl p-5 flex flex-col gap-stack-sm hover:-translate-y-1 hover:shadow-md transition-all duration-300 group cursor-default">
-            <div className="flex justify-between items-start">
-              <span className="font-label-md text-label-md text-on-surface-variant truncate">
+        {/* Metric 2: Orders Count */}
+        <Card className="justify-between border-border hover:border-foreground/20 transition-colors">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardDescription className="text-xs font-semibold uppercase tracking-wider">
                 จำนวนออเดอร์วันนี้
-              </span>
-              <div className="w-9 h-9 rounded-xl bg-secondary-fixed text-secondary flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300">
-                <Receipt className="w-4 h-4" />
+              </CardDescription>
+              <div className="size-9 rounded-lg bg-muted flex items-center justify-center border border-border text-foreground">
+                <Receipt className="size-4" />
               </div>
             </div>
-            <div className="font-headline-xl text-headline-xl text-on-background mt-2 truncate font-bold">
+            <CardTitle className="text-3xl font-extrabold tracking-tight mt-1">
               {stats?.todayOrdersCount ?? 0}
-            </div>
-            <div className="flex items-center gap-unit text-on-surface-variant font-label-md text-label-md mt-4 truncate">
-              <CheckCircle2 className="w-4 h-4 text-status-success shrink-0" />
-              <span className="truncate">เสร็จสิ้น {stats?.completedOrdersCount ?? 0} ออเดอร์</span>
-            </div>
-          </div>
+            </CardTitle>
+          </CardHeader>
+          <CardFooter className="pt-0 text-xs flex items-center gap-1.5 text-muted-foreground">
+            <CheckCircle2 className="size-3.5 text-emerald-600" />
+            <span>เสร็จสิ้น {stats?.completedOrdersCount ?? 0} ออเดอร์</span>
+          </CardFooter>
+        </Card>
 
-          {/* Best Item Card */}
-          <div className="bg-surface-card border border-border-subtle rounded-2xl p-5 flex flex-col gap-stack-sm hover:-translate-y-1 hover:shadow-md transition-all duration-300 group cursor-default sm:col-span-2 lg:col-span-1">
-            <div className="flex justify-between items-start">
-              <span className="font-label-md text-label-md text-on-surface-variant truncate">
+        {/* Metric 3: Best Menu Item */}
+        <Card className="justify-between border-border hover:border-foreground/20 transition-colors sm:col-span-2 lg:col-span-1">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardDescription className="text-xs font-semibold uppercase tracking-wider">
                 เมนูขายดีประจำวัน
-              </span>
-              <div className="w-9 h-9 rounded-xl bg-surface-container-high text-on-surface flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300">
-                <Coffee className="w-4 h-4" />
+              </CardDescription>
+              <div className="size-9 rounded-lg bg-muted flex items-center justify-center border border-border text-foreground">
+                <Coffee className="size-4" />
               </div>
             </div>
-            <div className="font-headline-md text-headline-md text-on-background mt-2 leading-tight truncate font-bold" title={stats?.topMenu.name}>
+            <CardTitle className="text-xl font-bold tracking-tight mt-1 truncate" title={stats?.topMenu.name}>
               {stats?.topMenu.name || "ยังไม่มีข้อมูล"}
-            </div>
-            <div className="flex items-center gap-unit text-on-surface-variant font-label-md text-label-md mt-auto pt-4">
-              <Flame className="w-4 h-4 text-status-warning shrink-0" />
-              <span className="text-status-warning font-semibold">
-                {stats?.topMenu.count ?? 0} รายการ
-              </span>
-            </div>
-          </div>
-        </div>
+            </CardTitle>
+          </CardHeader>
+          <CardFooter className="pt-0 text-xs flex items-center gap-1.5 text-amber-700 dark:text-amber-400 font-semibold">
+            <Flame className="size-3.5" />
+            <span>{stats?.topMenu.count ?? 0} รายการที่สั่ง</span>
+          </CardFooter>
+        </Card>
+      </div>
 
-        {/* Main Data Area */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-gutter">
-          {/* Chart Area */}
-          <div className="xl:col-span-2 bg-surface-card border border-border-subtle rounded-xl p-4 sm:p-stack-lg flex flex-col">
-            <div className="flex flex-wrap justify-between items-center gap-2 mb-stack-lg">
-              <div className="flex items-center gap-2">
-                <LineChart className="w-5 h-5 text-primary shrink-0" />
-                <h2 className="font-headline-md text-headline-md text-on-background font-bold truncate">
-                  ยอดขาย (7 วันล่าสุด)
-                </h2>
+      {/* Main Data Section: Chart & Recent Orders */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Left: 7 Days Sales Trend Chart */}
+        <Card className="xl:col-span-2 flex flex-col justify-between border-border">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 border-b border-border">
+            <div className="flex items-center gap-2">
+              <LineChart className="size-5 text-foreground" />
+              <div>
+                <CardTitle className="text-base font-bold">ยอดขาย (7 วันล่าสุด)</CardTitle>
+                <CardDescription className="text-xs">แนวโน้มรายรับรวมแต่ละวัน</CardDescription>
               </div>
-              <Link
-                href="/dashboard/reports"
-                className="font-label-md text-label-md px-3 py-1.5 border border-border-subtle rounded hover:bg-surface-container-low transition-colors text-on-surface-variant flex items-center gap-1 cursor-pointer shrink-0"
-              >
-                <BarChart3 className="w-4 h-4" />
-                <span>รายงานยอดขาย</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
             </div>
+            <Button
+              render={<Link href="/dashboard/reports" />}
+              variant="outline"
+              size="xs"
+            >
+              <BarChart3 data-icon="inline-start" />
+              <span>รายงานยอดขาย</span>
+              <ArrowRight data-icon="inline-end" />
+            </Button>
+          </CardHeader>
 
-            <div className="relative w-full h-[280px] mt-auto pb-7">
-              {/* Dynamic Line Chart */}
+          <CardContent className="pt-6">
+            <div className="relative w-full h-[240px] pb-6">
+              {/* Responsive SVG Chart */}
               <svg className="w-full h-full" preserveAspectRatio="none" viewBox={`0 0 ${chartWidth} ${chartHeight}`}>
-                {/* Grid Lines */}
-                <path d={`M0 40 L${chartWidth} 40`} fill="none" stroke="#E9ECEF" strokeDasharray="4 4" strokeWidth="1" />
-                <path d={`M0 100 L${chartWidth} 100`} fill="none" stroke="#E9ECEF" strokeDasharray="4 4" strokeWidth="1" />
-                <path d={`M0 160 L${chartWidth} 160`} fill="none" stroke="#E9ECEF" strokeDasharray="4 4" strokeWidth="1" />
-                <path d={`M0 220 L${chartWidth} 220`} fill="none" stroke="#E9ECEF" strokeDasharray="4 4" strokeWidth="1" />
+                {/* Horizontal Grid Lines */}
+                <path d={`M0 40 L${chartWidth} 40`} fill="none" stroke="currentColor" strokeDasharray="4 4" strokeWidth="1" className="text-border" />
+                <path d={`M0 90 L${chartWidth} 90`} fill="none" stroke="currentColor" strokeDasharray="4 4" strokeWidth="1" className="text-border" />
+                <path d={`M0 140 L${chartWidth} 140`} fill="none" stroke="currentColor" strokeDasharray="4 4" strokeWidth="1" className="text-border" />
+                <path d={`M0 190 L${chartWidth} 190`} fill="none" stroke="currentColor" strokeDasharray="4 4" strokeWidth="1" className="text-border" />
 
-                {/* Gradient Fill */}
+                {/* Gradient Fill under Curve */}
                 {areaD && (
-                  <path d={areaD} fill="url(#chartGradient)" opacity="0.15" />
+                  <path d={areaD} fill="currentColor" className="text-primary/10" />
                 )}
 
-                {/* Data Line */}
+                {/* Primary Stroke Line */}
                 {pathD && (
                   <path
                     d={pathD}
                     fill="none"
-                    stroke="#79573f"
+                    stroke="currentColor"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    strokeWidth="3.5"
+                    strokeWidth="3"
+                    className="text-primary"
                   />
                 )}
 
                 {/* Data Points */}
                 {points.map((pt, i) => (
                   <g key={i}>
-                    <circle cx={pt.x} cy={pt.y} fill="#FFFFFF" r="5" stroke="#79573f" strokeWidth="2.5" />
+                    <circle cx={pt.x} cy={pt.y} r="4" fill="currentColor" className="text-background stroke-primary stroke-2" />
                   </g>
                 ))}
-
-                <defs>
-                  <linearGradient id="chartGradient" x1="0%" x2="0%" y1="0%" y2="100%">
-                    <stop offset="0%" stopColor="#79573f" stopOpacity="1" />
-                    <stop offset="100%" stopColor="#79573f" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
               </svg>
 
               {/* X-Axis Labels */}
-              <div className="absolute bottom-0 left-0 w-full flex justify-between font-label-md text-label-md text-on-surface-variant px-2 sm:px-3 select-none">
+              <div className="absolute bottom-0 left-0 w-full flex justify-between text-xs text-muted-foreground px-2 select-none">
                 {points.map((pt, i) => (
-                  <span key={i} className="text-center w-12 text-[11px] sm:text-xs truncate">
+                  <span key={i} className="text-center w-12 text-[11px] truncate">
                     {pt.label}
                   </span>
                 ))}
               </div>
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          {/* Recent Orders Table */}
-          <div className="bg-surface-card border border-border-subtle rounded-xl flex flex-col overflow-hidden shadow-xs">
-            <div className="p-4 sm:p-stack-lg border-b border-border-subtle flex justify-between items-center bg-surface-bright">
-              <div className="flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-primary" />
-                <h2 className="font-headline-md text-headline-md text-on-background font-bold">
-                  ออเดอร์ล่าสุด
-                </h2>
+        {/* Right: Recent Orders List using Shadcn Table */}
+        <Card className="flex flex-col justify-between border-border overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border bg-card">
+            <div className="flex items-center gap-2">
+              <Receipt className="size-4 text-foreground" />
+              <CardTitle className="text-base font-bold">ออเดอร์ล่าสุด</CardTitle>
+            </div>
+            <Badge variant="outline" className="text-[11px]">
+              {(stats?.recentOrders || []).length} รายการ
+            </Badge>
+          </CardHeader>
+
+          <CardContent className="p-0 flex-1 overflow-x-auto overflow-y-auto max-h-[340px]">
+            {(!stats?.recentOrders || stats.recentOrders.length === 0) ? (
+              <div className="flex flex-col items-center justify-center p-8 text-center text-muted-foreground gap-2">
+                <ShoppingBag className="size-8 opacity-30" />
+                <p className="text-xs">ยังไม่มีคำสั่งซื้อเข้ามาในวันนี้</p>
               </div>
-            </div>
-            <div className="flex-1 overflow-x-auto overflow-y-auto max-h-[380px] scrollbar-thin">
-              {(!stats?.recentOrders || stats.recentOrders.length === 0) ? (
-                <div className="flex flex-col items-center justify-center p-8 text-on-surface-variant text-center gap-2">
-                  <Receipt className="w-8 h-8 opacity-40" />
-                  <p className="font-body-md text-sm">ยังไม่มีคำสั่งซื้อเข้ามา</p>
-                </div>
-              ) : (
-                <table className="w-full text-left border-collapse min-w-[320px]">
-                  <thead className="bg-surface sticky top-0 z-10">
-                    <tr>
-                      <th className="font-label-md text-label-md text-on-surface-variant py-stack-sm px-3 sm:px-stack-lg border-b border-border-subtle font-normal">
-                        <span className="flex items-center gap-1">
-                          <Tag className="w-3.5 h-3.5" />
-                          ออเดอร์
-                        </span>
-                      </th>
-                      <th className="font-label-md text-label-md text-on-surface-variant py-stack-sm px-stack-lg border-b border-border-subtle font-normal text-right">
-                        <span className="flex items-center justify-end gap-1">
-                          <Banknote className="w-3.5 h-3.5" />
-                          ยอดรวม
-                        </span>
-                      </th>
-                      <th className="font-label-md text-label-md text-on-surface-variant py-stack-sm px-stack-lg border-b border-border-subtle font-normal text-right">
-                        <span className="flex items-center justify-end gap-1">
-                          <Info className="w-3.5 h-3.5" />
-                          สถานะ
-                        </span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="font-body-md text-body-md text-on-background">
-                    {stats.recentOrders.map((order) => (
-                      <tr
-                        key={order.id}
-                        className="border-b border-border-subtle last:border-0 hover:bg-surface-container-low transition-colors"
-                      >
-                        <td className="py-stack-md px-3 sm:px-stack-lg">
-                          <div className="font-bold flex items-center gap-1.5 text-on-background">
-                            <Receipt className="w-4 h-4 text-primary" />
-                            {order.id}
-                            {order.tableNumber && (
-                              <span className="text-xs font-normal text-on-surface-variant bg-surface-container px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                                <Armchair className="w-3 h-3" /> โต๊ะ {order.tableNumber}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-on-surface-variant text-xs mt-0.5 flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {order.time}
-                          </div>
-                        </td>
-                        <td className="py-stack-md px-3 sm:px-stack-lg text-right font-bold">
-                          {order.total}
-                        </td>
-                        <td className="py-stack-md px-3 sm:px-stack-lg text-right">
-                          <span
-                            className={`inline-flex items-center gap-1 justify-center px-2 py-1 rounded text-xs font-semibold ${order.statusClass}`}
-                          >
-                            {order.statusKey === "preparing" ? (
-                              <Hourglass className="w-3.5 h-3.5" />
-                            ) : order.statusKey === "served" ? (
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                            ) : (
-                              <CheckCheck className="w-3.5 h-3.5" />
-                            )}
+            ) : (
+              <Table>
+                <TableHeader className="bg-muted/40 sticky top-0 z-10">
+                  <TableRow>
+                    <TableHead className="text-xs py-2">ออเดอร์</TableHead>
+                    <TableHead className="text-right text-xs py-2">ยอดรวม</TableHead>
+                    <TableHead className="text-right text-xs py-2">สถานะ</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {stats.recentOrders.map((order) => (
+                    <TableRow key={order.id} className="hover:bg-muted/40">
+                      <TableCell className="py-2.5">
+                        <div className="font-bold text-xs flex items-center gap-1.5 text-foreground">
+                          <span>{order.id}</span>
+                          {order.tableNumber && (
+                            <span className="text-[10px] font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                              <Armchair className="size-2.5" /> โต๊ะ {order.tableNumber}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-muted-foreground text-[10px] mt-0.5 flex items-center gap-1">
+                          <Clock className="size-2.5" />
+                          <span>{order.time}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-bold text-xs py-2.5">
+                        {order.total}
+                      </TableCell>
+                      <TableCell className="text-right py-2.5">
+                        {order.statusKey === "preparing" ? (
+                          <Badge variant="secondary" className="gap-1 text-[10px] text-amber-700 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
+                            <Hourglass className="size-2.5" />
                             {order.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-            <div className="p-stack-sm border-t border-border-subtle bg-surface-bright text-center">
-              <Link
-                href="/dashboard/orders"
-                className="font-label-md text-label-md text-secondary hover:text-primary transition-colors w-full py-2 flex items-center justify-center gap-1.5"
-              >
-                <Eye className="w-4 h-4" />
-                ดูออเดอร์ทั้งหมด
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-          </div>
-        </div>
+                          </Badge>
+                        ) : order.statusKey === "served" ? (
+                          <Badge variant="secondary" className="gap-1 text-[10px] text-blue-700 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800">
+                            <CheckCircle2 className="size-2.5" />
+                            {order.status}
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="gap-1 text-[10px] text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
+                            <CheckCheck className="size-2.5" />
+                            {order.status}
+                          </Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+
+          <CardFooter className="p-3 border-t border-border bg-card">
+            <Button
+              render={<Link href="/dashboard/orders" />}
+              variant="ghost"
+              size="sm"
+              className="w-full text-xs"
+            >
+              <Eye data-icon="inline-start" />
+              <span>ดูออเดอร์ทั้งหมด</span>
+              <ArrowRight data-icon="inline-end" />
+            </Button>
+          </CardFooter>
+        </Card>
       </div>
     </div>
   );

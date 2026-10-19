@@ -26,6 +26,11 @@ import {
   Upload,
   Trash2,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 export default function OwnerOnboardingPage() {
   const router = useRouter();
@@ -214,284 +219,288 @@ export default function OwnerOnboardingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 sm:p-8 relative overflow-hidden">
-      {/* Background decoration */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[15%] -right-[10%] w-[45%] h-[45%] rounded-full bg-secondary-container opacity-20 blur-[90px] animate-floatSlow" />
-        <div className="absolute -bottom-[15%] -left-[10%] w-[45%] h-[45%] rounded-full bg-primary-container opacity-15 blur-[90px] animate-floatSlowReverse" />
-      </div>
-
-      <div className="max-w-xl w-full bg-surface-card border border-border-subtle rounded-3xl p-6 sm:p-10 shadow-xl relative z-10 animate-cardEnter">
+    <div className="min-h-screen bg-muted/20 flex flex-col items-center justify-center p-4 sm:p-8">
+      <div className="max-w-xl w-full">
         {/* Account Info & Sign Out Bar */}
         {currentUserEmail && (
-          <div className="mb-6 px-3.5 py-2.5 rounded-xl bg-surface-container-low border border-border-subtle flex items-center justify-between gap-2 text-xs">
-            <div className="flex items-center gap-2 text-on-surface-variant min-w-0">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
+          <div className="mb-4 px-4 py-2.5 rounded-xl bg-card border border-border flex items-center justify-between gap-2 text-xs shadow-2xs">
+            <div className="flex items-center gap-2 text-muted-foreground min-w-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
               <span className="truncate">
-                เข้าสู่ระบบด้วย: <strong className="text-on-surface font-semibold">{currentUserEmail}</strong>
+                เข้าสู่ระบบด้วย: <strong className="text-foreground font-semibold">{currentUserEmail}</strong>
               </span>
             </div>
             <form action={signOutOwner}>
-              <button
+              <Button
                 type="submit"
-                className="inline-flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 font-medium px-2.5 py-1 rounded-lg hover:bg-rose-50 active:scale-95 transition-all shrink-0 cursor-pointer"
+                variant="ghost"
+                size="xs"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
               >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>เปลี่ยนบัญชี</span>
-              </button>
+                <LogOut className="w-3.5 h-3.5" data-icon="inline-start" />
+                เปลี่ยนบัญชี
+              </Button>
             </form>
           </div>
         )}
 
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="w-14 h-14 bg-primary text-on-primary rounded-2xl flex items-center justify-center mx-auto mb-3.5 shadow-md animate-gentleBob">
-            <Coffee className="w-7 h-7" />
-          </div>
-          <h1 className="text-2xl font-bold text-on-surface">
-            เริ่มต้นตั้งค่าร้านค้าของคุณ
-          </h1>
-          <p className="text-sm text-on-surface-variant mt-1.5 leading-relaxed">
-            กรอกรายละเอียดร้านเพื่อสร้างระบบจัดการและ URL สั่งอาหารผ่าน QR Code
-          </p>
-        </div>
-
-        {errorMessage && (
-          <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm flex items-start gap-2.5 animate-shake">
-            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-            <span className="flex-1">{errorMessage}</span>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Store Name */}
-          <div>
-            <label className="flex items-center gap-1.5 text-xs font-bold text-on-surface uppercase tracking-wider mb-1.5">
-              <Store className="w-4 h-4 text-primary" />
-              ชื่อร้านค้า <span className="text-rose-500">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="เช่น Slow Bar Coffee, กาแฟริมทาง"
-              value={storeName}
-              onChange={handleStoreNameChange}
-              className="w-full h-11 px-3.5 rounded-xl border border-border-subtle bg-surface text-on-surface text-sm focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all"
-            />
-          </div>
-
-          {/* Store Slug */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="flex items-center gap-1.5 text-xs font-bold text-on-surface uppercase tracking-wider">
-                <Globe className="w-4 h-4 text-primary" />
-                URL ร้านค้า (Slug) <span className="text-rose-500">*</span>
-              </label>
-              {slugStatus === "checking" && (
-                <span className="text-xs text-neutral-500 flex items-center gap-1">
-                  <Loader2 className="w-3 h-3 animate-spin" /> กำลังตรวจสอบ...
-                </span>
-              )}
-              {slugStatus === "available" && (
-                <span className="text-xs text-emerald-600 font-medium flex items-center gap-1 animate-popIn">
-                  <CheckCircle2 className="w-3.5 h-3.5 animate-popIn" /> URL นี้ใช้ได้
-                </span>
-              )}
-              {slugStatus === "unavailable" && (
-                <span className="text-xs text-rose-600 font-medium flex items-center gap-1 animate-shake">
-                  <XCircle className="w-3.5 h-3.5" /> {slugError || "URL ซ้ำ"}
-                </span>
-              )}
+        <Card className="border-border shadow-xs">
+          <CardHeader className="text-center pb-6 pt-8">
+            <div className="w-12 h-12 bg-primary text-primary-foreground rounded-xl flex items-center justify-center mx-auto mb-3 shadow-2xs">
+              <Coffee className="w-6 h-6" />
             </div>
+            <CardTitle className="text-2xl font-bold tracking-tight">
+              เริ่มต้นตั้งค่าร้านค้าของคุณ
+            </CardTitle>
+            <CardDescription className="text-xs sm:text-sm">
+              กรอกรายละเอียดร้านเพื่อสร้างระบบจัดการโต๊ะ เมนูอาหาร และ URL สั่งอาหารผ่าน QR Code
+            </CardDescription>
+          </CardHeader>
 
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-xs text-neutral-400 font-mono select-none">
-                scansip.com/r/
+          <CardContent>
+            {errorMessage && (
+              <div className="mb-6 p-3.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                <span className="flex-1">{errorMessage}</span>
               </div>
-              <input
-                type="text"
-                required
-                placeholder="my-coffee-shop"
-                value={slug}
-                onChange={handleSlugChange}
-                className={`w-full h-11 pl-28 pr-3.5 rounded-xl border bg-surface text-on-surface text-sm font-mono focus:ring-2 outline-none transition-all ${
-                  slugStatus === "unavailable"
-                    ? "border-rose-400 focus:ring-rose-200"
-                    : slugStatus === "available"
-                    ? "border-emerald-400 focus:ring-emerald-200"
-                    : "border-border-subtle focus:border-secondary focus:ring-secondary/20"
-                }`}
-              />
-            </div>
-            <p className="text-[11px] text-on-surface-variant mt-1">
-              ใช้สำหรับสร้างลิงก์หน้าสั่งอาหารของลูกค้า เช่น{" "}
-              <code className="text-primary bg-primary/5 px-1.5 py-0.5 rounded">
-                scansip.com/r/{slug || "your-slug"}
-              </code>
-            </p>
-          </div>
+            )}
 
-          {/* PromptPay Number */}
-          <div>
-            <label className="flex items-center gap-1.5 text-xs font-bold text-on-surface uppercase tracking-wider mb-1.5">
-              <CreditCard className="w-4 h-4 text-primary" />
-              เบอร์พร้อมเพย์รับเงิน (PromptPay)
-            </label>
-            <input
-              type="text"
-              placeholder="08X-XXX-XXXX หรือ เลขบัตรประชาชน 13 หลัก"
-              value={promptPayNumber}
-              onChange={(e) => setPromptPayNumber(e.target.value)}
-              className="w-full h-11 px-3.5 rounded-xl border border-border-subtle bg-surface text-on-surface text-sm focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all"
-            />
-            <p className="text-[11px] text-on-surface-variant mt-1">
-              ใช้สร้าง QR Code รับเงินอัตโนมัติให้ลูกค้าสแกนจ่ายเงิน
-            </p>
-          </div>
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Store Name */}
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5 text-xs font-semibold">
+                  <Store className="w-3.5 h-3.5 text-primary" />
+                  ชื่อร้านค้า <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  type="text"
+                  required
+                  placeholder="เช่น Slow Bar Coffee, กาแฟริมทาง"
+                  value={storeName}
+                  onChange={handleStoreNameChange}
+                  className="h-10 text-sm"
+                />
+              </div>
 
-          {/* Opening & Closing Hours */}
-          <div className="grid grid-cols-2 gap-3.5">
-            <div>
-              <label className="flex items-center gap-1 text-xs font-bold text-on-surface uppercase tracking-wider mb-1.5">
-                <Clock className="w-3.5 h-3.5 text-primary" />
-                เวลาเปิดร้าน
-              </label>
-              <input
-                type="time"
-                value={openingTime}
-                onChange={(e) => setOpeningTime(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-xl border border-border-subtle bg-surface text-on-surface text-sm focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all"
-              />
-            </div>
-            <div>
-              <label className="flex items-center gap-1 text-xs font-bold text-on-surface uppercase tracking-wider mb-1.5">
-                <Clock className="w-3.5 h-3.5 text-primary" />
-                เวลาปิดร้าน
-              </label>
-              <input
-                type="time"
-                value={closingTime}
-                onChange={(e) => setClosingTime(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-xl border border-border-subtle bg-surface text-on-surface text-sm focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all"
-              />
-            </div>
-          </div>
-
-          {/* Restaurant Logo Upload */}
-          <div>
-            <label className="flex items-center gap-1.5 text-xs font-bold text-on-surface uppercase tracking-wider mb-1.5">
-              <ImageIcon className="w-4 h-4 text-primary" />
-              โลโก้ร้านค้า (ตัวเลือก)
-            </label>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/jpg"
-              onChange={handleLogoFileChange}
-              className="hidden"
-            />
-
-            {logoUrl ? (
-              <div className="p-3.5 rounded-2xl bg-surface border border-border-subtle flex items-center justify-between gap-3 animate-scaleUp">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-14 h-14 rounded-xl border border-border-subtle overflow-hidden bg-surface-container-low shrink-0 flex items-center justify-center group">
-                    <img
-                      src={logoUrl}
-                      alt="Logo Preview"
-                      className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-emerald-600 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0 animate-popIn" /> อัปโหลดสำเร็จ
-                    </p>
-                    <p className="text-[11px] text-on-surface-variant truncate">
-                      พร้อมใช้งานเป็นโลโก้ของร้าน
-                    </p>
-                  </div>
+              {/* Store Slug */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-1.5 text-xs font-semibold">
+                    <Globe className="w-3.5 h-3.5 text-primary" />
+                    URL ร้านค้า (Slug) <span className="text-destructive">*</span>
+                  </Label>
+                  {slugStatus === "checking" && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Loader2 className="w-3 h-3 animate-spin" /> กำลังตรวจสอบ...
+                    </span>
+                  )}
+                  {slugStatus === "available" && (
+                    <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 bg-emerald-50 text-[11px] py-0">
+                      <CheckCircle2 className="w-3 h-3 mr-1" /> ใช้ได้
+                    </Badge>
+                  )}
+                  {slugStatus === "unavailable" && (
+                    <Badge variant="outline" className="border-destructive/30 text-destructive bg-destructive/10 text-[11px] py-0">
+                      <XCircle className="w-3 h-3 mr-1" /> {slugError || "URL ซ้ำ"}
+                    </Badge>
+                  )}
                 </div>
 
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploadingLogo}
-                    className="px-2.5 py-1.5 text-xs text-primary font-medium hover:bg-primary/5 active:scale-95 rounded-lg border border-border-subtle transition-all cursor-pointer"
-                  >
-                    เปลี่ยนรูป
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleRemoveLogo}
-                    disabled={isUploadingLogo}
-                    className="p-1.5 text-xs text-rose-600 hover:bg-rose-50 active:scale-95 rounded-lg transition-all cursor-pointer"
-                    title="ลบรูปภาพ"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-xs text-muted-foreground font-mono select-none">
+                    scansip.com/r/
+                  </div>
+                  <Input
+                    type="text"
+                    required
+                    placeholder="my-coffee-shop"
+                    value={slug}
+                    onChange={handleSlugChange}
+                    className={`pl-28 font-mono text-sm h-10 ${
+                      slugStatus === "unavailable"
+                        ? "border-destructive focus-visible:ring-destructive/30"
+                        : slugStatus === "available"
+                        ? "border-emerald-500 focus-visible:ring-emerald-500/30"
+                        : ""
+                    }`}
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  ใช้สำหรับสร้างลิงก์หน้าสั่งอาหารของลูกค้า เช่น{" "}
+                  <code className="text-foreground bg-muted px-1 py-0.5 rounded text-[11px]">
+                    scansip.com/r/{slug || "your-slug"}
+                  </code>
+                </p>
+              </div>
+
+              {/* PromptPay Number */}
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5 text-xs font-semibold">
+                  <CreditCard className="w-3.5 h-3.5 text-primary" />
+                  เบอร์พร้อมเพย์รับเงิน (PromptPay)
+                </Label>
+                <Input
+                  type="text"
+                  placeholder="08X-XXX-XXXX หรือ เลขบัตรประชาชน 13 หลัก"
+                  value={promptPayNumber}
+                  onChange={(e) => setPromptPayNumber(e.target.value)}
+                  className="h-10 text-sm"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  ระบบจะสร้าง QR Code พร้อมเพย์ตามยอดสั่งซื้อให้ลูกค้าสแกนจ่ายได้ทันที
+                </p>
+              </div>
+
+              {/* Opening & Closing Hours */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-1 text-xs font-semibold">
+                    <Clock className="w-3.5 h-3.5 text-primary" />
+                    เวลาเปิดร้าน
+                  </Label>
+                  <Input
+                    type="time"
+                    value={openingTime}
+                    onChange={(e) => setOpeningTime(e.target.value)}
+                    className="h-10 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-1 text-xs font-semibold">
+                    <Clock className="w-3.5 h-3.5 text-primary" />
+                    เวลาปิดร้าน
+                  </Label>
+                  <Input
+                    type="time"
+                    value={closingTime}
+                    onChange={(e) => setClosingTime(e.target.value)}
+                    className="h-10 text-sm"
+                  />
                 </div>
               </div>
-            ) : (
-              <div
-                onClick={() => !isUploadingLogo && fileInputRef.current?.click()}
-                className={`w-full border-2 border-dashed rounded-2xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all group ${
-                  isUploadingLogo
-                    ? "bg-surface-container-low border-neutral-300 pointer-events-none"
-                    : "border-border-subtle hover:border-secondary hover:bg-secondary/5 hover:shadow-xs"
-                }`}
-              >
-                {isUploadingLogo ? (
-                  <div className="flex flex-col items-center gap-1.5 py-2">
-                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                    <span className="text-xs font-medium text-on-surface">กำลังอัปโหลดรูปภาพโลโก้...</span>
+
+              {/* Restaurant Logo Upload */}
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5 text-xs font-semibold">
+                  <ImageIcon className="w-3.5 h-3.5 text-primary" />
+                  โลโก้ร้านค้า (ตัวเลือก)
+                </Label>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/jpg"
+                  onChange={handleLogoFileChange}
+                  className="hidden"
+                />
+
+                {logoUrl ? (
+                  <div className="p-3 rounded-xl bg-muted/40 border border-border flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-12 h-12 rounded-lg border border-border overflow-hidden bg-background shrink-0 flex items-center justify-center">
+                        <img
+                          src={logoUrl}
+                          alt="Logo Preview"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-emerald-600 flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> อัปโหลดสำเร็จ
+                        </p>
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          พร้อมแสดงบนหัวเว็บและใบเสร็จ
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploadingLogo}
+                      >
+                        เปลี่ยนรูป
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={handleRemoveLogo}
+                        disabled={isUploadingLogo}
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        title="ลบรูปภาพ"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 ) : (
-                  <>
-                    <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-2 group-hover:-translate-y-1 transition-transform duration-200">
-                      <Upload className="w-5 h-5" />
-                    </div>
-                    <span className="text-xs font-semibold text-on-surface">
-                      คลิกเพื่อเลือกไฟล์รูปภาพโลโก้
-                    </span>
-                    <span className="text-[11px] text-on-surface-variant mt-0.5">
-                      รองรับไฟล์ JPG, PNG, WEBP แนะนำขนาดสี่เหลี่ยมจัตุรัส
-                    </span>
-                  </>
+                  <div
+                    onClick={() => !isUploadingLogo && fileInputRef.current?.click()}
+                    className={`w-full border border-dashed rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-colors ${
+                      isUploadingLogo
+                        ? "bg-muted/50 border-muted pointer-events-none"
+                        : "border-border hover:border-primary/50 hover:bg-muted/30"
+                    }`}
+                  >
+                    {isUploadingLogo ? (
+                      <div className="flex flex-col items-center gap-1 py-1">
+                        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                        <span className="text-xs font-medium text-foreground">กำลังอัปโหลดรูปภาพโลโก้...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-1.5">
+                          <Upload className="w-4 h-4" />
+                        </div>
+                        <span className="text-xs font-semibold text-foreground">
+                          คลิกเพื่อเลือกไฟล์รูปภาพโลโก้
+                        </span>
+                        <span className="text-[11px] text-muted-foreground mt-0.5">
+                          รองรับไฟล์ JPG, PNG, WEBP แนะนำขนาดสี่เหลี่ยมจัตุรัส
+                        </span>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {logoUploadError && (
+                  <p className="text-[11px] text-destructive flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {logoUploadError}
+                  </p>
                 )}
               </div>
-            )}
 
-            {logoUploadError && (
-              <p className="text-[11px] text-rose-600 mt-1.5 flex items-center gap-1 animate-shake">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {logoUploadError}
-              </p>
-            )}
-          </div>
-
-          {/* Submit Button */}
-          <div className="pt-3">
-            <button
-              type="submit"
-              disabled={isPending || !storeName.trim() || !slug.trim() || slugStatus === "unavailable"}
-              className="w-full h-12 bg-primary text-on-primary font-medium text-sm rounded-xl flex items-center justify-center gap-2 hover:bg-primary/90 hover:shadow-lg active:scale-[0.98] transition-all shadow-md cursor-pointer disabled:opacity-50 group"
-            >
-              {isPending ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>กำลังสร้างร้านค้าและกำหนดสิทธิ์...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 group-hover:rotate-12 group-hover:scale-110 transition-transform duration-200" />
-                  <span>สร้างร้านค้าและเข้าสู่แดชบอร์ด</span>
-                  <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform duration-200" />
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+              {/* Submit Button */}
+              <div className="pt-2">
+                <Button
+                  type="submit"
+                  size="lg"
+                  disabled={isPending || !storeName.trim() || !slug.trim() || slugStatus === "unavailable"}
+                  className="w-full h-11 text-sm font-medium justify-center cursor-pointer shadow-xs"
+                >
+                  {isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" data-icon="inline-start" />
+                      กำลังสร้างร้านค้าและกำหนดสิทธิ์...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" data-icon="inline-start" />
+                      สร้างร้านค้าและเข้าสู่แดชบอร์ด
+                      <ArrowRight className="w-4 h-4" data-icon="inline-end" />
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
 }
+
