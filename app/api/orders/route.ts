@@ -50,6 +50,42 @@ export async function POST(req: Request) {
       targetStoreId = store.id;
     }
 
+    // ตรวจสอบความถูกต้องของ Session Token ประจำโต๊ะอาหาร
+    if (tableNumber) {
+      const { tables } = await import("@/db/schema");
+      const { and } = await import("drizzle-orm");
+      const [tableRecord] = await db
+        .select()
+        .from(tables)
+        .where(and(eq(tables.storeId, targetStoreId), eq(tables.tableNumber, Number(tableNumber))))
+        .limit(1);
+
+      const sessionToken = body.sessionToken;
+
+      // ถ้าโต๊ะไม่ได้เปิด หรือ Token ไม่ตรงกับรอบบิลปัจจุบัน ให้ปฏิเสธการสั่งอาหารทันที
+      if (!tableRecord || tableRecord.status !== "occupied" || !tableRecord.currentSessionToken) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "โต๊ะนี้ยังไม่ได้เปิดให้บริการในระบบ กรุณาแจ้งพนักงานเพื่อเปิดโต๊ะก่อนสั่งอาหาร",
+            sessionExpired: true,
+          },
+          { status: 403 }
+        );
+      }
+
+      if (tableRecord.currentSessionToken !== sessionToken) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "รหัสเซสชันโต๊ะนี้หมดอายุแล้ว กรุณาสแกน QR Code ใหม่จากพนักงาน",
+            sessionExpired: true,
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     // คำนวณยอดรวม
     const totalAmount = items.reduce((sum: number, item: { unitPrice: number | string; quantity: number }) => {
       return sum + Number(item.unitPrice) * (Number(item.quantity) || 1);
@@ -58,13 +94,14 @@ export async function POST(req: Request) {
     // รหัสออเดอร์ เช่น #1001, #1002
     const orderNumber = `#${Math.floor(1000 + Math.random() * 9000)}`;
 
-    // สร้าง Order
+    // สร้าง Order พร้อมผูกกับ sessionToken ประจำรอบบิล
     const [newOrder] = await db
       .insert(orders)
       .values({
         storeId: targetStoreId,
         tableNumber: Number(tableNumber) || null,
         orderNumber,
+        sessionToken: body.sessionToken || null,
         totalAmount: totalAmount.toFixed(2),
         customerNote: customerNote || null,
         status: "pending",

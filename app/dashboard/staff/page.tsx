@@ -1,16 +1,37 @@
 "use client";
 
 import { useState, useEffect } from "react";
+
+// Shadcn UI Components
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
+
+// Lucide Icons
 import {
   CheckCircle2,
   UserPlus,
   Mail,
   Users,
-  Clock,
   Trash2,
-  Loader2,
-  ShieldCheck,
   AlertCircle,
+  RotateCw,
+  ShieldCheck,
+  Shield,
+  ChefHat,
+  Receipt,
+  UserCheck,
 } from "lucide-react";
 
 interface StaffMember {
@@ -29,6 +50,7 @@ export default function ManageStaffPage() {
   const [roleInput, setRoleInput] = useState<"cashier" | "kitchen" | "manager">("cashier");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   const fetchStaff = async () => {
@@ -88,6 +110,7 @@ export default function ManageStaffPage() {
     if (!confirm(`คุณต้องการลบพนักงาน "${name}" ออกจากระบบหรือไม่?`)) return;
 
     try {
+      setDeletingId(id);
       const res = await fetch(`/api/staff/${id}`, {
         method: "DELETE",
       });
@@ -99,6 +122,8 @@ export default function ManageStaffPage() {
       }
     } catch (err) {
       console.error("Delete staff error:", err);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -111,73 +136,120 @@ export default function ManageStaffPage() {
       .toUpperCase() || "ST";
   };
 
-  const roleLabels: Record<string, { label: string; class: string }> = {
-    owner: { label: "เจ้าของร้าน", class: "bg-primary text-on-primary" },
-    manager: { label: "ผู้จัดการ", class: "bg-purple-100 text-purple-800" },
-    cashier: { label: "แคชเชียร์", class: "bg-blue-100 text-blue-800" },
-    kitchen: { label: "ครัว / บาริสต้า", class: "bg-amber-100 text-amber-800" },
+  const getRoleBadge = (role: StaffMember["role"]) => {
+    switch (role) {
+      case "owner":
+        return (
+          <Badge className="gap-1 text-[11px] bg-primary text-primary-foreground font-semibold">
+            <ShieldCheck className="size-3" />
+            เจ้าของร้าน
+          </Badge>
+        );
+      case "manager":
+        return (
+          <Badge variant="secondary" className="gap-1 text-[11px] text-purple-700 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 font-semibold">
+            <Shield className="size-3 text-purple-600" />
+            ผู้จัดการ
+          </Badge>
+        );
+      case "cashier":
+        return (
+          <Badge variant="secondary" className="gap-1 text-[11px] text-blue-700 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 font-semibold">
+            <Receipt className="size-3 text-blue-600" />
+            แคชเชียร์
+          </Badge>
+        );
+      case "kitchen":
+        return (
+          <Badge variant="secondary" className="gap-1 text-[11px] text-amber-700 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 font-semibold">
+            <ChefHat className="size-3 text-amber-600" />
+            บาริสต้า / ครัว
+          </Badge>
+        );
+    }
   };
 
   return (
-    <div className="p-4 sm:p-gutter lg:p-margin-page">
-      <div className="max-w-4xl mx-auto space-y-stack-lg">
-        {/* Status Message Banner */}
-        {statusMessage && (
-          <div
-            className={`p-stack-sm rounded-lg border flex items-center gap-2 text-xs animate-fadeIn ${
-              statusMessage.type === "success"
-                ? "bg-status-success/10 border-status-success/30 text-status-success"
-                : "bg-rose-50 border-rose-200 text-rose-700"
-            }`}
-          >
-            {statusMessage.type === "success" ? (
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-            ) : (
-              <AlertCircle className="w-4 h-4 shrink-0" />
-            )}
-            <span>{statusMessage.text}</span>
-          </div>
-        )}
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-4xl mx-auto font-sans">
+      {/* Top Header */}
+      <div>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            จัดการทีมงานและพนักงาน
+          </h1>
+          <Badge variant="outline" className="text-xs">
+            {staffList.length} บัญชีพนักงาน
+          </Badge>
+        </div>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+          เชิญพนักงานเข้าร่วมร้านและกำหนดสิทธิ์เข้าใช้งานตามหน้าที่รับผิดชอบ
+        </p>
+      </div>
 
-        {/* Add Staff Section */}
-        <section className="bg-surface-card rounded-xl border border-border-subtle p-gutter shadow-xs">
-          <div className="flex items-center gap-2 mb-stack-sm">
-            <UserPlus className="w-5 h-5 text-primary" />
-            <h2 className="font-headline-md text-headline-md font-bold text-primary">
-              เพิ่มพนักงานใหม่
-            </h2>
+      {/* Status Message Banner */}
+      {statusMessage && (
+        <div
+          className={`p-3 rounded-lg border flex items-center gap-2 text-xs animate-fadeIn ${
+            statusMessage.type === "success"
+              ? "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300"
+              : "bg-destructive/10 border-destructive/20 text-destructive"
+          }`}
+        >
+          {statusMessage.type === "success" ? (
+            <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+          ) : (
+            <AlertCircle className="size-4 shrink-0 text-destructive" />
+          )}
+          <span>{statusMessage.text}</span>
+        </div>
+      )}
+
+      {/* Add Staff Section with Shadcn Card */}
+      <Card className="border-border">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <UserPlus className="size-4 text-foreground" />
+            <CardTitle className="text-base font-bold">เชิญพนักงานใหม่</CardTitle>
           </div>
-          <p className="font-body-sm text-body-sm text-on-surface-variant mb-stack-md">
-            กำหนดอีเมลและตำแหน่งเพื่อให้อนุญาตการเข้าใช้งานระบบร้านค้า
-          </p>
-          <form onSubmit={handleAddStaff} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-stack-md">
-            <div className="sm:col-span-1 md:col-span-4 relative">
-              <input
-                className="w-full h-9 px-3 rounded-lg border border-border-subtle bg-surface focus:border-secondary focus:ring-2 focus:ring-secondary/20 focus:outline-none transition-all font-body-sm text-body-sm text-on-surface placeholder:text-on-surface-variant"
-                placeholder="ชื่อพนักงาน (ไม่บังคับ)"
+          <CardDescription className="text-xs">
+            ระบุอีเมล Google ของพนักงานและกำหนดบทบาทเพื่ออนุญาตการเข้าใช้งานระบบร้านค้า
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent>
+          <form onSubmit={handleAddStaff} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3">
+            <div className="md:col-span-4 space-y-1">
+              <Label htmlFor="staff-name" className="text-xs">ชื่อพนักงาน (ไม่บังคับ)</Label>
+              <Input
+                id="staff-name"
+                placeholder="เช่น สมชาย ใจดี"
                 type="text"
                 value={nameInput}
                 onChange={(e) => setNameInput(e.target.value)}
+                className="h-9 text-xs"
               />
             </div>
 
-            <div className="sm:col-span-1 md:col-span-4 relative">
-              <Mail className="w-4 h-4 text-on-surface-variant absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                className="w-full h-9 pl-9 pr-3 rounded-lg border border-border-subtle bg-surface focus:border-secondary focus:ring-2 focus:ring-secondary/20 focus:outline-none transition-all font-body-sm text-body-sm text-on-surface placeholder:text-on-surface-variant"
-                placeholder="staff@example.com"
+            <div className="md:col-span-4 space-y-1">
+              <Label htmlFor="staff-email" className="text-xs">อีเมล Google *</Label>
+              <Input
+                id="staff-email"
+                placeholder="staff@gmail.com"
                 required
                 type="email"
                 value={emailInput}
                 onChange={(e) => setEmailInput(e.target.value)}
+                className="h-9 text-xs"
               />
             </div>
 
-            <div className="sm:col-span-1 md:col-span-2">
+            <div className="md:col-span-2 space-y-1">
+              <Label htmlFor="staff-role" className="text-xs">ตำแหน่ง</Label>
               <select
+                id="staff-role"
                 value={roleInput}
                 onChange={(e) => setRoleInput(e.target.value as "cashier" | "kitchen" | "manager")}
-                className="w-full h-9 px-2 rounded-lg border border-border-subtle bg-surface focus:border-secondary focus:ring-2 focus:ring-secondary/20 focus:outline-none transition-all font-body-sm text-body-sm text-on-surface cursor-pointer"
+                className="w-full h-9 px-3 rounded-lg border border-border bg-background text-xs outline-none focus:border-ring cursor-pointer"
               >
                 <option value="cashier">แคชเชียร์</option>
                 <option value="kitchen">บาริสต้า/ครัว</option>
@@ -185,95 +257,127 @@ export default function ManageStaffPage() {
               </select>
             </div>
 
-            <div className="sm:col-span-1 md:col-span-2">
-              <button
+            <div className="md:col-span-2 flex items-end">
+              <Button
                 disabled={isSubmitting}
-                className="w-full h-9 px-4 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:bg-primary/90 transition-colors whitespace-nowrap flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-60"
+                className="w-full h-9 text-xs"
                 type="submit"
               >
                 {isSubmitting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <RotateCw className="size-3.5 animate-spin" />
                 ) : (
                   <>
-                    <UserPlus className="w-4 h-4" />
+                    <UserPlus data-icon="inline-start" />
                     <span>เพิ่ม</span>
                   </>
                 )}
-              </button>
+              </Button>
             </div>
           </form>
-        </section>
+        </CardContent>
+      </Card>
 
-        {/* Staff List Section */}
-        <section className="bg-surface-card rounded-xl border border-border-subtle overflow-hidden shadow-xs">
-          <div className="px-gutter py-stack-md border-b border-border-subtle bg-surface/50 flex justify-between items-center">
-            <div className="flex items-center gap-1.5">
-              <Users className="w-4 h-4 text-on-surface-variant" />
-              <h3 className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider font-semibold">
-                รายชื่อพนักงานทั้งหมด ({staffList.length})
-              </h3>
-            </div>
+      {/* Staff List Card */}
+      <Card className="border-border overflow-hidden">
+        <CardHeader className="p-4 border-b border-border bg-card flex flex-row items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Users className="size-4 text-foreground" />
+            <CardTitle className="text-base font-bold">
+              รายชื่อพนักงานทั้งหมด ({staffList.length} คน)
+            </CardTitle>
           </div>
-          <div className="divide-y divide-border-subtle">
-            {isLoading ? (
-              <div className="p-12 text-center text-on-surface-variant flex flex-col items-center justify-center gap-2">
-                <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                <span className="text-body-sm">กำลังโหลดรายชื่อพนักงาน...</span>
-              </div>
-            ) : staffList.length === 0 ? (
-              <div className="p-gutter text-center text-on-surface-variant text-body-sm">
-                ยังไม่มีรายชื่อพนักงานที่บันทึกในฐานข้อมูล กรุณากรอกอีเมลด้านบนเพื่อเพิ่มพนักงาน
-              </div>
-            ) : (
-              staffList.map((staff) => {
-                const roleConfig = roleLabels[staff.role] || {
-                  label: staff.role,
-                  class: "bg-surface-container text-on-surface",
-                };
+          <span className="text-xs text-muted-foreground">
+            กำหนดสิทธิ์ตาม Security Role
+          </span>
+        </CardHeader>
+
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-6 space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center justify-between gap-4 py-2 border-b border-border last:border-0">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="size-10 rounded-full" />
+                    <div className="space-y-1">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-44" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-6 w-20 rounded" />
+                </div>
+              ))}
+            </div>
+          ) : staffList.length === 0 ? (
+            <div className="py-16 text-center text-muted-foreground">
+              <Users className="size-10 mx-auto mb-3 opacity-30" />
+              <h3 className="text-base font-bold text-foreground mb-1">
+                ยังไม่มีรายชื่อพนักงาน
+              </h3>
+              <p className="text-xs max-w-sm mx-auto">
+                กรอกอีเมลด้านบนเพื่อเชิญทีมงานเข้าร่วมจัดการระบบร้านค้า
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {staffList.map((staff) => {
+                const isDeleting = deletingId === staff.id;
+                const isOwner = staff.role === "owner";
+
                 return (
                   <div
                     key={staff.id}
-                    className="flex items-center justify-between p-gutter hover:bg-surface-container-lowest transition-colors group"
+                    className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors"
                   >
-                    <div className="flex items-center gap-stack-md">
-                      <div className="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center text-primary font-bold text-sm shrink-0">
-                        {getInitials(staff.name)}
-                      </div>
-                      <div>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Avatar size="default" className="rounded-full border border-border">
+                        <AvatarFallback className="text-xs font-bold bg-muted text-foreground">
+                          {getInitials(staff.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="font-body-md text-body-md text-on-surface font-semibold">
+                          <p className="font-semibold text-sm text-foreground truncate">
                             {staff.name}
                           </p>
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${roleConfig.class}`}
-                          >
-                            {roleConfig.label}
-                          </span>
+                          {getRoleBadge(staff.role)}
                         </div>
-                        <p className="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1 mt-0.5">
-                          <Mail className="w-3.5 h-3.5 text-on-surface-variant" />
-                          {staff.email}
+                        <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
+                          <Mail className="size-3 text-muted-foreground shrink-0" />
+                          <span>{staff.email}</span>
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-stack-md">
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveStaff(staff.id, staff.name)}
-                        aria-label="ลบพนักงาน"
-                        title="ลบพนักงาน"
-                        className="text-on-surface-variant hover:text-red-600 transition-colors p-2 rounded-lg hover:bg-red-50 cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+
+                    <div className="flex items-center gap-2">
+                      {!isOwner && (
+                        <Button
+                          onClick={() => handleRemoveStaff(staff.id, staff.name)}
+                          disabled={isDeleting}
+                          variant="outline"
+                          size="icon-xs"
+                          className="size-8 text-muted-foreground hover:text-destructive hover:border-destructive/40"
+                          title="ลบพนักงาน"
+                        >
+                          {isDeleting ? (
+                            <RotateCw className="size-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="size-3.5" />
+                          )}
+                        </Button>
+                      )}
                     </div>
                   </div>
                 );
-              })
-            )}
-          </div>
-        </section>
-      </div>
+              })}
+            </div>
+          )}
+        </CardContent>
+
+        <CardFooter className="p-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
+          <span>สิทธิ์ Owner จะไม่สามารถถูกลบได้</span>
+          <span className="font-medium text-foreground">ระบบความปลอดภัยสิทธิ์การเข้าถึง</span>
+        </CardFooter>
+      </Card>
     </div>
   );
 }

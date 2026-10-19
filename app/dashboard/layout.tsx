@@ -9,21 +9,36 @@ import {
   LayoutDashboard,
   UtensilsCrossed,
   Receipt,
-  QrCode,
   Users,
   BarChart3,
   Settings,
   Coffee,
-  X,
-  Menu,
   LogOut,
+  Armchair,
 } from "lucide-react";
+
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarProvider,
+  SidebarTrigger,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+} from "@/components/ui/sidebar";
+import { Separator } from "@/components/ui/separator";
 
 const navItems = [
   { name: "แดชบอร์ด", href: "/dashboard", icon: LayoutDashboard },
+  { name: "ผังโต๊ะอาหาร", href: "/dashboard/tables", icon: Armchair },
   { name: "เมนูอาหาร", href: "/dashboard/menu", icon: UtensilsCrossed },
   { name: "ออเดอร์", href: "/dashboard/orders", icon: Receipt },
-  { name: "คิวอาร์โค้ด", href: "/dashboard/qr-code", icon: QrCode },
   { name: "จัดการพนักงาน", href: "/dashboard/staff", icon: Users },
   { name: "รายงานยอดขาย", href: "/dashboard/reports", icon: BarChart3 },
   { name: "ตั้งค่าร้านค้า", href: "/dashboard/settings", icon: Settings },
@@ -36,7 +51,6 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<{
     name: string;
     email: string;
@@ -85,7 +99,7 @@ export default function DashboardLayout({
     if (item.href === "/dashboard") {
       return pathname === "/dashboard";
     }
-    if (item.href === "/dashboard/qr-code" && pathname.startsWith("/owner/tables")) {
+    if (item.href === "/dashboard/tables" && pathname.startsWith("/owner/tables")) {
       return true;
     }
     return pathname.startsWith(item.href);
@@ -93,139 +107,128 @@ export default function DashboardLayout({
   const pageTitle = currentItem ? currentItem.name : "แดชบอร์ด";
 
   return (
-    <div className="flex h-screen h-dvh w-full bg-background overflow-hidden font-body-md text-body-md text-on-background">
-      {/* Mobile Drawer Overlay */}
-      {mobileMenuOpen && (
-        <div
-          className="fixed inset-0 bg-on-background/40 backdrop-blur-xs z-40 lg:hidden"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-      )}
-
-      {/* SideNavBar (Desktop & Mobile Drawer) */}
-      <aside
-        className={`fixed inset-y-0 left-0 h-dvh max-h-dvh w-[260px] max-w-[85vw] bg-surface border-r border-border-subtle z-50 flex flex-col transition-transform duration-300 ease-in-out ${
-          mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        }`}
-      >
-        {/* Brand Header */}
-        <div className="px-4 py-3.5 sm:px-stack-lg sm:py-stack-md border-b border-border-subtle shrink-0 flex items-center justify-between">
-          <Link href="/owner/dashboard" className="flex items-center gap-stack-sm group min-w-0">
-            <div className="w-8 h-8 rounded-lg overflow-hidden bg-primary flex items-center justify-center text-on-primary shadow-xs shrink-0 border border-border-subtle">
-              {storeLogoUrl ? (
-                <img src={storeLogoUrl} alt={storeName} className="w-full h-full object-cover" />
-              ) : (
-                <Coffee className="w-4 h-4" />
-              )}
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="font-headline-md text-headline-md font-bold text-primary group-hover:opacity-90 truncate">
-                ScanSip
-              </span>
-              <span className="font-label-md text-label-md text-on-surface-variant truncate">
-                {storeName}
-              </span>
-            </div>
-          </Link>
-          <button
-            onClick={() => setMobileMenuOpen(false)}
-            className="lg:hidden text-on-surface-variant hover:text-on-surface p-1.5 rounded cursor-pointer shrink-0 ml-2"
-            aria-label="Close menu"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Navigation Links */}
-        <nav className="flex flex-col flex-1 min-h-0 py-2 px-stack-sm gap-unit overflow-y-auto overscroll-contain">
-          {navItems.map((item) => {
-            const isActive =
-              item.href === "/dashboard"
-                ? pathname === "/dashboard"
-                : pathname.startsWith(item.href) ||
-                  (item.href === "/dashboard/qr-code" && pathname.startsWith("/owner/tables"));
-            const IconComponent = item.icon;
-
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`flex w-full items-center gap-stack-sm px-stack-md py-stack-sm transition-colors duration-150 min-w-0 ${
-                  isActive
-                    ? "bg-secondary-container text-primary border-l-2 border-secondary scale-[0.98] font-semibold rounded-r-lg"
-                    : "text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg font-normal"
-                } ${item.href === "/dashboard/settings" ? "mt-auto pt-2" : ""}`}
+    <SidebarProvider>
+      <Sidebar collapsible="icon" className="border-r border-border font-sans">
+        {/* Sidebar Header with Brand info */}
+        <SidebarHeader className="border-b border-border p-3">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                size="lg"
+                render={<Link href="/owner/dashboard" />}
+                className="hover:bg-sidebar-accent"
               >
-                <IconComponent className={`w-5 h-5 shrink-0 ${isActive ? "text-primary" : "text-on-surface-variant"}`} />
-                <span className="font-label-md text-label-md truncate">{item.name}</span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* User Profile Footer */}
-        <div className="px-stack-sm pt-stack-sm pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:pb-stack-md border-t border-border-subtle shrink-0 bg-surface mt-auto">
-          <div className="flex w-full items-center justify-between gap-2 p-stack-sm hover:bg-surface-container-low rounded-lg transition-colors group">
-            <div className="flex items-center gap-stack-sm min-w-0 flex-1 overflow-hidden">
-              {currentUser?.avatarUrl ? (
-                <img
-                  src={currentUser.avatarUrl}
-                  alt={currentUser.name}
-                  className="w-8 h-8 rounded-full border border-border-subtle object-cover shrink-0"
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-secondary-container/60 overflow-hidden border border-border-subtle shrink-0 flex items-center justify-center font-bold text-xs text-primary">
-                  {currentUser?.name
-                    ? currentUser.name.slice(0, 2).toUpperCase()
-                    : "OW"}
+                <div className="size-8 rounded-lg overflow-hidden bg-primary flex items-center justify-center text-primary-foreground shadow-2xs shrink-0">
+                  {storeLogoUrl ? (
+                    <img src={storeLogoUrl} alt={storeName} className="w-full h-full object-cover" />
+                  ) : (
+                    <Coffee className="size-4" />
+                  )}
                 </div>
-              )}
-              <div className="flex-1 min-w-0 overflow-hidden">
-                <p className="font-label-md text-label-md text-on-surface truncate">
-                  {currentUser?.name || "เจ้าของร้าน ScanSip"}
-                </p>
-                <p className="font-body-sm text-[11px] text-on-surface-variant truncate">
-                  {currentUser?.email || "บัญชี Google"}
-                </p>
-              </div>
-            </div>
-            <form action="/auth/signout" method="post" className="shrink-0">
-              <button
-                type="submit"
-                title="ออกจากระบบ"
-                className="text-on-surface-variant hover:text-error p-1.5 rounded-md hover:bg-error-container/20 transition-colors cursor-pointer"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </form>
-          </div>
-        </div>
-      </aside>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-bold text-foreground">ScanSip</span>
+                  <span className="truncate text-xs text-muted-foreground">{storeName}</span>
+                </div>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
 
-      {/* Main Content Shell */}
-      <div className="flex-1 flex flex-col lg:ml-[260px] h-full min-h-0 overflow-hidden">
-        {/* TopNavBar */}
-        <header className="flex justify-between items-center h-16 px-4 sm:px-gutter bg-surface border-b border-border-subtle shrink-0 w-full sticky top-0 z-30">
-          <div className="flex items-center gap-stack-md">
-            <button
-              onClick={() => setMobileMenuOpen(true)}
-              className="lg:hidden text-on-surface-variant p-2 -ml-2 rounded-full hover:bg-surface-container-low cursor-pointer"
-              aria-label="Open menu"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-            <h1 className="font-headline-md text-headline-md font-bold text-primary opacity-90">
-              {pageTitle}
-            </h1>
-          </div>
+        {/* Sidebar Navigation Items */}
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground">
+              เมนูการจัดการ
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {navItems.map((item) => {
+                  const isActive =
+                    item.href === "/dashboard"
+                      ? pathname === "/dashboard"
+                      : pathname.startsWith(item.href) ||
+                        (item.href === "/dashboard/tables" && pathname.startsWith("/owner/tables"));
+                  const IconComponent = item.icon;
+
+                  return (
+                    <SidebarMenuItem key={item.name}>
+                      <SidebarMenuButton
+                        render={<Link href={item.href} />}
+                        isActive={isActive}
+                        tooltip={item.name}
+                        className={
+                          isActive
+                            ? "bg-primary/10 text-primary font-semibold hover:bg-primary/15 hover:text-primary"
+                            : "text-muted-foreground hover:text-foreground"
+                        }
+                      >
+                        <IconComponent />
+                        <span>{item.name}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+
+        {/* Sidebar Footer with User info & Signout */}
+        <SidebarFooter className="border-t border-border p-2">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <div className="flex items-center justify-between p-2 rounded-lg hover:bg-sidebar-accent transition-colors">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  {currentUser?.avatarUrl ? (
+                    <img
+                      src={currentUser.avatarUrl}
+                      alt={currentUser.name}
+                      className="size-8 rounded-full border border-border object-cover shrink-0"
+                    />
+                  ) : (
+                    <div className="size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                      {currentUser?.name ? currentUser.name.slice(0, 2).toUpperCase() : "OW"}
+                    </div>
+                  )}
+                  <div className="grid flex-1 text-left text-xs leading-tight min-w-0">
+                    <span className="truncate font-medium text-foreground">
+                      {currentUser?.name || "เจ้าของร้าน"}
+                    </span>
+                    <span className="truncate text-[11px] text-muted-foreground">
+                      {currentUser?.email || ""}
+                    </span>
+                  </div>
+                </div>
+
+                <form action="/auth/signout" method="post" className="shrink-0">
+                  <button
+                    type="submit"
+                    title="ออกจากระบบ"
+                    className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors cursor-pointer"
+                  >
+                    <LogOut className="size-4" />
+                  </button>
+                </form>
+              </div>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+      </Sidebar>
+
+      {/* Main Content Inset with Header & Trigger */}
+      <SidebarInset className="bg-background">
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-4 bg-background sticky top-0 z-30">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 h-4" />
+          <h1 className="text-sm font-bold text-foreground tracking-tight">
+            {pageTitle}
+          </h1>
         </header>
 
-        {/* Dynamic Nested Content */}
-        <main className="flex-1 min-h-0 overflow-y-auto bg-background">
+        <main className="flex-1 overflow-y-auto">
           {children}
         </main>
-      </div>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

@@ -1,6 +1,29 @@
 "use client";
 
 import { useState, useEffect } from "react";
+
+// Shadcn UI Components
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+
+// Lucide Icons
 import {
   Calendar,
   FileSpreadsheet,
@@ -10,9 +33,9 @@ import {
   UtensilsCrossed,
   Hash,
   Banknote,
-  Loader2,
   RefreshCw,
   TrendingUp,
+  Download,
 } from "lucide-react";
 
 interface DailySale {
@@ -119,14 +142,15 @@ export default function SalesReportsPage() {
   const maxSaleAmount = Math.max(...dailySales.map((d) => d.rawAmount), 100);
 
   return (
-    <div className="p-4 sm:p-gutter max-w-full overflow-x-hidden">
-      {/* Controls & Actions */}
-      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center mb-stack-lg gap-3">
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="flex-1 sm:flex-initial flex items-center gap-2 bg-surface-card border border-border-subtle rounded-xl px-3 py-1.5 shadow-xs h-9 min-w-0">
-            <Calendar className="w-4 h-4 text-on-surface-variant shrink-0" />
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto font-sans">
+      {/* Controls & Filter Bar */}
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+        <div className="flex items-center gap-2">
+          {/* Date Range Selector */}
+          <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 h-9 shadow-2xs">
+            <Calendar className="size-4 text-muted-foreground shrink-0" />
             <select
-              className="bg-transparent border-none text-body-sm font-body-sm text-on-surface focus:ring-0 py-0 pl-1 pr-4 cursor-pointer outline-none w-full truncate"
+              className="bg-transparent border-none text-xs text-foreground cursor-pointer outline-none w-full"
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value)}
             >
@@ -139,228 +163,242 @@ export default function SalesReportsPage() {
             </select>
           </div>
 
-          <button
+          <Button
             type="button"
             onClick={() => fetchReports(dateRange, true)}
             disabled={isRefreshing}
-            className="flex items-center justify-center gap-1.5 px-3 h-9 text-xs font-medium border border-border-subtle rounded-xl bg-surface hover:bg-surface-container-low transition-colors text-on-surface-variant cursor-pointer shadow-xs shrink-0"
+            variant="outline"
+            size="sm"
+            className="h-9 text-xs"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+            <RefreshCw className={isRefreshing ? "animate-spin" : ""} data-icon="inline-start" />
             <span>รีเฟรช</span>
-          </button>
+          </Button>
         </div>
 
-        <button
+        <Button
           type="button"
           onClick={handleExport}
           disabled={isLoading || !reportData}
-          className="bg-primary-container text-on-primary hover:bg-primary transition-colors duration-200 rounded-xl px-4 h-9 flex items-center justify-center gap-2 font-label-md text-label-md shadow-xs cursor-pointer disabled:opacity-50 w-full sm:w-auto shrink-0"
+          size="sm"
+          className="h-9 text-xs"
         >
-          <FileSpreadsheet className="w-4 h-4 shrink-0" />
+          <FileSpreadsheet data-icon="inline-start" />
           <span>ส่งออกไฟล์ Excel (CSV)</span>
-        </button>
+        </Button>
       </div>
 
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <span className="text-on-surface-variant font-body-md text-center">กำลังประมวลผลรายงานจากฐานข้อมูล...</span>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Card className="p-5 h-28 justify-between">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-8 w-44" />
+            </Card>
+            <Card className="p-5 h-28 justify-between">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-8 w-44" />
+            </Card>
+          </div>
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+            <Card className="xl:col-span-8 p-5 h-80 justify-between">
+              <Skeleton className="h-5 w-48" />
+              <Skeleton className="h-56 w-full rounded-lg" />
+            </Card>
+            <Card className="xl:col-span-4 p-5 h-80 justify-between">
+              <Skeleton className="h-5 w-36" />
+              <div className="space-y-2 mt-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
+                ))}
+              </div>
+            </Card>
+          </div>
         </div>
       ) : (
         <>
-          {/* Top Quick KPI summary */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-gutter mb-gutter">
-            <div className="bg-surface-card rounded-xl border border-border-subtle p-4 sm:p-stack-lg shadow-xs flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <span className="text-body-sm text-on-surface-variant font-medium block truncate">ยอดขายรวม · {rangeLabels[dateRange]}</span>
-                <div className="font-headline-lg text-headline-lg font-bold text-on-background mt-1 truncate">
-                  ฿{(reportData?.totalRevenue || 0).toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          {/* Top Quick KPI summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Card className="border-border">
+              <CardHeader className="p-5 flex flex-row items-center justify-between pb-2">
+                <div>
+                  <CardDescription className="text-xs uppercase font-semibold tracking-wider">
+                    ยอดขายรวม · {rangeLabels[dateRange]}
+                  </CardDescription>
+                  <CardTitle className="text-3xl font-extrabold tracking-tight mt-1 text-foreground">
+                    ฿{(reportData?.totalRevenue || 0).toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </CardTitle>
                 </div>
-              </div>
-              <div className="w-10 h-10 rounded-lg bg-primary-fixed text-primary-container flex items-center justify-center shrink-0">
-                <Banknote className="w-5 h-5" />
-              </div>
-            </div>
+                <div className="size-10 rounded-lg bg-muted border border-border flex items-center justify-center text-foreground">
+                  <Banknote className="size-5" />
+                </div>
+              </CardHeader>
+            </Card>
 
-            <div className="bg-surface-card rounded-xl border border-border-subtle p-4 sm:p-stack-lg shadow-xs flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <span className="text-body-sm text-on-surface-variant font-medium block truncate">จำนวนออเดอร์ทั้งหมด · {rangeLabels[dateRange]}</span>
-                <div className="font-headline-lg text-headline-lg font-bold text-on-background mt-1 truncate">
-                  {reportData?.totalOrdersCount || 0} ออเดอร์
+            <Card className="border-border">
+              <CardHeader className="p-5 flex flex-row items-center justify-between pb-2">
+                <div>
+                  <CardDescription className="text-xs uppercase font-semibold tracking-wider">
+                    จำนวนออเดอร์ทั้งหมด · {rangeLabels[dateRange]}
+                  </CardDescription>
+                  <CardTitle className="text-3xl font-extrabold tracking-tight mt-1 text-foreground">
+                    {reportData?.totalOrdersCount || 0} ออเดอร์
+                  </CardTitle>
                 </div>
-              </div>
-              <div className="w-10 h-10 rounded-lg bg-secondary-fixed text-secondary flex items-center justify-center shrink-0">
-                <TrendingUp className="w-5 h-5" />
-              </div>
-            </div>
+                <div className="size-10 rounded-lg bg-muted border border-border flex items-center justify-center text-foreground">
+                  <TrendingUp className="size-5" />
+                </div>
+              </CardHeader>
+            </Card>
           </div>
 
-          {/* Dashboard Grid */}
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-gutter">
-            {/* Chart Card */}
-            <div className="xl:col-span-8 bg-surface-card rounded-xl border border-border-subtle p-4 sm:p-stack-lg shadow-xs overflow-hidden flex flex-col">
-              <div className="flex flex-wrap justify-between items-center gap-2 mb-stack-lg">
+          {/* Main Reports Bento Grid */}
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+            {/* Sales Bar Chart Card */}
+            <Card className="xl:col-span-8 border-border flex flex-col justify-between">
+              <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border bg-card">
                 <div className="flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-primary shrink-0" />
-                  <h3 className="font-headline-md text-headline-md font-bold text-primary truncate">
+                  <BarChart3 className="size-4 text-foreground" />
+                  <CardTitle className="text-base font-bold">
                     {dateRange === "3m" ? "ยอดขายรายเดือน" : "ยอดขายรายวัน"}
-                  </h3>
+                  </CardTitle>
                 </div>
-                <div className="flex items-center gap-2">
-                  {dailySales.length > 10 && (
-                    <span className="text-[11px] text-on-surface-variant/80 bg-surface-container-low px-2 py-0.5 rounded xl:hidden">
-                      เลื่อนแนวนอน ↔
-                    </span>
-                  )}
-                  <span className="text-xs text-on-surface-variant bg-surface-container-low px-2 py-1 rounded flex items-center gap-1.5 shrink-0">
-                    <CalendarDays className="w-3.5 h-3.5" />
-                    {rangeLabels[dateRange]}
-                  </span>
-                </div>
-              </div>
+                <Badge variant="outline" className="text-xs gap-1.5">
+                  <CalendarDays className="size-3" />
+                  <span>{rangeLabels[dateRange]}</span>
+                </Badge>
+              </CardHeader>
 
-              {/* Main Chart Structure with Fixed Y-axis and Scrollable Bars */}
-              <div className="flex w-full overflow-hidden">
-                {/* Fixed Y-axis labels on the left */}
-                <div className="w-12 sm:w-14 shrink-0 flex flex-col justify-between text-right pr-2 text-label-md font-label-md text-on-surface-variant pb-7 text-[11px] sm:text-xs border-r border-border-subtle/50 select-none">
-                  <span>฿{Math.round(maxSaleAmount).toLocaleString()}</span>
-                  <span>฿{Math.round(maxSaleAmount / 2).toLocaleString()}</span>
-                  <span>฿0</span>
-                </div>
+              <CardContent className="pt-6">
+                {/* Chart Structure with Fixed Y-axis and Scrollable Bars */}
+                <div className="flex w-full overflow-hidden">
+                  {/* Fixed Y-axis labels */}
+                  <div className="w-14 shrink-0 flex flex-col justify-between text-right pr-2 text-muted-foreground pb-7 text-xs border-r border-border select-none">
+                    <span>฿{Math.round(maxSaleAmount).toLocaleString()}</span>
+                    <span>฿{Math.round(maxSaleAmount / 2).toLocaleString()}</span>
+                    <span>฿0</span>
+                  </div>
 
-                {/* Scrollable Bar + X-axis area */}
-                <div className="flex-1 overflow-x-auto overflow-y-hidden scrollbar-thin pl-2">
-                  <div className={`h-64 flex flex-col justify-between ${dailySales.length > 10 ? "min-w-[650px] xl:min-w-0" : "w-full"}`}>
-                    {/* Bars Container with Grid lines */}
-                    <div className="relative flex-1 flex items-end border-b border-border-subtle pb-1 pt-8">
-                      {/* Grid lines */}
-                      <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-1 pt-8">
-                        <div className="w-full border-t border-dashed border-border-subtle/60"></div>
-                        <div className="w-full border-t border-dashed border-border-subtle/60"></div>
-                        <div className="w-full"></div>
+                  {/* Scrollable Bar + X-axis area */}
+                  <div className="flex-1 overflow-x-auto overflow-y-hidden pl-3">
+                    <div className={`h-60 flex flex-col justify-between ${dailySales.length > 10 ? "min-w-[650px] xl:min-w-0" : "w-full"}`}>
+                      {/* Bars Container */}
+                      <div className="relative flex-1 flex items-end border-b border-border pb-1 pt-6">
+                        {/* Horizontal dashed grid lines */}
+                        <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-1 pt-6">
+                          <div className="w-full border-t border-dashed border-border/80"></div>
+                          <div className="w-full border-t border-dashed border-border/80"></div>
+                          <div className="w-full"></div>
+                        </div>
+
+                        {/* Bars */}
+                        <div className="w-full flex justify-between items-end gap-1.5 z-10 h-full">
+                          {dailySales.map((item, idx) => (
+                            <div
+                              key={idx}
+                              className={`group relative flex-1 ${
+                                dailySales.length <= 3
+                                  ? "max-w-[70px]"
+                                  : dailySales.length <= 7
+                                  ? "max-w-[42px]"
+                                  : "min-w-[8px]"
+                              } rounded-t-sm transition-all duration-200 cursor-pointer ${
+                                item.highlight
+                                  ? "bg-primary hover:bg-primary/90"
+                                  : "bg-muted-foreground/30 hover:bg-primary"
+                              }`}
+                              style={{ height: `${Math.max(item.heightPct, 4)}%` }}
+                            >
+                              {/* Hover Tooltip */}
+                              <div
+                                className={`${
+                                  item.highlight
+                                    ? "opacity-100 z-30"
+                                    : "opacity-0 group-hover:opacity-100 z-20"
+                                } absolute -top-8 left-1/2 -translate-x-1/2 bg-foreground text-background text-[10px] font-semibold px-2 py-0.5 rounded shadow whitespace-nowrap transition-opacity pointer-events-none`}
+                              >
+                                {item.dateStr}: {item.amount}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
 
-                      {/* Bars */}
-                      <div className="w-full flex justify-between items-end gap-1 sm:gap-2 z-10 h-full">
+                      {/* X-axis labels */}
+                      <div className="w-full flex justify-between pt-2 text-muted-foreground select-none">
                         {dailySales.map((item, idx) => (
                           <div
                             key={idx}
-                            className={`group relative flex-1 ${
+                            className={`flex-1 text-center truncate ${
                               dailySales.length <= 3
-                                ? "max-w-[80px]"
+                                ? "max-w-[70px]"
                                 : dailySales.length <= 7
-                                ? "max-w-[48px]"
-                                : "min-w-[10px]"
-                            } rounded-t-sm transition-all duration-200 cursor-pointer ${
-                              item.highlight
-                                ? "bg-primary-container shadow-[0_0_8px_rgba(85,55,34,0.3)] hover:brightness-110"
-                                : "bg-primary-fixed-dim hover:bg-primary-container"
+                                ? "max-w-[42px]"
+                                : "min-w-[8px]"
                             }`}
-                            style={{ height: `${Math.max(item.heightPct, 4)}%` }}
                           >
-                            {/* Tooltip */}
-                            <div
-                              className={`${
-                                item.highlight
-                                  ? "opacity-100 z-30"
-                                  : "opacity-0 group-hover:opacity-100 z-20"
-                              } absolute -top-8 left-1/2 transform -translate-x-1/2 bg-inverse-surface text-inverse-on-surface font-label-md px-2 py-0.5 rounded shadow-md whitespace-nowrap transition-opacity pointer-events-none text-[10px] sm:text-xs`}
+                            <span
+                              className={`text-[11px] block truncate ${
+                                item.highlight ? "text-foreground font-bold" : ""
+                              }`}
+                              title={item.dateStr}
                             >
-                              {item.dateStr}: {item.amount}
-                            </div>
+                              {item.day}
+                            </span>
                           </div>
                         ))}
                       </div>
                     </div>
-
-                    {/* X-axis labels aligned exactly below the bars */}
-                    <div className="w-full flex justify-between pt-1.5 text-on-surface-variant select-none">
-                      {dailySales.map((item, idx) => (
-                        <div
-                          key={idx}
-                          className={`flex-1 text-center truncate ${
-                            dailySales.length <= 3
-                              ? "max-w-[80px]"
-                              : dailySales.length <= 7
-                              ? "max-w-[48px]"
-                              : "min-w-[10px]"
-                          }`}
-                        >
-                          <span
-                            className={`text-[10px] sm:text-xs block truncate ${
-                              item.highlight ? "text-primary font-bold" : ""
-                            }`}
-                            title={item.dateStr}
-                          >
-                            {item.day}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
 
             {/* Top Items Table Card */}
-            <div className="xl:col-span-4 bg-surface-card rounded-xl border border-border-subtle p-4 sm:p-stack-lg shadow-xs flex flex-col h-full overflow-hidden">
-              <div className="flex items-center gap-2 mb-stack-lg">
-                <Trophy className="w-5 h-5 text-primary shrink-0" />
-                <h3 className="font-headline-md text-headline-md font-bold text-primary truncate">
-                  เมนูขายดีสูงสุด
-                </h3>
-              </div>
-              <div className="flex-1 overflow-x-auto max-h-[360px] scrollbar-thin">
+            <Card className="xl:col-span-4 border-border flex flex-col justify-between overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border bg-card">
+                <div className="flex items-center gap-2">
+                  <Trophy className="size-4 text-foreground" />
+                  <CardTitle className="text-base font-bold">เมนูขายดีสูงสุด</CardTitle>
+                </div>
+                <Badge variant="outline" className="text-[11px]">
+                  {topItems.length} อันดับแรก
+                </Badge>
+              </CardHeader>
+
+              <CardContent className="p-0 flex-1 overflow-x-auto max-h-[340px]">
                 {topItems.length === 0 ? (
-                  <div className="p-8 text-center text-on-surface-variant text-body-sm">
-                    ยังไม่มีรายการขายในช่วงเวลานี้
+                  <div className="py-12 text-center text-muted-foreground text-xs">
+                    ยังไม่มีข้อมูลการขายในช่วงเวลานี้
                   </div>
                 ) : (
-                  <table className="w-full text-left border-collapse min-w-[260px]">
-                    <thead>
-                      <tr>
-                        <th className="font-label-md text-label-md text-on-surface-variant bg-surface-container-low py-stack-sm px-2.5 sm:px-stack-md border-b border-border-subtle rounded-tl-lg">
-                          <span className="flex items-center gap-1.5">
-                            <UtensilsCrossed className="w-3.5 h-3.5 shrink-0" />
-                            รายการ
-                          </span>
-                        </th>
-                        <th className="font-label-md text-label-md text-on-surface-variant bg-surface-container-low py-stack-sm px-2.5 sm:px-stack-md border-b border-border-subtle text-right">
-                          <span className="flex items-center justify-end gap-1.5">
-                            <Hash className="w-3.5 h-3.5 shrink-0" />
-                            จำนวน
-                          </span>
-                        </th>
-                        <th className="font-label-md text-label-md text-on-surface-variant bg-surface-container-low py-stack-sm px-2.5 sm:px-stack-md border-b border-border-subtle text-right rounded-tr-lg">
-                          <span className="flex items-center justify-end gap-1.5">
-                            <Banknote className="w-3.5 h-3.5 shrink-0" />
-                            ยอดขาย
-                          </span>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                  <Table>
+                    <TableHeader className="bg-muted/40">
+                      <TableRow>
+                        <TableHead className="text-xs">รายการ</TableHead>
+                        <TableHead className="text-right text-xs">จำนวน</TableHead>
+                        <TableHead className="text-right text-xs">ยอดขาย</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                       {topItems.map((item) => (
-                        <tr
-                          key={item.name}
-                          className="hover:bg-surface-bright transition-colors border-b border-border-subtle last:border-0 h-12"
-                        >
-                          <td className="py-stack-sm px-2.5 sm:px-stack-md font-body-md text-body-md text-on-surface truncate max-w-[120px] sm:max-w-[160px]">
+                        <TableRow key={item.name} className="hover:bg-muted/30">
+                          <TableCell className="font-semibold text-xs text-foreground truncate max-w-[140px]">
                             {item.name}
-                          </td>
-                          <td className="py-stack-sm px-2.5 sm:px-stack-md font-body-md text-body-md text-on-surface-variant text-right whitespace-nowrap">
+                          </TableCell>
+                          <TableCell className="text-right text-xs text-muted-foreground">
                             {item.qty}
-                          </td>
-                          <td className="py-stack-sm px-2.5 sm:px-stack-md font-body-md text-body-md text-on-surface text-right font-semibold whitespace-nowrap">
+                          </TableCell>
+                          <TableCell className="text-right text-xs font-bold text-foreground">
                             {item.revenue}
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       ))}
-                    </tbody>
-                  </table>
+                    </TableBody>
+                  </Table>
                 )}
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           </div>
         </>
       )}

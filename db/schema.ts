@@ -89,6 +89,8 @@ export const tables = pgTable("tables", {
     .notNull(),
   tableNumber: integer("table_number").notNull(),
   status: tableStatusEnum("status").default("available").notNull(),
+  currentSessionToken: text("current_session_token"),
+  sessionStartedAt: timestamp("session_started_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -101,6 +103,7 @@ export const orders = pgTable("orders", {
   tableId: uuid("table_id").references(() => tables.id, { onDelete: "set null" }),
   tableNumber: integer("table_number"), // Snapshot of table number
   orderNumber: text("order_number").notNull(),
+  sessionToken: text("session_token"), // Links order to a specific active table session
   status: orderStatusEnum("status").default("pending").notNull(),
   paymentStatus: paymentStatusEnum("payment_status").default("unpaid").notNull(),
   totalAmount: numeric("total_amount", { precision: 10, scale: 2 }).default("0").notNull(),

@@ -7,21 +7,23 @@ import {
   ShoppingBag,
   Plus,
   Minus,
-  Trash2,
-  Clock,
   CheckCircle2,
   Hourglass,
   CheckCheck,
   ChevronRight,
-  ArrowLeft,
   X,
   FileQuestion,
   Loader2,
-  CreditCard,
-  QrCode,
   UtensilsCrossed,
   Check,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+
+import { useSearchParams } from "next/navigation";
 
 interface Category {
   id: string;
@@ -73,6 +75,19 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
   const resolvedParams = use(params);
   const storeSlug = resolvedParams.storeSlug;
   const tableNumber = resolvedParams.tableNumber;
+  const searchParams = useSearchParams();
+  const sessionToken = searchParams.get("token") || "";
+
+  // Table Session Validation State
+  const [sessionValidation, setSessionValidation] = useState<{
+    isValid: boolean;
+    isChecking: boolean;
+    reason?: string;
+    message?: string;
+  }>({
+    isValid: true,
+    isChecking: true,
+  });
 
   const [storeInfo, setStoreInfo] = useState<{
     id?: string;
@@ -102,6 +117,36 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
 
   // Active Placed Order (Tracking View)
   const [activeOrder, setActiveOrder] = useState<CreatedOrder | null>(null);
+
+  // Validate Table Session Token
+  const validateSession = async () => {
+    try {
+      setSessionValidation((prev) => ({ ...prev, isChecking: true }));
+      const res = await fetch(
+        `/api/tables/validate?store=${encodeURIComponent(storeSlug)}&table=${encodeURIComponent(
+          tableNumber
+        )}&token=${encodeURIComponent(sessionToken)}`
+      );
+      const json = await res.json();
+      if (json.success && json.valid) {
+        setSessionValidation({ isValid: true, isChecking: false });
+      } else {
+        setSessionValidation({
+          isValid: false,
+          isChecking: false,
+          reason: json.reason,
+          message: json.message || "โต๊ะนี้ยังไม่ได้เปิดใช้งาน กรุณาติดต่อพนักงาน",
+        });
+      }
+    } catch (err) {
+      console.error("Session validation error:", err);
+      setSessionValidation({
+        isValid: false,
+        isChecking: false,
+        message: "ไม่สามารถตรวจสอบสถานะของโต๊ะได้ กรุณาติดต่อพนักงาน",
+      });
+    }
+  };
 
   // Load Store Info, Categories, and Menu Items specifically for this storeSlug
   const loadData = async () => {
@@ -145,8 +190,9 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
   };
 
   useEffect(() => {
+    validateSession();
     loadData();
-  }, [storeSlug]);
+  }, [storeSlug, tableNumber, sessionToken]);
 
   // Poll order status if an order has been placed
   useEffect(() => {
@@ -215,6 +261,7 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
         storeSlug,
         storeId: storeInfo.id,
         tableNumber: parseInt(tableNumber) || 1,
+        sessionToken,
         customerNote: customerNote.trim() || null,
         items: cart.map((c) => ({
           menuItemId: c.menuItem.id,
@@ -236,6 +283,11 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
         setActiveOrder(json.data);
         setCart([]);
         setIsCartOpen(false);
+      } else {
+        alert(json.error || "เกิดข้อผิดพลาดในการส่งคำสั่งซื้อ โปรดลองใหม่อีกครั้ง");
+        if (json.sessionExpired) {
+          validateSession();
+        }
       }
     } catch (err) {
       console.error("Failed to checkout:", err);
@@ -250,13 +302,54 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
     return item.category?.name === selectedCategory;
   });
 
+  // If table is not open or token is expired/invalid -> Show blocked screen
+  if (!sessionValidation.isChecking && !sessionValidation.isValid) {
+    return (
+      <div className="min-h-screen bg-muted/20 flex flex-col items-center justify-center p-4">
+        <Card className="w-full max-w-sm border-border text-center shadow-xs">
+          <CardHeader className="pt-8 pb-4">
+            <div className="w-12 h-12 bg-amber-500/10 text-amber-600 rounded-xl flex items-center justify-center mx-auto mb-3">
+              <UtensilsCrossed className="w-6 h-6" />
+            </div>
+            <CardTitle className="text-xl font-bold">
+              โต๊ะ {tableNumber.padStart(2, "0")} ยังไม่พร้อมสั่งอาหาร
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 pb-6">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {sessionValidation.message ||
+                "โต๊ะนี้ยังไม่ได้เปิดใช้งาน หรือเช็คบิลออกจากร้านแล้ว กรุณาสแกน QR Code ใหม่จากพนักงาน"}
+            </p>
+
+            <div className="p-3 bg-muted/50 rounded-lg text-xs border border-border">
+              <p className="font-semibold text-foreground">วิธีใช้งาน:</p>
+              <p className="text-muted-foreground mt-0.5">
+                แจ้งพนักงานที่หน้าร้านเพื่อเปิดโต๊ะและขอรับ QR Code รอบบิลของคุณ
+              </p>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={validateSession}
+              className="w-full text-xs"
+            >
+              ลองตรวจสอบสถานะอีกครั้ง
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#faf8f5] text-[#191c1d] pb-28">
+    <div className="min-h-screen bg-muted/20 pb-28">
       {/* Top Header */}
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-border-subtle shadow-xs px-4 py-3">
+      <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-md border-b border-border shadow-2xs px-4 py-3">
         <div className="max-w-md mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl overflow-hidden bg-primary flex items-center justify-center text-on-primary shadow-xs shrink-0 border border-primary/20">
+            <div className="w-9 h-9 rounded-xl overflow-hidden bg-primary flex items-center justify-center text-primary-foreground shadow-2xs shrink-0">
               {storeInfo.logoUrl ? (
                 <img
                   src={storeInfo.logoUrl}
@@ -268,18 +361,18 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
               )}
             </div>
             <div>
-              <h1 className="font-bold text-base text-primary leading-tight">
+              <h1 className="font-bold text-sm text-foreground leading-tight">
                 {storeInfo.name}
               </h1>
-              <p className="text-xs text-on-surface-variant flex items-center gap-1">
-                <span>เวลาเปิด-ปิด: {storeInfo.openingTime} - {storeInfo.closingTime}</span>
+              <p className="text-xs text-muted-foreground">
+                เวลาทำการ {storeInfo.openingTime} - {storeInfo.closingTime}
               </p>
             </div>
           </div>
 
-          <div className="bg-primary/10 border border-primary/20 text-primary px-3 py-1.5 rounded-full text-xs font-bold shrink-0">
+          <Badge variant="outline" className="font-semibold text-xs border-primary/30 text-primary bg-primary/5">
             โต๊ะ {tableNumber.padStart(2, "0")}
-          </div>
+          </Badge>
         </div>
       </header>
 
@@ -287,146 +380,161 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
       <main className="max-w-md mx-auto px-4 pt-4">
         {/* Active Placed Order Tracking View (เมื่อลูกค้าสั่งแล้ว) */}
         {activeOrder && (
-          <section className="mb-6 p-4 rounded-2xl bg-white border border-primary/20 shadow-md animate-fadeIn">
-            <div className="flex items-center justify-between border-b border-border-subtle pb-3 mb-3">
-              <div>
-                <span className="text-[11px] font-semibold text-primary/80 uppercase tracking-wider">
-                  คำสั่งซื้อปัจจุบัน
-                </span>
-                <h3 className="font-bold text-lg text-primary">
-                  {activeOrder.orderNumber}
-                </h3>
-              </div>
-              <div className="text-right">
-                {activeOrder.status === "pending" && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 animate-pulse">
-                    <Hourglass className="w-3.5 h-3.5" />
-                    รอยืนยันออเดอร์
+          <Card className="mb-5 border-border shadow-xs">
+            <CardHeader className="pb-3 pt-4 px-4 border-b border-border">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                    คำสั่งซื้อปัจจุบัน
                   </span>
-                )}
-                {activeOrder.status === "preparing" && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
-                    <Hourglass className="w-3.5 h-3.5 animate-spin" />
-                    ครัวกำลังเตรียม
-                  </span>
-                )}
-                {activeOrder.status === "served" && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    เสิร์ฟอาหารแล้ว
-                  </span>
-                )}
-                {activeOrder.status === "completed" && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
-                    <CheckCheck className="w-3.5 h-3.5" />
-                    เสร็จสิ้น
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Order Items summary */}
-            <div className="space-y-1.5 mb-3 text-xs">
-              {activeOrder.items?.map((it) => (
-                <div key={it.id} className="flex justify-between items-center text-on-surface">
-                  <span>
-                    <strong className="text-primary">{it.quantity}x</strong> {it.menuName}
-                    {it.specialInstruction && (
-                      <span className="text-on-surface-variant block text-[11px] pl-3">
-                        ({it.specialInstruction})
-                      </span>
-                    )}
-                  </span>
-                  <span className="font-semibold text-on-surface">
-                    ฿{(Number(it.unitPrice) * it.quantity).toFixed(2)}
-                  </span>
+                  <CardTitle className="font-bold text-base text-foreground">
+                    {activeOrder.orderNumber}
+                  </CardTitle>
                 </div>
-              ))}
-            </div>
-
-            <div className="pt-2 border-t border-dashed border-border-subtle flex justify-between items-center text-sm font-bold">
-              <span>ยอดรวมทั้งหมด</span>
-              <span className="text-primary text-base">฿{Number(activeOrder.totalAmount).toFixed(2)}</span>
-            </div>
-
-            {/* PromptPay QR Code Payment section */}
-            {storeInfo.promptPayNumber && (
-              <div className="mt-4 p-3 bg-secondary-container/20 rounded-xl border border-secondary/20 text-center">
-                <p className="text-xs font-semibold text-primary mb-1">
-                  สแกนชำระเงินผ่านพร้อมเพย์
-                </p>
-                <p className="text-[11px] text-on-surface-variant mb-2">
-                  เบอร์: <strong>{storeInfo.promptPayNumber}</strong>
-                </p>
-                <div className="w-32 h-32 mx-auto bg-white p-2 rounded-lg border border-border-subtle shadow-xs flex items-center justify-center">
-                  <img
-                    alt="PromptPay QR Code"
-                    className="w-full h-full object-contain"
-                    src={`https://promptpay.io/${storeInfo.promptPayNumber.replace(/-/g, "")}/${activeOrder.totalAmount}.png`}
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=PROMPTPAY_${storeInfo.promptPayNumber}`;
-                    }}
-                  />
+                <div>
+                  {activeOrder.status === "pending" && (
+                    <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 text-xs">
+                      <Hourglass className="w-3 h-3 mr-1" />
+                      รอยืนยัน
+                    </Badge>
+                  )}
+                  {activeOrder.status === "preparing" && (
+                    <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/30 text-xs">
+                      <Hourglass className="w-3 h-3 mr-1 animate-spin" />
+                      กำลังเตรียม
+                    </Badge>
+                  )}
+                  {activeOrder.status === "served" && (
+                    <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/30 text-xs">
+                      <CheckCircle2 className="w-3 h-3 mr-1" />
+                      เสิร์ฟแล้ว
+                    </Badge>
+                  )}
+                  {activeOrder.status === "completed" && (
+                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-xs">
+                      <CheckCheck className="w-3 h-3 mr-1" />
+                      เสร็จสิ้น
+                    </Badge>
+                  )}
                 </div>
-                <p className="text-[10px] text-on-surface-variant mt-2">
-                  เมื่อโอนแล้ว แจ้งพนักงานเพื่อเช็คบิลได้ทันทีครับ
-                </p>
               </div>
-            )}
-          </section>
+            </CardHeader>
+
+            <CardContent className="p-4 space-y-3">
+              {/* Order Items summary */}
+              <div className="space-y-1.5 text-xs">
+                {activeOrder.items?.map((it) => (
+                  <div key={it.id} className="flex justify-between items-center text-foreground">
+                    <span>
+                      <strong className="text-primary font-semibold">{it.quantity}x</strong> {it.menuName}
+                      {it.specialInstruction && (
+                        <span className="text-muted-foreground block text-[11px] pl-3">
+                          ({it.specialInstruction})
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-medium text-foreground">
+                      ฿{(Number(it.unitPrice) * it.quantity).toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <Separator />
+
+              <div className="flex justify-between items-center text-sm font-bold">
+                <span className="text-foreground">ยอดรวมทั้งหมด</span>
+                <span className="text-primary text-base">฿{Number(activeOrder.totalAmount).toFixed(2)}</span>
+              </div>
+
+              {/* PromptPay QR Code Payment section */}
+              {storeInfo.promptPayNumber && (
+                <div className="p-3 bg-muted/40 rounded-xl border border-border text-center mt-3">
+                  <p className="text-xs font-semibold text-foreground mb-0.5">
+                    สแกนชำระเงินผ่านพร้อมเพย์
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mb-2">
+                    เบอร์: <strong className="text-foreground">{storeInfo.promptPayNumber}</strong>
+                  </p>
+                  <div className="w-28 h-28 mx-auto bg-white p-2 rounded-lg border border-border shadow-2xs flex items-center justify-center">
+                    <img
+                      alt="PromptPay QR Code"
+                      className="w-full h-full object-contain"
+                      src={`https://promptpay.io/${storeInfo.promptPayNumber.replace(/-/g, "")}/${activeOrder.totalAmount}.png`}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=PROMPTPAY_${storeInfo.promptPayNumber}`;
+                      }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-2">
+                    เมื่อโอนแล้ว แจ้งพนักงานเพื่อเช็คบิลได้ทันทีครับ
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {/* Categories Pills */}
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none mb-4">
-          <button
+        <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-none mb-3">
+          <Button
             type="button"
+            variant={selectedCategory === "ทั้งหมด" ? "default" : "outline"}
+            size="xs"
             onClick={() => setSelectedCategory("ทั้งหมด")}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
-              selectedCategory === "ทั้งหมด"
-                ? "bg-primary text-on-primary shadow-xs"
-                : "bg-white text-on-surface border border-border-subtle hover:bg-surface-container"
-            }`}
+            className="rounded-full text-xs cursor-pointer shadow-2xs shrink-0"
           >
             ทั้งหมด
-          </button>
+          </Button>
           {categoriesList.map((cat) => (
-            <button
+            <Button
               key={cat.id}
               type="button"
+              variant={selectedCategory === cat.name ? "default" : "outline"}
+              size="xs"
               onClick={() => setSelectedCategory(cat.name)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
-                selectedCategory === cat.name
-                  ? "bg-primary text-on-primary shadow-xs"
-                  : "bg-white text-on-surface border border-border-subtle hover:bg-surface-container"
-              }`}
+              className="rounded-full text-xs cursor-pointer shadow-2xs shrink-0"
             >
               {cat.name}
-            </button>
+            </Button>
           ))}
         </div>
 
         {/* Menu Items List */}
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-on-surface-variant">
-            <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
-            <p className="text-xs">กำลังโหลดเมนูอร่อยๆ สักครู่ครับ...</p>
+          <div className="space-y-2.5">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Card key={i} className="p-3 flex gap-3 border-border shadow-2xs">
+                <Skeleton className="w-20 h-20 rounded-lg shrink-0" />
+                <div className="flex-1 flex flex-col justify-between py-0.5 space-y-2">
+                  <div className="space-y-1.5">
+                    <Skeleton className="h-4 w-3/4 rounded" />
+                    <Skeleton className="h-3 w-full rounded" />
+                  </div>
+                  <div className="flex items-center justify-between pt-1">
+                    <Skeleton className="h-5 w-14 rounded" />
+                    <Skeleton className="size-6 rounded-full" />
+                  </div>
+                </div>
+              </Card>
+            ))}
           </div>
         ) : filteredMenu.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-border-subtle p-8 text-center my-6">
-            <UtensilsCrossed className="w-8 h-8 mx-auto text-on-surface-variant/40 mb-2" />
-            <p className="text-sm font-semibold text-on-surface">ไม่พบรายการเมนูในหมวดนี้</p>
-          </div>
+          <Card className="p-8 text-center my-6 border-dashed border-border shadow-none">
+            <UtensilsCrossed className="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
+            <p className="text-sm font-medium text-foreground">ไม่พบรายการเมนูในหมวดนี้</p>
+          </Card>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {filteredMenu.map((item) => (
-              <div
+              <Card
                 key={item.id}
-                className={`bg-white rounded-2xl border border-border-subtle p-3 flex gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all ${
+                className={`p-3 flex gap-3 border-border shadow-2xs transition-all ${
                   !item.isAvailable ? "opacity-60" : ""
                 }`}
               >
                 {/* Menu Image */}
-                <div className="w-24 h-24 rounded-xl bg-surface-container-high overflow-hidden shrink-0 relative flex items-center justify-center">
+                <div className="w-20 h-20 rounded-lg bg-muted overflow-hidden shrink-0 relative flex items-center justify-center border border-border">
                   {item.imageUrl ? (
                     <img
                       src={item.imageUrl}
@@ -434,11 +542,11 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <FileQuestion className="w-8 h-8 text-on-surface-variant/30" />
+                    <FileQuestion className="w-6 h-6 text-muted-foreground/40" />
                   )}
                   {!item.isAvailable && (
-                    <span className="absolute inset-0 bg-black/50 text-white text-[10px] font-bold flex items-center justify-center backdrop-blur-xs">
-                      สินค้าหมด
+                    <span className="absolute inset-0 bg-background/80 text-foreground text-[10px] font-bold flex items-center justify-center backdrop-blur-2xs">
+                      หมด
                     </span>
                   )}
                 </div>
@@ -446,36 +554,39 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
                 {/* Details */}
                 <div className="flex-1 flex flex-col justify-between py-0.5">
                   <div>
-                    <h3 className="font-bold text-sm text-on-surface line-clamp-1">
+                    <h3 className="font-semibold text-sm text-foreground line-clamp-1">
                       {item.name}
                     </h3>
                     {item.description && (
-                      <p className="text-xs text-on-surface-variant line-clamp-2 mt-0.5">
+                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
                         {item.description}
                       </p>
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between pt-2 mt-1">
+                  <div className="flex items-center justify-between pt-1">
                     <span className="font-bold text-primary text-sm">
                       ฿{Number(item.price).toFixed(2)}
                     </span>
 
                     {item.isAvailable ? (
-                      <button
+                      <Button
                         type="button"
+                        size="icon-xs"
                         onClick={() => addToCart(item)}
-                        className="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-xs active:scale-90 transition-transform cursor-pointer"
+                        className="rounded-full shadow-2xs cursor-pointer"
                         title="เพิ่มลงตะกร้า"
                       >
-                        <Plus className="w-4 h-4" />
-                      </button>
+                        <Plus className="w-3.5 h-3.5" />
+                      </Button>
                     ) : (
-                      <span className="text-[11px] text-error font-medium">ของหมด</span>
+                      <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                        สินค้าหมด
+                      </Badge>
                     )}
                   </div>
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         )}
@@ -483,64 +594,67 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
 
       {/* Floating Bottom Cart Bar */}
       {cart.length > 0 && !isCartOpen && (
-        <div className="fixed bottom-4 inset-x-4 max-w-md mx-auto z-40 animate-slideUp">
-          <button
+        <div className="fixed bottom-4 inset-x-4 max-w-md mx-auto z-40">
+          <Button
             type="button"
+            size="lg"
             onClick={() => setIsCartOpen(true)}
-            className="w-full bg-primary text-on-primary p-3.5 rounded-2xl shadow-xl flex items-center justify-between active:scale-[0.98] transition-transform cursor-pointer"
+            className="w-full h-12 shadow-lg flex items-center justify-between cursor-pointer rounded-xl px-4"
           >
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center font-bold text-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-primary-foreground text-primary flex items-center justify-center font-bold text-xs">
                 {cartTotalItemsCount}
-              </div>
-              <span className="font-bold text-sm">ดูตะกร้าของคุณ</span>
+              </span>
+              <span className="font-semibold text-sm">ดูรายการในตะกร้า</span>
             </div>
             <div className="flex items-center gap-1 font-bold text-base">
               <span>฿{cartTotalAmount.toFixed(2)}</span>
-              <ChevronRight className="w-5 h-5" />
+              <ChevronRight className="w-4 h-4 ml-1" />
             </div>
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Cart Modal / Drawer */}
       {isCartOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xs p-0 sm:p-4 animate-fadeIn">
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-slideUp">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-xs p-0 sm:p-4">
+          <Card className="w-full max-w-md rounded-b-none sm:rounded-xl max-h-[85vh] flex flex-col shadow-xl overflow-hidden border-border bg-card">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-border-subtle bg-surface-bright">
+            <CardHeader className="flex flex-row items-center justify-between p-4 border-b border-border">
               <div className="flex items-center gap-2">
-                <ShoppingBag className="w-5 h-5 text-primary" />
-                <h3 className="font-bold text-base text-on-surface">
+                <ShoppingBag className="w-4 h-4 text-primary" />
+                <CardTitle className="text-sm font-bold">
                   ตะกร้าสั่งอาหาร (โต๊ะ {tableNumber.padStart(2, "0")})
-                </h3>
+                </CardTitle>
               </div>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-xs"
                 onClick={() => setIsCartOpen(false)}
-                className="p-1 rounded-full hover:bg-surface-container text-on-surface-variant cursor-pointer"
+                className="cursor-pointer"
               >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+                <X className="w-4 h-4" />
+              </Button>
+            </CardHeader>
 
             {/* Cart Item List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <CardContent className="flex-1 overflow-y-auto p-4 space-y-3">
               {cart.map((c) => (
                 <div
                   key={c.menuItem.id}
-                  className="bg-surface-card p-3 rounded-xl border border-border-subtle"
+                  className="p-3 rounded-lg border border-border bg-muted/30 space-y-2"
                 >
-                  <div className="flex justify-between items-start mb-2">
+                  <div className="flex justify-between items-start">
                     <div>
-                      <h4 className="font-bold text-sm text-on-surface">
+                      <h4 className="font-semibold text-sm text-foreground">
                         {c.menuItem.name}
                       </h4>
-                      <span className="text-xs text-primary font-semibold">
-                        ฿{Number(c.menuItem.price).toFixed(2)} / ชิ้น
+                      <span className="text-xs text-muted-foreground">
+                        ฿{Number(c.menuItem.price).toFixed(2)} / รายการ
                       </span>
                     </div>
-                    <span className="font-bold text-sm text-on-surface">
+                    <span className="font-bold text-sm text-foreground">
                       ฿{(Number(c.menuItem.price) * c.quantity).toFixed(2)}
                     </span>
                   </div>
@@ -551,71 +665,81 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
                     placeholder="หมายเหตุเพิ่มเติม (เช่น หวานน้อย, แยกน้ำแข็ง)..."
                     value={c.note}
                     onChange={(e) => updateItemNote(c.menuItem.id, e.target.value)}
-                    className="w-full text-xs p-2 rounded-lg border border-border-subtle bg-surface mb-2 outline-none focus:border-secondary"
+                    className="w-full text-xs p-2 rounded-md border border-border bg-background outline-none focus:ring-1 focus:ring-primary"
                   />
 
                   {/* Quantity Stepper */}
-                  <div className="flex items-center justify-end gap-3">
-                    <button
+                  <div className="flex items-center justify-end gap-2.5">
+                    <Button
                       type="button"
+                      variant="outline"
+                      size="icon-xs"
                       onClick={() => updateQuantity(c.menuItem.id, -1)}
-                      className="w-7 h-7 rounded-full border border-border-subtle bg-white flex items-center justify-center text-on-surface hover:bg-surface-container active:scale-95 cursor-pointer"
+                      className="rounded-full cursor-pointer"
                     >
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="font-bold text-sm w-5 text-center">
+                      <Minus className="w-3 h-3" />
+                    </Button>
+                    <span className="font-semibold text-sm w-6 text-center">
                       {c.quantity}
                     </span>
-                    <button
+                    <Button
                       type="button"
+                      size="icon-xs"
                       onClick={() => updateQuantity(c.menuItem.id, 1)}
-                      className="w-7 h-7 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-xs active:scale-95 cursor-pointer"
+                      className="rounded-full cursor-pointer shadow-2xs"
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
+                      <Plus className="w-3 h-3" />
+                    </Button>
                   </div>
                 </div>
               ))}
 
               {/* Order Level Customer Note */}
-              <div className="pt-2">
-                <label className="block text-xs font-semibold text-on-surface mb-1">
-                  ข้อความถึงร้านค้า / โน้ตเพิ่มเติม
+              <div className="pt-1">
+                <label className="block text-xs font-medium text-foreground mb-1">
+                  ข้อความถึงครัว / ร้านค้า
                 </label>
                 <input
                   type="text"
                   placeholder="เช่น รับของพร้อมกัน, ขอจานแบ่ง..."
                   value={customerNote}
                   onChange={(e) => setCustomerNote(e.target.value)}
-                  className="w-full text-xs p-2.5 rounded-xl border border-border-subtle bg-surface outline-none focus:border-secondary"
+                  className="w-full text-xs p-2 rounded-md border border-border bg-background outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
-            </div>
+            </CardContent>
 
             {/* Footer Checkout */}
-            <div className="p-4 border-t border-border-subtle bg-surface-bright space-y-3">
-              <div className="flex justify-between items-center font-bold">
-                <span className="text-sm">ยอดชำระทั้งหมด</span>
+            <CardFooter className="p-4 border-t border-border flex flex-col gap-3">
+              <div className="flex justify-between items-center w-full font-bold">
+                <span className="text-sm text-foreground">ยอดชำระทั้งหมด</span>
                 <span className="text-lg text-primary">฿{cartTotalAmount.toFixed(2)}</span>
               </div>
 
-              <button
+              <Button
                 type="button"
+                size="lg"
                 onClick={handleCheckout}
                 disabled={isSubmittingOrder}
-                className="w-full py-3.5 bg-primary text-on-primary font-bold text-sm rounded-xl shadow-lg hover:bg-primary/90 flex items-center justify-center gap-2 active:scale-[0.99] transition-all cursor-pointer disabled:opacity-60"
+                className="w-full h-11 text-sm font-semibold cursor-pointer shadow-xs justify-center"
               >
                 {isSubmittingOrder ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" data-icon="inline-start" />
+                    กำลังส่งคำสั่งซื้อไปยังครัว...
+                  </>
                 ) : (
-                  <Check className="w-4 h-4" />
+                  <>
+                    <Check className="w-4 h-4" data-icon="inline-start" />
+                    ยืนยันส่งคำสั่งซื้อ
+                  </>
                 )}
-                {isSubmittingOrder ? "กำลังส่งคำสั่งซื้อไปยังครัว..." : "ยืนยันส่งคำสั่งซื้อ"}
-              </button>
-            </div>
-          </div>
+              </Button>
+            </CardFooter>
+          </Card>
         </div>
       )}
     </div>
   );
 }
+
