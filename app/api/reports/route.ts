@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
-import { getOrCreateStore } from "@/utils/store";
+import { requireStoreAccess, apiError } from "@/lib/auth";
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const range = searchParams.get("range") || "7d"; // '7d', '30d', 'month'
 
-    const store = await getOrCreateStore();
+    const { store } = await requireStoreAccess(["owner"]);
 
     // ดึงออเดอร์ทั้งหมด
     const allOrders = await db.query.orders.findMany({
@@ -188,11 +188,5 @@ export async function GET(req: Request) {
         topItems,
       },
     });
-  } catch (error: unknown) {
-    console.error("GET /api/reports error:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch reports" },
-      { status: 500 }
-    );
-  }
+  } catch (error) { return apiError(error); }
 }

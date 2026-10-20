@@ -1,7 +1,7 @@
 import { db } from "@/db";
-import { stores, categories } from "@/db/schema";
+import { stores } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { createClient } from "@/utils/supabase/server";
+import { requireStoreAccess, requireUser } from "@/lib/auth";
 
 export const DEFAULT_STORE_CATEGORIES = [
   { name: "เครื่องดื่มกาแฟ", sortOrder: 1 },
@@ -11,8 +11,6 @@ export const DEFAULT_STORE_CATEGORIES = [
   { name: "อาหารจานหลัก", sortOrder: 5 },
 ];
 
-// Fallback owner UID ในกรณีที่ไม่พบ session (เช่น การทดสอบเบื้องต้น)
-export const DEFAULT_OWNER_ID = "a4261258-4a0c-4e17-80a5-4780a879d8f2";
 
 /**
  * แปลงชื่อร้านค้าเป็น slug เช่น "My Coffee Shop" -> "my-coffee-shop"
@@ -30,81 +28,12 @@ export function generateSlug(name: string): string {
  * ดึง User ID จาก Session ของผู้ใช้ที่กำลังล็อกอินอยู่
  */
 export async function getCurrentUserId(): Promise<string | null> {
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    return user?.id || null;
-  } catch {
-    return null;
-  }
+  try { return (await requireUser()).id; } catch { return null; }
 }
 
-/**
- * ดึงร้านค้าของ Owner ปัจจุบันตาม Session ของผู้ใช้ที่ล็อกอินจริง
- */
-export async function getOrCreateStore(customOwnerId?: string) {
-  // 1. ตรวจหา Owner ID จาก Session ก่อน หากไม่มีจึงใช้ fallback
-  let ownerId = customOwnerId;
-  if (!ownerId) {
-    const sessionUserId = await getCurrentUserId();
-    ownerId = sessionUserId || DEFAULT_OWNER_ID;
-  }
-
-  // 2. ค้นหาร้านค้าที่เป็นของ Owner ID นี้
-  let store = await db.query.stores.findFirst({
-    where: eq(stores.ownerId, ownerId),
-  });
-
-  // 3. หากยังไม่มีร้าน ให้สร้างร้านเริ่มต้นผูกกับ ownerId นี้
-  if (!store) {
-    const defaultName = "ScanSip Cafe & Roastery";
-    const [newStore] = await db
-      .insert(stores)
-      .values({
-        ownerId,
-        name: defaultName,
-        slug: "scansip",
-        promptPayNumber: "081-234-5678",
-        openingTime: "08:00",
-        closingTime: "18:00",
-        currency: "THB",
-      })
-      .returning();
-    if (newStore) {
-      store = newStore;
-      // สร้างหมวดหมู่เริ่มต้นให้ร้านค้าใหม่
-      try {
-        await db.insert(categories).values(
-          DEFAULT_STORE_CATEGORIES.map((c) => ({
-            storeId: newStore.id,
-            name: c.name,
-            sortOrder: c.sortOrder,
-          }))
-        );
-      } catch (catErr) {
-        console.error("Failed to seed default categories:", catErr);
-      }
-    }
-  } else if (!store.slug) {
-    // ถ้ามีร้านแล้วแต่ยังไม่มี slug ให้อัปเดต
-    const slug = generateSlug(store.name);
-    const [updated] = await db
-      .update(stores)
-      .set({ slug })
-      .where(eq(stores.id, store.id))
-      .returning();
-    if (updated) {
-      store = updated;
-    }
-  }
-
-  if (!store) {
-    throw new Error("Failed to get or create store");
-  }
-
-  return store;
+// Kept for existing owner API callers. Reading data must never create a store.
+export async function getOrCreateStore() {
+  return (await requireStoreAccess(["owner"])).store;
 }
 
 /**

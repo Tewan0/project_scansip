@@ -414,17 +414,17 @@ export default function DashboardPage() {
                       </TableCell>
                       <TableCell className="text-right py-2.5">
                         {order.statusKey === "preparing" ? (
-                          <Badge variant="secondary" className="gap-1 text-[10px] text-amber-700 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
+                          <Badge variant="secondary" className="gap-1 text-[10px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
                             <Hourglass className="size-2.5" />
                             {order.status}
                           </Badge>
                         ) : order.statusKey === "served" ? (
-                          <Badge variant="secondary" className="gap-1 text-[10px] text-blue-700 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800">
+                          <Badge variant="secondary" className="gap-1 text-[10px] text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800">
                             <CheckCircle2 className="size-2.5" />
                             {order.status}
                           </Badge>
                         ) : (
-                          <Badge variant="secondary" className="gap-1 text-[10px] text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
+                          <Badge variant="secondary" className="gap-1 text-[10px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
                             <CheckCheck className="size-2.5" />
                             {order.status}
                           </Badge>

@@ -7,8 +7,12 @@ import {
   boolean,
   uuid,
   pgEnum,
+  unique,
+  index,
+  uniqueIndex,
+  check,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 // Enums
 export const orderStatusEnum = pgEnum("order_status", [
@@ -51,7 +55,7 @@ export const stores = pgTable("stores", {
   currency: text("currency").default("THB"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}).enableRLS();
 
 // 2. Categories (หมวดหมู่อาหาร/เครื่องดื่ม)
 export const categories = pgTable("categories", {
@@ -62,7 +66,7 @@ export const categories = pgTable("categories", {
   name: text("name").notNull(),
   sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}).enableRLS();
 
 // 3. Menu Items (รายการอาหารและเครื่องดื่ม)
 export const menuItems = pgTable("menu_items", {
@@ -79,7 +83,7 @@ export const menuItems = pgTable("menu_items", {
   isAvailable: boolean("is_available").default(true).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}).enableRLS();
 
 // 4. Tables (โต๊ะในร้าน)
 export const tables = pgTable("tables", {
@@ -92,7 +96,7 @@ export const tables = pgTable("tables", {
   currentSessionToken: text("current_session_token"),
   sessionStartedAt: timestamp("session_started_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [unique("tables_store_number_unique").on(table.storeId, table.tableNumber)]).enableRLS();
 
 // 5. Orders (คำสั่งซื้อ)
 export const orders = pgTable("orders", {
@@ -110,7 +114,26 @@ export const orders = pgTable("orders", {
   customerNote: text("customer_note"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}).enableRLS();
+
+// Requests belong to one QR round; they never mark a bill paid or close a table.
+export const serviceRequests = pgTable("service_requests", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  storeId: uuid("store_id").references(() => stores.id, { onDelete: "cascade" }).notNull(),
+  tableId: uuid("table_id").references(() => tables.id, { onDelete: "cascade" }).notNull(),
+  tableNumber: integer("table_number").notNull(),
+  sessionToken: text("session_token").notNull(),
+  kind: text("kind").$type<"assistance" | "bill">().notNull(),
+  status: text("status").$type<"pending" | "resolved">().default("pending").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+}, (request) => [
+  check("service_requests_kind_check", sql`${request.kind} in ('assistance', 'bill')`),
+  check("service_requests_status_check", sql`${request.status} in ('pending', 'resolved')`),
+  uniqueIndex("service_requests_pending_unique").on(request.tableId, request.sessionToken, request.kind).where(sql`${request.status} = 'pending'`),
+  index("service_requests_store_status_idx").on(request.storeId, request.status, request.createdAt),
+  index("service_requests_session_idx").on(request.tableId, request.sessionToken, request.createdAt),
+]).enableRLS();
 
 // 6. Order Items (รายการย่อยในคำสั่งซื้อ)
 export const orderItems = pgTable("order_items", {
@@ -124,8 +147,9 @@ export const orderItems = pgTable("order_items", {
   unitPrice: numeric("unit_price", { precision: 10, scale: 2 }).notNull(),
   quantity: integer("quantity").default(1).notNull(),
   specialInstruction: text("special_instruction"),
+  status: text("status").$type<"pending" | "preparing" | "ready">().default("pending").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}).enableRLS();
 
 // 7. Staff (พนักงานร้าน)
 export const staff = pgTable("staff", {
@@ -138,7 +162,7 @@ export const staff = pgTable("staff", {
   name: text("name").notNull(),
   role: staffRoleEnum("role").default("cashier").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}).enableRLS();
 
 // --- Relations ---
 

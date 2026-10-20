@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { tables } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { getOrCreateStore, getStoreBySlugOrId } from "@/utils/store";
+import { getStoreBySlugOrId } from "@/utils/store";
 
 // GET /api/tables/validate?store=...&table=...&token=...
 export async function GET(req: Request) {
@@ -12,12 +12,10 @@ export async function GET(req: Request) {
     const tableNumber = Number(searchParams.get("table"));
     const token = searchParams.get("token");
 
-    let store;
-    if (storeSlug) {
-      store = await getStoreBySlugOrId(storeSlug);
-    } else {
-      store = await getOrCreateStore();
+    if (!storeSlug || !token || !Number.isInteger(tableNumber) || tableNumber < 1) {
+      return NextResponse.json({ success: false, valid: false, error: "กรุณาสแกน QR Code ประจำโต๊ะ" }, { status: 400 });
     }
+    const store = await getStoreBySlugOrId(storeSlug);
 
     if (!store) {
       return NextResponse.json({ success: false, valid: false, error: "Store not found" }, { status: 404 });

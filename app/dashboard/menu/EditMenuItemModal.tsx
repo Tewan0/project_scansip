@@ -160,7 +160,7 @@ export default function EditMenuItemModal({
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-gutter animate-fadeIn">
-      <div className="bg-surface-card border border-border-subtle rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl animate-scaleUp max-h-[90vh] flex flex-col">
+      <div className="bg-surface-card border border-border-subtle rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl animate-scaleUp max-h-[90dvh] flex flex-col">
         {/* Modal Header */}
         <div className="p-stack-md border-b border-border-subtle flex justify-between items-center bg-surface-bright shrink-0">
           <div className="flex items-center gap-2">
@@ -173,7 +173,7 @@ export default function EditMenuItemModal({
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="text-on-surface-variant hover:text-on-surface p-1 rounded cursor-pointer disabled:opacity-50"
+            className="text-on-surface-variant hover:text-on-surface size-11 shrink-0 inline-flex items-center justify-center rounded cursor-pointer disabled:opacity-50"
           >
             <X className="w-5 h-5" />
           </button>
@@ -182,7 +182,7 @@ export default function EditMenuItemModal({
         {/* Modal Body / Form */}
         <form
           onSubmit={handleSubmit}
-          className="p-stack-md space-y-stack-md overflow-y-auto flex-1"
+          className="p-stack-md space-y-stack-md min-h-0 overflow-y-auto overscroll-contain flex-1"
         >
           {/* Alerts */}
           {errorMessage && (
@@ -210,7 +210,7 @@ export default function EditMenuItemModal({
                 <button
                   type="button"
                   onClick={handleResetImage}
-                  className="text-xs text-secondary hover:underline flex items-center gap-1 cursor-pointer"
+                  className="text-xs text-on-surface-variant hover:underline flex items-center gap-1 cursor-pointer"
                 >
                   <RotateCcw className="w-3 h-3" />
                   คืนค่ารูปเดิม
@@ -293,7 +293,7 @@ export default function EditMenuItemModal({
           </div>
 
           {/* Category & Price */}
-          <div className="grid grid-cols-2 gap-stack-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-stack-sm">
             <div>
               <label className="flex items-center gap-1 font-label-md text-label-md text-on-surface mb-unit">
                 <Layers className="w-3.5 h-3.5 text-on-surface-variant" />
@@ -386,7 +386,7 @@ export default function EditMenuItemModal({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-stack-md h-9 rounded-lg bg-primary text-on-primary font-label-md text-label-md hover:bg-primary-container transition-colors shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-60"
+              className="px-stack-md h-9 rounded-lg bg-primary text-on-primary font-label-md text-label-md hover:bg-primary/90 transition-colors shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-60"
             >
               {isSubmitting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { orders, orderItems } from "@/db/schema";
 import { eq, desc, gte } from "drizzle-orm";
-import { getOrCreateStore } from "@/utils/store";
+import { requireStoreAccess, apiError } from "@/lib/auth";
 
 export async function GET() {
   try {
-    const store = await getOrCreateStore();
+    const { store } = await requireStoreAccess(["owner"]);
 
     // ดึงออเดอร์ทั้งหมดของร้าน
     const allOrders = await db.query.orders.findMany({
@@ -174,11 +174,5 @@ export async function GET() {
         recentOrders,
       },
     });
-  } catch (error: unknown) {
-    console.error("GET /api/dashboard/stats error:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch dashboard stats" },
-      { status: 500 }
-    );
-  }
+  } catch (error) { return apiError(error); }
 }

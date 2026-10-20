@@ -18,7 +18,13 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+This project uses local Prompt font files through `next/font/local`; builds do not download fonts from Google.
+
+## Staff roles and kitchen
+
+See [the role and kitchen guide](docs/roles-and-kitchen.md) for login, permissions, database migration status, and manual verification steps.
+
+Run `npm test` for the permission, kitchen, table, and theme regression tests. Run `npm run build -- --webpack` if Turbopack cannot start its CSS worker in the local environment.
 
 ## Learn More
 

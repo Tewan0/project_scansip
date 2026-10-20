@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { stores } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { getOrCreateStore, getCurrentUserId, generateSlug } from "@/utils/store";
-import { deleteStorageFile } from "@/utils/supabase/storage";
+import { requireStoreAccess, requireUser, getAccessForUser, AccessError, apiError } from "@/lib/auth";
+import { createStoreOnboarding } from "@/app/actions/owner-auth";
+import { deleteStorageFile, validateImageUrl } from "@/utils/supabase/storage";
 
 // GET /api/store - ดึงข้อมูลร้านค้าปัจจุบัน หรือค้นหาจาก slug/id
 export async function GET(req: Request) {
@@ -17,79 +18,35 @@ export async function GET(req: Request) {
       if (!foundStore) {
         return NextResponse.json({ success: false, error: "Store not found" }, { status: 404 });
       }
-      return NextResponse.json({ success: true, data: foundStore });
+      return NextResponse.json({ success: true, data: { id: foundStore.id, name: foundStore.name, slug: foundStore.slug, logoUrl: foundStore.logoUrl, openingTime: foundStore.openingTime, closingTime: foundStore.closingTime, currency: foundStore.currency, promptPayNumber: foundStore.promptPayNumber } });
     }
 
-    const store = await getOrCreateStore();
+    const { store } = await requireStoreAccess(["owner"]);
     return NextResponse.json({ success: true, data: store });
-  } catch (error: unknown) {
-    console.error("GET /api/store error:", error);
-    return NextResponse.json({ success: false, error: "Failed to fetch store" }, { status: 500 });
-  }
+  } catch (error) { return apiError(error); }
 }
 
 // POST /api/store - สร้างร้านค้าใหม่ (สำหรับ Onboarding ร้านค้าใหม่)
 export async function POST(req: Request) {
   try {
+    const user = await requireUser();
+    const access = await getAccessForUser(user);
+    if (access && access.role !== "owner") throw new AccessError("บัญชีพนักงานไม่สามารถสร้างร้านได้");
+    if (access) return NextResponse.json({ success: true, data: access.store });
     const body = await req.json();
-    const { name, promptPayNumber, openingTime = "08:00", closingTime = "18:00", currency = "THB" } = body;
-
-    if (!name || typeof name !== "string") {
-      return NextResponse.json(
-        { success: false, error: "Store name is required" },
-        { status: 400 }
-      );
-    }
-
-    const userId = await getCurrentUserId();
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized: Please log in first" },
-        { status: 401 }
-      );
-    }
-
-    // ตรวจสอบว่าผู้ใช้นี้มีร้านอยู่แล้วหรือไม่
-    const existing = await db.query.stores.findFirst({
-      where: eq(stores.ownerId, userId),
-    });
-
-    if (existing) {
-      return NextResponse.json(
-        { success: true, data: existing, message: "Store already exists" },
-        { status: 200 }
-      );
-    }
-
-    // สร้างร้านใหม่ของ Owner นี้
-    const slug = generateSlug(name);
-    const [newStore] = await db
-      .insert(stores)
-      .values({
-        ownerId: userId,
-        name: name.trim(),
-        slug,
-        promptPayNumber: promptPayNumber || null,
-        openingTime,
-        closingTime,
-        currency,
-      })
-      .returning();
-
-    return NextResponse.json({ success: true, data: newStore }, { status: 201 });
-  } catch (error: unknown) {
-    console.error("POST /api/store error:", error);
-    return NextResponse.json({ success: false, error: "Failed to create store" }, { status: 500 });
-  }
+    const result = await createStoreOnboarding({ name: body.name, slug: body.slug || "", promptpayNumber: body.promptPayNumber, openingTime: body.openingTime, closingTime: body.closingTime });
+    if (!result.success) throw new AccessError(result.error || "สร้างร้านไม่สำเร็จ", 400);
+    return NextResponse.json({ success: true, data: result.store }, { status: 201 });
+  } catch (error) { return apiError(error); }
 }
 
 // PUT /api/store - บันทึกการตั้งค่าร้านค้า (ชื่อร้าน, เบอร์พร้อมเพย์, เวลาเปิด-ปิด, โลโก้, slug)
 export async function PUT(req: Request) {
   try {
+    const { store, user } = await requireStoreAccess(["owner"]);
     const body = await req.json();
     const { name, promptPayNumber, openingTime, closingTime, currency, logoUrl, slug } = body;
-
-    const store = await getOrCreateStore();
+    if (logoUrl !== undefined) validateImageUrl(logoUrl, "restaurant-logos", user.id, store.logoUrl);
     if (!store) {
       return NextResponse.json({ success: false, error: "Store not found" }, { status: 404 });
     }
@@ -127,7 +84,7 @@ export async function PUT(req: Request) {
 
     // ลบไฟล์โลโก้เก่าออกจาก Storage ทันทีเมื่อมีการเปลี่ยนรูปหรือลบรูป
     if (logoUrl !== undefined && store.logoUrl && store.logoUrl !== logoUrl) {
-      await deleteStorageFile(store.logoUrl, "restaurant-logos");
+      await deleteStorageFile(store.logoUrl, "restaurant-logos", user.id);
     }
 
     const [updatedStore] = await db
@@ -146,8 +103,5 @@ export async function PUT(req: Request) {
       .returning();
 
     return NextResponse.json({ success: true, data: updatedStore });
-  } catch (error: unknown) {
-    console.error("PUT /api/store error:", error);
-    return NextResponse.json({ success: false, error: "Failed to update store" }, { status: 500 });
-  }
+  } catch (error) { return apiError(error); }
 }

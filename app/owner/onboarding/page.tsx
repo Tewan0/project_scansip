@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useTransition, useEffect, useRef } from "react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { useRouter } from "next/navigation";
 import {
   createStoreOnboarding,
@@ -222,6 +223,7 @@ export default function OwnerOnboardingPage() {
     <div className="min-h-screen bg-muted/20 flex flex-col items-center justify-center p-4 sm:p-8">
       <div className="max-w-xl w-full">
         {/* Account Info & Sign Out Bar */}
+        <div className="mb-3 flex justify-end"><ThemeToggle /></div>
         {currentUserEmail && (
           <div className="mb-4 px-4 py-2.5 rounded-xl bg-card border border-border flex items-center justify-between gap-2 text-xs shadow-2xs">
             <div className="flex items-center gap-2 text-muted-foreground min-w-0">

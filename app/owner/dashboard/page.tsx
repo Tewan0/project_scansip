@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export const dynamic = "force-dynamic";
 import { getCurrentOwnerStore, signOutOwner } from "@/app/actions/owner-auth";
@@ -40,6 +41,7 @@ import {
   Flame,
   CheckCircle2,
   Armchair,
+  ChefHat,
 } from "lucide-react";
 
 export default async function OwnerDashboardPage() {
@@ -58,6 +60,8 @@ export default async function OwnerDashboardPage() {
   const customerUrl = `/r/${storeSlug}`;
 
   const navCards = [
+    { title: "ช่วยงานหน้าร้าน", desc: "เปิดโต๊ะ ดู QR และติดตามออเดอร์", href: "/frontdesk", icon: Armchair, badge: "หน้าร้าน" },
+    { title: "ช่วยงานครัว", desc: "เริ่มทำและทำเสร็จแยกรายเมนู", href: "/kitchen", icon: ChefHat, badge: "ครัว" },
     {
       title: "แดชบอร์ดสถิติ",
       desc: "ดูยอดขายวันนี้ แนวโน้มรายรับ และออเดอร์ล่าสุดแบบเรียลไทม์",
@@ -88,7 +92,7 @@ export default async function OwnerDashboardPage() {
     },
     {
       title: "จัดการพนักงาน",
-      desc: "เชิญพนักงานและแบ่งสิทธิ์เข้าใช้งานตามหน้าที่ (Manager, Cashier, Kitchen)",
+      desc: "เชิญพนักงานและแบ่งสิทธิ์เข้าใช้งานตามหน้าที่ (หน้าร้านและครัว)",
       href: "/dashboard/staff",
       icon: Users,
       badge: "สิทธิ์ทีมงาน",
@@ -112,9 +116,9 @@ export default async function OwnerDashboardPage() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col font-sans selection:bg-secondary selection:text-foreground">
       {/* Top Navbar using Shadcn structure */}
-      <header className="sticky top-0 z-30 bg-card/90 border-b border-border backdrop-blur-md px-4 sm:px-8 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Avatar size="default" className="rounded-xl border border-border">
+      <header className="sticky top-0 z-30 bg-card/90 border-b border-border backdrop-blur-md px-4 sm:px-8 py-3 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <Avatar size="default" className="shrink-0 rounded-xl border border-border">
             {store.logoUrl ? (
               <AvatarImage src={store.logoUrl} alt={store.name} className="object-cover" />
             ) : null}
@@ -122,32 +126,33 @@ export default async function OwnerDashboardPage() {
               <Coffee className="size-4" />
             </AvatarFallback>
           </Avatar>
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <h1 className="font-bold text-base text-foreground leading-tight">
+          <div className="flex min-w-0 flex-col">
+            <div className="flex min-w-0 items-center gap-2">
+              <h1 className="truncate font-bold text-base text-foreground leading-tight">
                 {store.name}
               </h1>
-              <Badge variant="secondary" className="gap-1 text-[11px] font-semibold uppercase">
+              <Badge variant="secondary" className="hidden shrink-0 gap-1 text-[11px] font-semibold uppercase sm:inline-flex">
                 <ShieldCheck className="size-3 text-emerald-600" />
                 {staffRole}
               </Badge>
             </div>
-            <p className="text-xs text-muted-foreground">พอร์ทัลเจ้าของร้าน (Owner Portal)</p>
+            <p className="text-xs text-muted-foreground">พอร์ทัลเจ้าของร้าน</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <form action={signOutOwner}>
             <Button
               type="submit"
               variant="outline"
               size="sm"
-              className="text-muted-foreground hover:text-destructive hover:border-destructive/40"
+              className="h-11 w-11 text-muted-foreground hover:text-destructive hover:border-destructive/40 sm:w-auto"
             >
               <LogOut data-icon="inline-start" />
-              <span>ออกจากระบบ</span>
+              <span className="sr-only sm:not-sr-only">ออกจากระบบ</span>
             </Button>
           </form>
+          <ThemeToggle />
         </div>
       </header>
 

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { createClient } from "@/utils/supabase/server";
 import { db } from "@/db";
 import { stores } from "@/db/schema";
@@ -129,7 +130,7 @@ export default async function HomePage() {
           </Link>
 
           {/* Navigation Links (Desktop) */}
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
+          <nav className="hidden lg:flex items-center gap-6 text-sm font-medium text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-colors">
               ฟีเจอร์เด่น
             </a>
@@ -148,16 +149,18 @@ export default async function HomePage() {
           </nav>
 
           {/* Right Action using Shadcn Button */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <ThemeToggle />
             {user ? (
               <div className="flex items-center gap-3">
-                <Avatar size="sm">
+                <Avatar size="sm" className="hidden sm:inline-flex">
                   <AvatarFallback className="text-[11px] font-bold bg-primary/10 text-primary">
                     {user.email?.slice(0, 2).toUpperCase() || "OW"}
                   </AvatarFallback>
                 </Avatar>
                 <Button render={<Link href={primaryCtaHref} />} size="sm">
-                  <span>{primaryCtaText}</span>
+                  <span className="sm:hidden">แดชบอร์ด</span>
+                  <span className="hidden sm:inline">{primaryCtaText}</span>
                   <ArrowRight data-icon="inline-end" />
                 </Button>
               </div>
@@ -254,7 +257,7 @@ export default async function HomePage() {
                     scansip.app/demo
                   </span>
                 </div>
-                <Badge variant="secondary" className="gap-1.5 text-xs text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 w-fit">
+                <Badge variant="secondary" className="gap-1.5 text-xs text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 w-fit">
                   <span className="size-1.5 rounded-full bg-emerald-500" />
                   Real-time Interactive Demonstration
                 </Badge>
@@ -301,7 +304,7 @@ export default async function HomePage() {
                             <TableCell className="text-xs text-muted-foreground">1 นาทีที่แล้ว</TableCell>
                             <TableCell className="text-right font-bold">฿220</TableCell>
                             <TableCell className="text-right">
-                              <Badge variant="secondary" className="text-amber-700 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
+                              <Badge variant="secondary" className="text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
                                 กำลังทำ
                               </Badge>
                             </TableCell>
@@ -315,7 +318,7 @@ export default async function HomePage() {
                             <TableCell className="text-xs text-muted-foreground">5 นาทีที่แล้ว</TableCell>
                             <TableCell className="text-right font-bold">฿190</TableCell>
                             <TableCell className="text-right">
-                              <Badge variant="secondary" className="text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
+                              <Badge variant="secondary" className="text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
                                 เสิร์ฟแล้ว
                               </Badge>
                             </TableCell>
@@ -329,7 +332,7 @@ export default async function HomePage() {
                             <TableCell className="text-xs text-muted-foreground">9 นาทีที่แล้ว</TableCell>
                             <TableCell className="text-right font-bold">฿145</TableCell>
                             <TableCell className="text-right">
-                              <Badge variant="secondary" className="text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
+                              <Badge variant="secondary" className="text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
                                 เสิร์ฟแล้ว
                               </Badge>
                             </TableCell>
@@ -481,7 +484,7 @@ export default async function HomePage() {
               </CardHeader>
               <CardFooter className="justify-between text-xs text-muted-foreground">
                 <span>อัปเดตสถานะ: รอทำ / กำลังทำ / เสิร์ฟแล้ว</span>
-                <Badge variant="secondary" className="text-[10px] text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40">
+                <Badge variant="secondary" className="text-[10px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40">
                   Instant Sync
                 </Badge>
               </CardFooter>
@@ -716,7 +719,7 @@ export default async function HomePage() {
                 สามารถแบ่งบทบาทให้พนักงานแต่ละคนได้หรือไม่?
               </AccordionTrigger>
               <AccordionContent className="text-muted-foreground text-sm leading-relaxed">
-                มีระบบ Staff Management รองรับการเชิญทีมงานและแบ่งสิทธิ์เป็น Manager, Cashier หรือ Kitchen เพื่อป้องกันไม่ให้พนักงานทั่วไปเข้าถึงรายงานยอดขายหรือแก้ไขการตั้งค่าสำคัญของร้าน
+                เพิ่มทีมงานด้วยอีเมล Google และแบ่งสิทธิ์เป็นพนักงานหน้าร้านหรือครัว โดยเจ้าของร้านจัดการยอดขายและการตั้งค่า พร้อมเข้าไปช่วยงานทั้งสองฝ่ายได้
               </AccordionContent>
             </AccordionItem>
           </Accordion>

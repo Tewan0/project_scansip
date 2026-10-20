@@ -1,27 +1,29 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useCallback, useRef, use } from "react";
+import { CustomerSessionPanel } from "@/components/customer-session-panel";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { useCustomerCart } from "@/hooks/use-customer-cart";
+import { cartStorageKey, MAX_CART_LINES, MAX_CART_QUANTITY } from "@/lib/customer-cart";
 import {
   Coffee,
   ShoppingBag,
   Plus,
   Minus,
-  CheckCircle2,
-  Hourglass,
-  CheckCheck,
   ChevronRight,
   X,
   FileQuestion,
   Loader2,
   UtensilsCrossed,
   Check,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
 import { useSearchParams } from "next/navigation";
 
@@ -47,26 +49,6 @@ interface CartItem {
   note: string;
 }
 
-interface OrderItemResponse {
-  id: string;
-  menuName: string;
-  unitPrice: string | number;
-  quantity: number;
-  specialInstruction: string | null;
-}
-
-interface CreatedOrder {
-  id: string;
-  orderNumber: string;
-  tableNumber: number | null;
-  totalAmount: string | number;
-  status: "pending" | "preparing" | "served" | "completed" | "cancelled";
-  paymentStatus: "unpaid" | "paid" | "refunded";
-  customerNote: string | null;
-  createdAt: string;
-  items: OrderItemResponse[];
-}
-
 interface TablePageProps {
   params: Promise<{ storeSlug: string; tableNumber: string }>;
 }
@@ -77,6 +59,14 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
   const tableNumber = resolvedParams.tableNumber;
   const searchParams = useSearchParams();
   const sessionToken = searchParams.get("token") || "";
+  const cartKey = cartStorageKey(storeSlug, tableNumber, sessionToken);
+  return <CustomerOrdering key={cartKey || JSON.stringify([storeSlug, tableNumber])}
+    storeSlug={storeSlug} tableNumber={tableNumber} sessionToken={sessionToken} cartKey={cartKey} />;
+}
+
+function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
+  storeSlug: string; tableNumber: string; sessionToken: string; cartKey: string;
+}) {
 
   // Table Session Validation State
   const [sessionValidation, setSessionValidation] = useState<{
@@ -108,18 +98,27 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
   const [categoriesList, setCategoriesList] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("ทั้งหมด");
   const [isLoading, setIsLoading] = useState(true);
+  const [menuLoadError, setMenuLoadError] = useState("");
 
   // Cart State
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const { draft, ready: cartReady, persistent, updateDraft } = useCustomerCart(cartKey);
+  const customerNote = draft.customerNote;
+  const cart: CartItem[] = draft.items.map((line) => ({
+    menuItem: menuList.find((item) => item.id === line.menuItemId) ?? {
+      id: line.menuItemId, name: line.name, description: null, price: 0,
+      imageUrl: null, isAvailable: false, categoryId: null,
+    }, quantity: line.quantity, note: line.note,
+  }));
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [customerNote, setCustomerNote] = useState("");
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const checkoutInFlight = useRef(false);
+  const [checkoutError, setCheckoutError] = useState("");
+  const [cartFeedback, setCartFeedback] = useState("");
 
-  // Active Placed Order (Tracking View)
-  const [activeOrder, setActiveOrder] = useState<CreatedOrder | null>(null);
+  const [historyRevision, setHistoryRevision] = useState(0);
 
   // Validate Table Session Token
-  const validateSession = async () => {
+  const validateSession = useCallback(async () => {
     try {
       setSessionValidation((prev) => ({ ...prev, isChecking: true }));
       const res = await fetch(
@@ -128,9 +127,12 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
         )}&token=${encodeURIComponent(sessionToken)}`
       );
       const json = await res.json();
-      if (json.success && json.valid) {
+      if (res.ok && json.success && json.valid) {
         setSessionValidation({ isValid: true, isChecking: false });
       } else {
+        if (json.success && ["table_closed", "session_expired"].includes(json.reason)) {
+          updateDraft(() => ({ items: [], customerNote: "" }));
+        }
         setSessionValidation({
           isValid: false,
           isChecking: false,
@@ -146,12 +148,13 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
         message: "ไม่สามารถตรวจสอบสถานะของโต๊ะได้ กรุณาติดต่อพนักงาน",
       });
     }
-  };
+  }, [storeSlug, tableNumber, sessionToken, updateDraft]);
 
   // Load Store Info, Categories, and Menu Items specifically for this storeSlug
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
+      setMenuLoadError("");
       const [storeRes, catRes, menuRes] = await Promise.all([
         fetch(`/api/store?store=${encodeURIComponent(storeSlug)}`),
         fetch(`/api/categories?store=${encodeURIComponent(storeSlug)}`),
@@ -163,6 +166,9 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
         catRes.json(),
         menuRes.json(),
       ]);
+      if (!storeRes.ok || !catRes.ok || !menuRes.ok || !storeJson.success || !catJson.success || !menuJson.success) {
+        throw new Error("โหลดเมนูไม่สำเร็จ รายการในตะกร้ายังเก็บไว้ กรุณาลองอีกครั้ง");
+      }
 
       if (storeJson.success && storeJson.data) {
         setStoreInfo({
@@ -184,67 +190,44 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
       }
     } catch (err) {
       console.error("Error loading customer menu:", err);
+      setMenuLoadError("โหลดเมนูไม่สำเร็จ รายการในตะกร้ายังเก็บไว้ กรุณาลองอีกครั้ง");
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [storeSlug]);
 
   useEffect(() => {
-    validateSession();
-    loadData();
-  }, [storeSlug, tableNumber, sessionToken]);
-
-  // Poll order status if an order has been placed
-  useEffect(() => {
-    if (!activeOrder || !storeInfo.id) return;
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/orders/${activeOrder.id}`);
-        const json = await res.json();
-        if (json.success && json.data) {
-          setActiveOrder(json.data);
-        }
-      } catch (err) {
-        console.error("Polling order error:", err);
-      }
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, [activeOrder, storeInfo.id]);
+    const timer = setTimeout(() => { void validateSession(); void loadData(); }, 0);
+    return () => clearTimeout(timer);
+  }, [validateSession, loadData]);
 
   // Cart operations
   const addToCart = (item: MenuItem) => {
-    if (!item.isAvailable) return;
-    setCart((prev) => {
-      const existing = prev.find((c) => c.menuItem.id === item.id);
-      if (existing) {
-        return prev.map((c) =>
-          c.menuItem.id === item.id ? { ...c, quantity: c.quantity + 1 } : c
-        );
-      }
-      return [...prev, { menuItem: item, quantity: 1, note: "" }];
-    });
+    if (!item.isAvailable || !canEditCart) return;
+    const existing = draft.items.find((line) => line.menuItemId === item.id);
+    if (existing && existing.quantity >= MAX_CART_QUANTITY) { setCartFeedback("เพิ่มได้สูงสุด 99 ชิ้นต่อเมนู"); return; }
+    if (!existing && draft.items.length >= MAX_CART_LINES) { setCartFeedback("เลือกได้สูงสุด 50 เมนูต่อออเดอร์"); return; }
+    updateDraft((previous) => ({ ...previous, items: existing
+      ? previous.items.map((line) => line.menuItemId === item.id ? { ...line, quantity: line.quantity + 1 } : line)
+      : [...previous.items, { menuItemId: item.id, name: item.name, quantity: 1, note: "" }],
+    }));
+    setCartFeedback(`เพิ่ม ${item.name} ลงตะกร้าแล้ว`);
   };
 
   const updateQuantity = (itemId: string, delta: number) => {
-    setCart((prev) =>
-      prev
-        .map((c) => {
-          if (c.menuItem.id === itemId) {
-            const newQty = c.quantity + delta;
-            return newQty > 0 ? { ...c, quantity: newQty } : null;
-          }
-          return c;
-        })
-        .filter(Boolean) as CartItem[]
-    );
+    if (!cartReady || checkoutInFlight.current) return;
+    updateDraft((previous) => ({ ...previous, items: previous.items
+      .map((line) => line.menuItemId === itemId ? { ...line, quantity: Math.min(MAX_CART_QUANTITY, line.quantity + delta) } : line)
+      .filter((line) => line.quantity > 0) }));
   };
 
   const updateItemNote = (itemId: string, note: string) => {
-    setCart((prev) =>
-      prev.map((c) => (c.menuItem.id === itemId ? { ...c, note } : c))
-    );
+    if (checkoutInFlight.current) return;
+    updateDraft((previous) => ({ ...previous, items: previous.items.map((line) => line.menuItemId === itemId ? { ...line, note: note.slice(0, 300) } : line) }));
   };
+
+  const canEditCart = cartReady && !isLoading && !menuLoadError && !sessionValidation.isChecking && sessionValidation.isValid && !isSubmittingOrder;
+  const hasUnavailableItems = cart.some((line) => !line.menuItem.isAvailable);
 
   const cartTotalAmount = cart.reduce((sum, item) => {
     return sum + Number(item.menuItem.price) * item.quantity;
@@ -254,9 +237,11 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
 
   // Submit order to POST /api/orders targeting this specific store
   const handleCheckout = async () => {
-    if (cart.length === 0) return;
+    if (!canEditCart || !cart.length || hasUnavailableItems || checkoutInFlight.current) return;
+    checkoutInFlight.current = true;
     try {
       setIsSubmittingOrder(true);
+      setCheckoutError("");
       const payload = {
         storeSlug,
         storeId: storeInfo.id,
@@ -279,20 +264,22 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
       });
 
       const json = await res.json();
-      if (json.success && json.data) {
-        setActiveOrder(json.data);
-        setCart([]);
+      if (res.ok && json.success && json.data) {
+        updateDraft(() => ({ items: [], customerNote: "" }));
+        setHistoryRevision((previous) => previous + 1);
+        setCartFeedback("ส่งออเดอร์แล้ว เลือกเมนูเพิ่มได้เลย");
         setIsCartOpen(false);
       } else {
-        alert(json.error || "เกิดข้อผิดพลาดในการส่งคำสั่งซื้อ โปรดลองใหม่อีกครั้ง");
+        setCheckoutError(json.error || "ส่งคำสั่งซื้อไม่สำเร็จ รายการในตะกร้ายังอยู่ กรุณาลองใหม่");
         if (json.sessionExpired) {
           validateSession();
         }
       }
     } catch (err) {
       console.error("Failed to checkout:", err);
-      alert("เกิดข้อผิดพลาดในการส่งคำสั่งซื้อ โปรดลองใหม่อีกครั้ง");
+      setCheckoutError("ยังยืนยันผลการส่งไม่ได้ รายการในตะกร้ายังอยู่ กรุณาตรวจสอบกับพนักงานก่อนส่งซ้ำ");
     } finally {
+      checkoutInFlight.current = false;
       setIsSubmittingOrder(false);
     }
   };
@@ -337,6 +324,7 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
             >
               ลองตรวจสอบสถานะอีกครั้ง
             </Button>
+            <div className="flex justify-center"><ThemeToggle /></div>
           </CardContent>
         </Card>
       </div>
@@ -344,11 +332,11 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
   }
 
   return (
-    <div className="min-h-screen bg-muted/20 pb-28">
+    <div className="min-h-screen bg-muted/20 pb-[calc(7rem+env(safe-area-inset-bottom))]">
       {/* Top Header */}
       <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-md border-b border-border shadow-2xs px-4 py-3">
-        <div className="max-w-md mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+        <div className="max-w-md mx-auto flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl overflow-hidden bg-primary flex items-center justify-center text-primary-foreground shadow-2xs shrink-0">
               {storeInfo.logoUrl ? (
                 <img
@@ -360,8 +348,8 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
                 <Coffee className="w-5 h-5" />
               )}
             </div>
-            <div>
-              <h1 className="font-bold text-sm text-foreground leading-tight">
+            <div className="min-w-0">
+              <h1 className="truncate font-bold text-sm text-foreground leading-tight">
                 {storeInfo.name}
               </h1>
               <p className="text-xs text-muted-foreground">
@@ -370,110 +358,34 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
             </div>
           </div>
 
-          <Badge variant="outline" className="font-semibold text-xs border-primary/30 text-primary bg-primary/5">
-            โต๊ะ {tableNumber.padStart(2, "0")}
-          </Badge>
+          <div className="flex shrink-0 items-center gap-2">
+            <Badge variant="outline" className="font-semibold text-xs border-primary/30 text-primary bg-primary/5">
+              โต๊ะ {tableNumber.padStart(2, "0")}
+            </Badge>
+            <ThemeToggle />
+          </div>
+          <Button type="button" variant="outline" className="min-h-11 w-full justify-center gap-2"
+            disabled={!cartReady} onClick={() => setIsCartOpen(true)}
+            aria-label={`เปิดตะกร้า ${cartTotalItemsCount} รายการ`}>
+            <ShoppingBag className="size-4" /> ตะกร้าของฉัน
+            <Badge variant="secondary">{cartTotalItemsCount}</Badge>
+            {cartTotalItemsCount > 0 && <span className="ml-auto font-semibold">฿{cartTotalAmount.toFixed(2)}</span>}
+          </Button>
         </div>
       </header>
 
       {/* Main Content Area */}
       <main className="max-w-md mx-auto px-4 pt-4">
-        {/* Active Placed Order Tracking View (เมื่อลูกค้าสั่งแล้ว) */}
-        {activeOrder && (
-          <Card className="mb-5 border-border shadow-xs">
-            <CardHeader className="pb-3 pt-4 px-4 border-b border-border">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                    คำสั่งซื้อปัจจุบัน
-                  </span>
-                  <CardTitle className="font-bold text-base text-foreground">
-                    {activeOrder.orderNumber}
-                  </CardTitle>
-                </div>
-                <div>
-                  {activeOrder.status === "pending" && (
-                    <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 text-xs">
-                      <Hourglass className="w-3 h-3 mr-1" />
-                      รอยืนยัน
-                    </Badge>
-                  )}
-                  {activeOrder.status === "preparing" && (
-                    <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/30 text-xs">
-                      <Hourglass className="w-3 h-3 mr-1 animate-spin" />
-                      กำลังเตรียม
-                    </Badge>
-                  )}
-                  {activeOrder.status === "served" && (
-                    <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/30 text-xs">
-                      <CheckCircle2 className="w-3 h-3 mr-1" />
-                      เสิร์ฟแล้ว
-                    </Badge>
-                  )}
-                  {activeOrder.status === "completed" && (
-                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-xs">
-                      <CheckCheck className="w-3 h-3 mr-1" />
-                      เสร็จสิ้น
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent className="p-4 space-y-3">
-              {/* Order Items summary */}
-              <div className="space-y-1.5 text-xs">
-                {activeOrder.items?.map((it) => (
-                  <div key={it.id} className="flex justify-between items-center text-foreground">
-                    <span>
-                      <strong className="text-primary font-semibold">{it.quantity}x</strong> {it.menuName}
-                      {it.specialInstruction && (
-                        <span className="text-muted-foreground block text-[11px] pl-3">
-                          ({it.specialInstruction})
-                        </span>
-                      )}
-                    </span>
-                    <span className="font-medium text-foreground">
-                      ฿{(Number(it.unitPrice) * it.quantity).toFixed(2)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              <Separator />
-
-              <div className="flex justify-between items-center text-sm font-bold">
-                <span className="text-foreground">ยอดรวมทั้งหมด</span>
-                <span className="text-primary text-base">฿{Number(activeOrder.totalAmount).toFixed(2)}</span>
-              </div>
-
-              {/* PromptPay QR Code Payment section */}
-              {storeInfo.promptPayNumber && (
-                <div className="p-3 bg-muted/40 rounded-xl border border-border text-center mt-3">
-                  <p className="text-xs font-semibold text-foreground mb-0.5">
-                    สแกนชำระเงินผ่านพร้อมเพย์
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mb-2">
-                    เบอร์: <strong className="text-foreground">{storeInfo.promptPayNumber}</strong>
-                  </p>
-                  <div className="w-28 h-28 mx-auto bg-white p-2 rounded-lg border border-border shadow-2xs flex items-center justify-center">
-                    <img
-                      alt="PromptPay QR Code"
-                      className="w-full h-full object-contain"
-                      src={`https://promptpay.io/${storeInfo.promptPayNumber.replace(/-/g, "")}/${activeOrder.totalAmount}.png`}
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=PROMPTPAY_${storeInfo.promptPayNumber}`;
-                      }}
-                    />
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-2">
-                    เมื่อโอนแล้ว แจ้งพนักงานเพื่อเช็คบิลได้ทันทีครับ
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+        {cartFeedback && <p role="status" className="mb-3 rounded-lg bg-primary/10 p-3 text-sm text-foreground">{cartFeedback}</p>}
+        {cartReady && !persistent && <p role="alert" className="mb-3 rounded-lg border border-amber-500/40 p-3 text-sm text-foreground">
+          เบราว์เซอร์ไม่อนุญาตให้บันทึกตะกร้า รายการอาจหายเมื่อรีเฟรชหรือปิดหน้านี้
+        </p>}
+        {menuLoadError && <div role="alert" className="mb-3 rounded-lg border border-destructive/40 p-3 text-sm">
+          <p>{menuLoadError}</p><Button type="button" variant="outline" className="mt-2 min-h-11" onClick={() => void loadData()}>ลองโหลดเมนูอีกครั้ง</Button>
+        </div>}
+        <CustomerSessionPanel storeSlug={storeSlug} tableNumber={tableNumber} sessionToken={sessionToken}
+          enabled={!sessionValidation.isChecking && sessionValidation.isValid} refreshKey={historyRevision}
+          onSessionExpired={validateSession} promptPayNumber={storeInfo.promptPayNumber} />
 
         {/* Categories Pills */}
         <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-none mb-3">
@@ -529,7 +441,7 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
             {filteredMenu.map((item) => (
               <Card
                 key={item.id}
-                className={`p-3 flex gap-3 border-border shadow-2xs transition-all ${
+                className={`p-3 flex flex-row gap-3 border-border shadow-2xs transition-all ${
                   !item.isAvailable ? "opacity-60" : ""
                 }`}
               >
@@ -552,9 +464,9 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
                 </div>
 
                 {/* Details */}
-                <div className="flex-1 flex flex-col justify-between py-0.5">
+                <div className="min-w-0 flex-1 flex flex-col justify-between py-0.5">
                   <div>
-                    <h3 className="font-semibold text-sm text-foreground line-clamp-1">
+                    <h3 className="break-words font-semibold text-sm leading-relaxed text-foreground">
                       {item.name}
                     </h3>
                     {item.description && (
@@ -574,7 +486,9 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
                         type="button"
                         size="icon-xs"
                         onClick={() => addToCart(item)}
-                        className="rounded-full shadow-2xs cursor-pointer"
+                        disabled={!canEditCart}
+                        aria-label={`เพิ่ม ${item.name} ลงตะกร้า`}
+                        className="size-11 rounded-full shadow-2xs cursor-pointer"
                         title="เพิ่มลงตะกร้า"
                       >
                         <Plus className="w-3.5 h-3.5" />
@@ -593,19 +507,20 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
       </main>
 
       {/* Floating Bottom Cart Bar */}
-      {cart.length > 0 && !isCartOpen && (
-        <div className="fixed bottom-4 inset-x-4 max-w-md mx-auto z-40">
+      {!isCartOpen && (
+        <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] inset-x-4 max-w-md mx-auto z-40">
           <Button
             type="button"
             size="lg"
             onClick={() => setIsCartOpen(true)}
+            disabled={!cartReady}
             className="w-full h-12 shadow-lg flex items-center justify-between cursor-pointer rounded-xl px-4"
           >
             <div className="flex items-center gap-2">
               <span className="w-6 h-6 rounded-full bg-primary-foreground text-primary flex items-center justify-center font-bold text-xs">
                 {cartTotalItemsCount}
               </span>
-              <span className="font-semibold text-sm">ดูรายการในตะกร้า</span>
+              <span className="font-semibold text-sm">{cart.length ? "ดูรายการในตะกร้า" : "เปิดตะกร้า"}</span>
             </div>
             <div className="flex items-center gap-1 font-bold text-base">
               <span>฿{cartTotalAmount.toFixed(2)}</span>
@@ -616,66 +531,89 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
       )}
 
       {/* Cart Modal / Drawer */}
-      {isCartOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-xs p-0 sm:p-4">
-          <Card className="w-full max-w-md rounded-b-none sm:rounded-xl max-h-[85vh] flex flex-col shadow-xl overflow-hidden border-border bg-card">
+      <Dialog open={isCartOpen} onOpenChange={setIsCartOpen}>
+        <DialogContent showCloseButton={false} className="bottom-0 top-auto max-w-full translate-y-0 rounded-b-none p-0 sm:bottom-auto sm:top-1/2 sm:max-w-md sm:-translate-y-1/2 sm:rounded-xl">
+          <Card className="w-full max-h-[85dvh] gap-0 rounded-b-none border-0 py-0 sm:rounded-xl flex flex-col shadow-xl overflow-hidden bg-card">
             {/* Header */}
-            <CardHeader className="flex flex-row items-center justify-between p-4 border-b border-border">
-              <div className="flex items-center gap-2">
+            <CardHeader className="flex shrink-0 flex-row items-center justify-between gap-2 p-4 border-b border-border">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
                 <ShoppingBag className="w-4 h-4 text-primary" />
-                <CardTitle className="text-sm font-bold">
+                <DialogTitle className="text-sm font-bold">
                   ตะกร้าสั่งอาหาร (โต๊ะ {tableNumber.padStart(2, "0")})
-                </CardTitle>
+                </DialogTitle>
+                </div>
+                <DialogDescription className="mt-1 text-xs">ตรวจรายการและหมายเหตุก่อนส่งให้ครัว</DialogDescription>
               </div>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon-xs"
                 onClick={() => setIsCartOpen(false)}
-                className="cursor-pointer"
+                aria-label="ปิดตะกร้า"
+                className="size-11 shrink-0 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </Button>
             </CardHeader>
 
             {/* Cart Item List */}
-            <CardContent className="flex-1 overflow-y-auto p-4 space-y-3">
+            <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-3">
+              {cart.length > 0 && persistent && <p className="text-xs text-muted-foreground">เก็บตะกร้าไว้ในเบราว์เซอร์นี้ รีเฟรชแล้วเลือกต่อได้</p>}
+              {cart.length === 0 && <div className="py-8 text-center">
+                <ShoppingBag className="mx-auto mb-3 size-10 text-muted-foreground" />
+                <p className="font-semibold">ตะกร้ายังว่างอยู่</p>
+                <p className="mt-1 text-sm text-muted-foreground">เลือกเมนูที่ชอบแล้วกดปุ่ม + เพื่อเพิ่มได้เลย</p>
+                <Button type="button" variant="outline" className="mt-4 min-h-11" onClick={() => setIsCartOpen(false)}>เลือกเมนู</Button>
+              </div>}
+              {cartReady && !persistent && <p role="alert" className="text-sm text-amber-700 dark:text-amber-300">บันทึกตะกร้าในเบราว์เซอร์ไม่ได้ กรุณาอย่ารีเฟรชก่อนส่งออเดอร์</p>}
+              {isLoading && cart.length > 0 && <p role="status" className="text-sm text-muted-foreground">กำลังตรวจราคาและเมนูปัจจุบัน...</p>}
               {cart.map((c) => (
                 <div
                   key={c.menuItem.id}
                   className="p-3 rounded-lg border border-border bg-muted/30 space-y-2"
                 >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-semibold text-sm text-foreground">
+                  <div className="flex justify-between items-start gap-3">
+                    <div className="min-w-0">
+                      <h4 className="break-words font-semibold text-sm text-foreground">
                         {c.menuItem.name}
                       </h4>
                       <span className="text-xs text-muted-foreground">
                         ฿{Number(c.menuItem.price).toFixed(2)} / รายการ
                       </span>
                     </div>
-                    <span className="font-bold text-sm text-foreground">
+                    <span className="shrink-0 font-bold text-sm text-foreground">
                       ฿{(Number(c.menuItem.price) * c.quantity).toFixed(2)}
                     </span>
                   </div>
+                  {!isLoading && !menuLoadError && !c.menuItem.isAvailable && <p className="text-sm text-destructive">เมนูนี้หมดหรือไม่มีในร้านแล้ว กรุณานำออกก่อนสั่ง</p>}
 
                   {/* Note for kitchen */}
                   <input
                     type="text"
                     placeholder="หมายเหตุเพิ่มเติม (เช่น หวานน้อย, แยกน้ำแข็ง)..."
                     value={c.note}
+                    aria-label={`หมายเหตุสำหรับ ${c.menuItem.name}`}
+                    maxLength={300}
+                    disabled={isSubmittingOrder}
                     onChange={(e) => updateItemNote(c.menuItem.id, e.target.value)}
-                    className="w-full text-xs p-2 rounded-md border border-border bg-background outline-none focus:ring-1 focus:ring-primary"
+                    className="min-h-11 w-full text-base sm:text-sm p-2 rounded-md border border-border bg-background outline-none focus:ring-1 focus:ring-primary"
                   />
 
                   {/* Quantity Stepper */}
-                  <div className="flex items-center justify-end gap-2.5">
+                  <div className="flex flex-wrap items-center justify-end gap-2.5">
+                    <Button type="button" variant="ghost" className="mr-auto min-h-11" disabled={isSubmittingOrder}
+                      aria-label={`นำ ${c.menuItem.name} ออกจากตะกร้า`} onClick={() => updateDraft((previous) => ({ ...previous, items: previous.items.filter((line) => line.menuItemId !== c.menuItem.id) }))}>
+                      <Trash2 className="size-4" /> นำออก
+                    </Button>
                     <Button
                       type="button"
                       variant="outline"
                       size="icon-xs"
                       onClick={() => updateQuantity(c.menuItem.id, -1)}
-                      className="rounded-full cursor-pointer"
+                      aria-label={`ลดจำนวน ${c.menuItem.name}`}
+                      disabled={isSubmittingOrder}
+                      className="size-11 rounded-full cursor-pointer"
                     >
                       <Minus className="w-3 h-3" />
                     </Button>
@@ -686,7 +624,9 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
                       type="button"
                       size="icon-xs"
                       onClick={() => updateQuantity(c.menuItem.id, 1)}
-                      className="rounded-full cursor-pointer shadow-2xs"
+                      aria-label={`เพิ่มจำนวน ${c.menuItem.name}`}
+                      disabled={!canEditCart || !c.menuItem.isAvailable || c.quantity >= MAX_CART_QUANTITY}
+                      className="size-11 rounded-full cursor-pointer shadow-2xs"
                     >
                       <Plus className="w-3 h-3" />
                     </Button>
@@ -695,22 +635,27 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
               ))}
 
               {/* Order Level Customer Note */}
-              <div className="pt-1">
-                <label className="block text-xs font-medium text-foreground mb-1">
+              {cart.length > 0 && <div className="pt-1">
+                <label htmlFor="customer-note" className="block text-xs font-medium text-foreground mb-1">
                   ข้อความถึงครัว / ร้านค้า
                 </label>
                 <input
+                  id="customer-note"
                   type="text"
                   placeholder="เช่น รับของพร้อมกัน, ขอจานแบ่ง..."
                   value={customerNote}
-                  onChange={(e) => setCustomerNote(e.target.value)}
-                  className="w-full text-xs p-2 rounded-md border border-border bg-background outline-none focus:ring-1 focus:ring-primary"
+                  maxLength={500}
+                  disabled={isSubmittingOrder}
+                  onChange={(e) => updateDraft((previous) => ({ ...previous, customerNote: e.target.value }))}
+                  className="min-h-11 w-full text-base sm:text-sm p-2 rounded-md border border-border bg-background outline-none focus:ring-1 focus:ring-primary"
                 />
-              </div>
+              </div>}
             </CardContent>
 
             {/* Footer Checkout */}
-            <CardFooter className="p-4 border-t border-border flex flex-col gap-3">
+            <CardFooter className="shrink-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-border flex flex-col gap-3">
+              {checkoutError && <p role="alert" className="w-full text-sm text-destructive">{checkoutError}</p>}
+              {hasUnavailableItems && !isLoading && !menuLoadError && <p className="w-full text-sm text-destructive">กรุณานำเมนูที่สั่งไม่ได้ออกจากตะกร้าก่อน</p>}
               <div className="flex justify-between items-center w-full font-bold">
                 <span className="text-sm text-foreground">ยอดชำระทั้งหมด</span>
                 <span className="text-lg text-primary">฿{cartTotalAmount.toFixed(2)}</span>
@@ -720,7 +665,7 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
                 type="button"
                 size="lg"
                 onClick={handleCheckout}
-                disabled={isSubmittingOrder}
+                disabled={!canEditCart || !cart.length || hasUnavailableItems}
                 className="w-full h-11 text-sm font-semibold cursor-pointer shadow-xs justify-center"
               >
                 {isSubmittingOrder ? (
@@ -737,8 +682,8 @@ export default function TenantCustomerTableOrderingPage({ params }: TablePagePro
               </Button>
             </CardFooter>
           </Card>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
