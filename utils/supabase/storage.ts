@@ -1,74 +1,34 @@
+import "server-only";
 import { createAdminClient } from "./admin";
+import { AccessError } from "@/lib/auth";
 
-/**
- * Extracts the relative file path from a Supabase Storage public URL or relative path.
- */
-export function extractStoragePath(
-  url?: string | null,
-  bucket = "restaurant-logos"
-): string | null {
-  if (!url || typeof url !== "string") return null;
-
+export function extractStoragePath(url: string | null | undefined, bucket = "restaurant-logos") {
+  if (!url) return null;
   try {
-    let cleanUrl = url.trim();
-    if (!cleanUrl) return null;
-
-    // Strip query strings or hash (?t=... #...)
-    cleanUrl = cleanUrl.split("?")[0].split("#")[0];
-
-    const bucketMarker = `${bucket}/`;
-    const markerIndex = cleanUrl.indexOf(bucketMarker);
-    if (markerIndex !== -1) {
-      const pathPart = cleanUrl.substring(markerIndex + bucketMarker.length);
-      return decodeURIComponent(pathPart).replace(/^\/+/, "").trim() || null;
-    }
-
-    // If it's an external URL that doesn't contain the bucket, skip deletion
-    if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
-      return null;
-    }
-
-    return decodeURIComponent(cleanUrl).replace(/^\/+/, "").trim() || null;
-  } catch (error) {
-    console.error("Failed to parse storage URL:", error);
-    return null;
-  }
+    const parsed = new URL(url);
+    if (parsed.origin !== new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).origin) return null;
+    const prefix = `/storage/v1/object/public/${bucket}/`;
+    if (!parsed.pathname.startsWith(prefix)) return null;
+    const path = decodeURIComponent(parsed.pathname.slice(prefix.length));
+    if (path.split("/").some((part) => !part || part === "." || part === "..")) return null;
+    return path;
+  } catch { return null; }
 }
 
-/**
- * Deletes a file from a specified Supabase Storage bucket.
- */
-export async function deleteStorageFile(
-  url?: string | null,
-  bucket = "restaurant-logos"
-): Promise<boolean> {
-  if (!url) return false;
-  const filePath = extractStoragePath(url, bucket);
-  if (!filePath) return false;
+export function validateImageUrl(value: unknown, bucket: string, ownerId: string, existing?: string | null) {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string") throw new AccessError("รูปภาพไม่ถูกต้อง", 400);
+  if (value === existing) return value;
+  const path = extractStoragePath(value, bucket);
+  if (!path?.startsWith(ownerId + "/")) throw new AccessError("กรุณาอัปโหลดรูปภาพด้วยบัญชีของร้านนี้", 400);
+  return value;
+}
 
-  try {
-    const supabaseAdmin = createAdminClient();
-    const { error } = await supabaseAdmin.storage
-      .from(bucket)
-      .remove([filePath]);
-
-    if (error) {
-      console.warn(
-        `[deleteStorageFile] Failed to remove '${filePath}' from bucket '${bucket}':`,
-        error.message
-      );
-      return false;
-    }
-
-    console.log(
-      `[deleteStorageFile] Successfully deleted '${filePath}' from bucket '${bucket}'`
-    );
-    return true;
-  } catch (err) {
-    console.error(
-      `[deleteStorageFile] Error removing '${filePath}' from bucket '${bucket}':`,
-      err
-    );
-    return false;
-  }
+export async function deleteStorageFile(url: string | null | undefined, bucket: string, ownerId: string) {
+  const path = extractStoragePath(url, bucket);
+  // Legacy shared folders are retained: never delete a path supplied by another store.
+  if (!path?.startsWith(ownerId + "/")) return false;
+  const { error } = await createAdminClient().storage.from(bucket).remove([path]);
+  if (error) console.error("Storage cleanup failed:", error.message);
+  return !error;
 }

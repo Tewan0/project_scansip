@@ -1,150 +1,143 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { tables, stores } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
-import { getOrCreateStore, getStoreBySlugOrId } from "@/utils/store";
-import crypto from "crypto";
+import { orders, stores, tables, serviceRequests } from "@/db/schema";
+import { and, asc, eq, gt, inArray, ne, or } from "drizzle-orm";
+import { requireStoreAccess, apiError } from "@/lib/auth";
+import { isValidTableCount, MAX_TABLE_COUNT } from "@/lib/table-settings";
+import { randomBytes } from "node:crypto";
 
-// GET /api/tables - ดึงรายชื่อโต๊ะทั้งหมดของร้าน พร้อม Session Token ปัจจุบัน
-export async function GET(req: Request) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const storeSlug = searchParams.get("store");
+class TableError extends Error {
+  constructor(message: string, public status: number) { super(message); }
+}
 
-    let store;
-    if (storeSlug) {
-      store = await getStoreBySlugOrId(storeSlug);
-    } else {
-      store = await getOrCreateStore();
+function assertUniqueTables(data: { tableNumber: number }[]) {
+  const seen = new Set<number>();
+  for (const table of data) {
+    if (seen.has(table.tableNumber)) {
+      throw new TableError(`พบข้อมูลโต๊ะ ${table.tableNumber} ซ้ำ กรุณาให้ผู้ดูแลแก้ข้อมูลก่อนเปิดหรือปิดโต๊ะ`, 409);
     }
-
-    if (!store) {
-      return NextResponse.json({ success: false, error: "Store not found" }, { status: 404 });
-    }
-
-    const tableList = await db.query.tables.findMany({
-      where: eq(tables.storeId, store.id),
-      orderBy: (tables, { asc }) => [asc(tables.tableNumber)],
-    });
-
-    return NextResponse.json({ success: true, data: tableList, store });
-  } catch (err: unknown) {
-    console.error("GET /api/tables error:", err);
-    return NextResponse.json({ success: false, error: "Failed to fetch tables" }, { status: 500 });
+    seen.add(table.tableNumber);
   }
 }
 
-// POST /api/tables - สร้างโต๊ะใหม่ หรือ เปิด/ปิด Session โต๊ะ
-// Body actions:
-// 1. { action: "open_session", tableNumber: 5 }
-// 2. { action: "close_session", tableNumber: 5 }
-// 3. { action: "sync_tables", count: 10 }
+async function getTableAccess() {
+  const { store, role } = await requireStoreAccess(["owner", "cashier"]);
+  return { store, canManageTables: role === "owner" };
+}
+
+function errorResponse(error: unknown) {
+  if (error instanceof TableError) {
+    return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+  }
+  return apiError(error);
+}
+
+export async function GET() {
+  try {
+    const { store, canManageTables } = await getTableAccess();
+    const data = await db.select().from(tables)
+      .where(eq(tables.storeId, store.id)).orderBy(asc(tables.tableNumber));
+    assertUniqueTables(data);
+    return NextResponse.json({
+      success: true, data, canManageTables,
+      store: { id: store.id, name: store.name, slug: store.slug },
+    });
+  } catch (error) { return errorResponse(error); }
+}
+
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const { store, canManageTables } = await getTableAccess();
+    let body;
+    try { body = await req.json(); } catch { throw new TableError("ข้อมูลคำขอไม่ถูกต้อง", 400); }
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      throw new TableError("ข้อมูลคำขอไม่ถูกต้อง", 400);
+    }
     const { action, tableNumber, count, storeSlug } = body;
-
-    let store;
-    if (storeSlug) {
-      store = await getStoreBySlugOrId(storeSlug);
-    } else {
-      store = await getOrCreateStore();
+    if (storeSlug && storeSlug !== store.slug) throw new TableError("คุณไม่มีสิทธิ์จัดการโต๊ะของร้านนี้", 403);
+    if (!["sync_tables", "open_session", "close_session"].includes(action)) {
+      throw new TableError("ไม่พบคำสั่งที่ต้องการ", 400);
     }
-
-    if (!store) {
-      return NextResponse.json({ success: false, error: "Store not found" }, { status: 404 });
-    }
-
-    // 1. เปิดโต๊ะอาหาร (สร้าง Session Token ใหม่เฉพาะรอบบิลนี้)
-    if (action === "open_session") {
-      if (!tableNumber) {
-        return NextResponse.json({ success: false, error: "Missing tableNumber" }, { status: 400 });
-      }
-
-      // หาโต๊ะนี้ ถ้ายังไม่มีให้สร้างอัตโนมัติ
-      let [existingTable] = await db
-        .select()
-        .from(tables)
-        .where(and(eq(tables.storeId, store.id), eq(tables.tableNumber, Number(tableNumber))))
-        .limit(1);
-
-      const newToken = "tk_" + crypto.randomBytes(4).toString("hex");
-
-      if (existingTable) {
-        const [updated] = await db
-          .update(tables)
-          .set({
-            status: "occupied",
-            currentSessionToken: newToken,
-            sessionStartedAt: new Date(),
-          })
-          .where(eq(tables.id, existingTable.id))
-          .returning();
-        return NextResponse.json({ success: true, data: updated });
-      } else {
-        const [created] = await db
-          .insert(tables)
-          .values({
-            storeId: store.id,
-            tableNumber: Number(tableNumber),
-            status: "occupied",
-            currentSessionToken: newToken,
-            sessionStartedAt: new Date(),
-          })
-          .returning();
-        return NextResponse.json({ success: true, data: created });
-      }
-    }
-
-    // 2. ปิดโต๊ะอาหาร / เช็คบิล (ทำให้ Token เดิมหมดอายุทันที ป้องกันการแอบสั่ง)
-    if (action === "close_session") {
-      if (!tableNumber) {
-        return NextResponse.json({ success: false, error: "Missing tableNumber" }, { status: 400 });
-      }
-
-      const [updated] = await db
-        .update(tables)
-        .set({
-          status: "available",
-          currentSessionToken: null,
-          sessionStartedAt: null,
-        })
-        .where(and(eq(tables.storeId, store.id), eq(tables.tableNumber, Number(tableNumber))))
-        .returning();
-
-      return NextResponse.json({ success: true, data: updated });
-    }
-
-    // 3. กำหนดจำนวนโต๊ะทั้งหมดของร้าน (Sync tables)
     if (action === "sync_tables") {
-      const targetCount = Math.max(1, Math.min(50, Number(count) || 6));
-      for (let i = 1; i <= targetCount; i++) {
-        const existing = await db
-          .select({ id: tables.id })
-          .from(tables)
-          .where(and(eq(tables.storeId, store.id), eq(tables.tableNumber, i)))
-          .limit(1);
-
-        if (existing.length === 0) {
-          await db.insert(tables).values({
-            storeId: store.id,
-            tableNumber: i,
-            status: "available",
-          });
-        }
+      if (!canManageTables) throw new TableError("เฉพาะเจ้าของร้านเท่านั้นที่ปรับจำนวนโต๊ะได้", 403);
+      if (!isValidTableCount(count)) {
+        throw new TableError(`กรุณาระบุจำนวนโต๊ะเป็นจำนวนเต็มตั้งแต่ 1–${MAX_TABLE_COUNT}`, 400);
       }
-
-      const all = await db.query.tables.findMany({
-        where: eq(tables.storeId, store.id),
-        orderBy: (tables, { asc }) => [asc(tables.tableNumber)],
-      });
-
-      return NextResponse.json({ success: true, data: all });
+    } else if (!isValidTableCount(tableNumber)) {
+      throw new TableError("หมายเลขโต๊ะไม่ถูกต้อง", 400);
     }
 
-    return NextResponse.json({ success: false, error: "Invalid action" }, { status: 400 });
-  } catch (err: unknown) {
-    console.error("POST /api/tables error:", err);
-    return NextResponse.json({ success: false, error: "Failed to process table action" }, { status: 500 });
-  }
+    const data = await db.transaction(async (tx) => {
+      // Serialize resize/open/close for this store, including an empty floor plan.
+      await tx.select({ id: stores.id }).from(stores)
+        .where(eq(stores.id, store.id)).for("update");
+      const currentTables = await tx.select().from(tables)
+        .where(eq(tables.storeId, store.id)).orderBy(asc(tables.tableNumber)).for("update");
+      assertUniqueTables(currentTables);
+
+      if (action === "sync_tables") {
+        const removing = currentTables.filter((table) => table.tableNumber > count);
+        const busy = removing.filter((table) => table.status !== "available" || table.currentSessionToken);
+        if (busy.length) {
+          throw new TableError(`ลดจำนวนโต๊ะไม่ได้: โต๊ะ ${busy.map((t) => t.tableNumber).join(", ")} ยังใช้งานหรือจองอยู่`, 409);
+        }
+        const outstandingOrders = removing.length ? await tx.select({ tableNumber: orders.tableNumber, tableId: orders.tableId }).from(orders)
+          .where(and(
+            eq(orders.storeId, store.id),
+            or(inArray(orders.tableNumber, removing.map((table) => table.tableNumber)), inArray(orders.tableId, removing.map((table) => table.id))),
+            ne(orders.status, "cancelled"),
+            or(eq(orders.paymentStatus, "unpaid"), inArray(orders.status, ["pending", "preparing"])),
+          )) : [];
+        if (outstandingOrders.length) {
+          const numbers = [...new Set(outstandingOrders.map((o) => o.tableNumber ?? removing.find((table) => table.id === o.tableId)?.tableNumber ?? null))]
+            .sort((a, b) => (a ?? 0) - (b ?? 0));
+          throw new TableError(`ลดจำนวนโต๊ะไม่ได้: โต๊ะ ${numbers.join(", ")} ยังมีออเดอร์หรือยอดค้างชำระ`, 409);
+        }
+        if (removing.length) {
+          // Historical orders retain their table-number snapshot (FK SET NULL).
+          await tx.delete(tables).where(and(eq(tables.storeId, store.id), gt(tables.tableNumber, count)));
+        }
+        const existingNumbers = new Set(currentTables.map((t) => t.tableNumber));
+        const adding = Array.from({ length: count }, (_, i) => i + 1)
+          .filter((number) => !existingNumbers.has(number))
+          .map((number) => ({ storeId: store.id, tableNumber: number, status: "available" as const }));
+        if (adding.length) await tx.insert(tables).values(adding);
+        return tx.select().from(tables).where(eq(tables.storeId, store.id)).orderBy(asc(tables.tableNumber));
+      }
+
+      const table = currentTables.find((item) => item.tableNumber === tableNumber);
+      if (!table) throw new TableError("ไม่พบโต๊ะนี้ กรุณาโหลดผังโต๊ะใหม่", 404);
+      if (action === "open_session") {
+        // Repeated clicks must not replace the QR of an existing session.
+        if (table.status === "occupied" && table.currentSessionToken) return table;
+        const [opened] = await tx.update(tables).set({
+          status: "occupied", currentSessionToken: "tk_" + randomBytes(16).toString("hex"),
+          sessionStartedAt: new Date(),
+        }).where(eq(tables.id, table.id)).returning();
+        return opened;
+      }
+      const outstanding = await tx.select({ id: orders.id, status: orders.status, paymentStatus: orders.paymentStatus, totalAmount: orders.totalAmount }).from(orders).where(and(
+        eq(orders.storeId, store.id), eq(orders.sessionToken, table.currentSessionToken ?? ""),
+        ne(orders.status, "cancelled"),
+        or(eq(orders.paymentStatus, "unpaid"), inArray(orders.status, ["pending", "preparing"])),
+      ));
+      if (outstanding.length) {
+        const unpaid = outstanding.filter((order) => order.paymentStatus === "unpaid");
+        const unfinished = outstanding.filter((order) => ["pending", "preparing"].includes(order.status));
+        const amount = unpaid.reduce((sum, order) => sum + Math.round(Number(order.totalAmount) * 100), 0) / 100;
+        const reasons = [unpaid.length ? `ยังไม่ได้บันทึกรับเงิน ${unpaid.length} ออเดอร์ รวม ฿${amount.toFixed(2)} กรุณาไปที่ “ตรวจออเดอร์ / รับเงิน”` : "",
+          unfinished.length ? `มีอาหารที่ยังทำไม่เสร็จ ${unfinished.length} ออเดอร์ กรุณาให้ครัวอัปเดตสถานะ` : ""].filter(Boolean);
+        throw new TableError(`ยังปิดโต๊ะ ${tableNumber} ไม่ได้: ${reasons.join(" · ")}`, 409);
+      }
+      await tx.update(serviceRequests).set({ status: "resolved", resolvedAt: new Date() }).where(and(
+        eq(serviceRequests.storeId, store.id), eq(serviceRequests.tableId, table.id),
+        eq(serviceRequests.sessionToken, table.currentSessionToken ?? ""), eq(serviceRequests.status, "pending"),
+      ));
+      const [closed] = await tx.update(tables).set({
+        status: "available", currentSessionToken: null, sessionStartedAt: null,
+      }).where(eq(tables.id, table.id)).returning();
+      return closed;
+    });
+    return NextResponse.json({ success: true, data });
+  } catch (error) { return errorResponse(error); }
 }

@@ -2,6 +2,7 @@
 
 import { useState, useTransition, use } from "react";
 import Link from "next/link";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { signInWithGoogleOwner } from "@/app/actions/owner-auth";
 import { Coffee, Store, ShieldCheck, AlertCircle, ArrowRight, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -45,9 +46,10 @@ export default function OwnerLoginPage({ searchParams }: LoginPageProps) {
           <ArrowLeft className="w-4 h-4" data-icon="inline-start" />
           กลับหน้าหลัก
         </Button>
-        <Badge variant="outline" className="text-xs font-normal">
-          สำหรับเจ้าของร้าน
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="hidden text-xs font-normal sm:inline-flex">เจ้าของร้านและพนักงาน</Badge>
+          <ThemeToggle />
+        </div>
       </div>
 
       {/* Main Login Card */}

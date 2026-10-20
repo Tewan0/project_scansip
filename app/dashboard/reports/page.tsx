@@ -147,7 +147,7 @@ export default function SalesReportsPage() {
       <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
         <div className="flex items-center gap-2">
           {/* Date Range Selector */}
-          <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 h-9 shadow-2xs">
+          <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 min-h-9 shadow-2xs">
             <Calendar className="size-4 text-muted-foreground shrink-0" />
             <select
               className="bg-transparent border-none text-xs text-foreground cursor-pointer outline-none w-full"
@@ -220,7 +220,7 @@ export default function SalesReportsPage() {
           {/* Top Quick KPI summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Card className="border-border">
-              <CardHeader className="p-5 flex flex-row items-center justify-between pb-2">
+              <CardHeader className="p-5 flex flex-wrap flex-row items-center justify-between gap-3 pb-2">
                 <div>
                   <CardDescription className="text-xs uppercase font-semibold tracking-wider">
                     ยอดขายรวม · {rangeLabels[dateRange]}
@@ -236,7 +236,7 @@ export default function SalesReportsPage() {
             </Card>
 
             <Card className="border-border">
-              <CardHeader className="p-5 flex flex-row items-center justify-between pb-2">
+              <CardHeader className="p-5 flex flex-wrap flex-row items-center justify-between gap-3 pb-2">
                 <div>
                   <CardDescription className="text-xs uppercase font-semibold tracking-wider">
                     จำนวนออเดอร์ทั้งหมด · {rangeLabels[dateRange]}
@@ -256,7 +256,7 @@ export default function SalesReportsPage() {
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
             {/* Sales Bar Chart Card */}
             <Card className="xl:col-span-8 border-border flex flex-col justify-between">
-              <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border bg-card">
+              <CardHeader className="flex flex-wrap flex-row items-center justify-between gap-3 pb-3 border-b border-border bg-card">
                 <div className="flex items-center gap-2">
                   <BarChart3 className="size-4 text-foreground" />
                   <CardTitle className="text-base font-bold">
@@ -280,7 +280,7 @@ export default function SalesReportsPage() {
                   </div>
 
                   {/* Scrollable Bar + X-axis area */}
-                  <div className="flex-1 overflow-x-auto overflow-y-hidden pl-3">
+                  <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden pl-3">
                     <div className={`h-60 flex flex-col justify-between ${dailySales.length > 10 ? "min-w-[650px] xl:min-w-0" : "w-full"}`}>
                       {/* Bars Container */}
                       <div className="relative flex-1 flex items-end border-b border-border pb-1 pt-6">
@@ -356,7 +356,7 @@ export default function SalesReportsPage() {
 
             {/* Top Items Table Card */}
             <Card className="xl:col-span-4 border-border flex flex-col justify-between overflow-hidden">
-              <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border bg-card">
+              <CardHeader className="flex flex-wrap flex-row items-center justify-between gap-3 pb-3 border-b border-border bg-card">
                 <div className="flex items-center gap-2">
                   <Trophy className="size-4 text-foreground" />
                   <CardTitle className="text-base font-bold">เมนูขายดีสูงสุด</CardTitle>

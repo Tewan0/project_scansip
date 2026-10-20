@@ -1,70 +1,34 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { staff } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
-import { getOrCreateStore } from "@/utils/store";
+import { staff, stores } from "@/db/schema";
+import { eq, desc, and, sql } from "drizzle-orm";
+import { requireStoreAccess, apiError, AccessError } from "@/lib/auth";
 
-// GET /api/staff - ดึงรายชื่อพนักงานทั้งหมดของร้าน
 export async function GET() {
   try {
-    const store = await getOrCreateStore();
-    const staffList = await db
-      .select()
-      .from(staff)
-      .where(eq(staff.storeId, store.id))
-      .orderBy(desc(staff.createdAt));
-
-    return NextResponse.json({ success: true, data: staffList });
-  } catch (error: unknown) {
-    console.error("GET /api/staff error:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch staff" },
-      { status: 500 }
-    );
-  }
+    const { store } = await requireStoreAccess(["owner"]);
+    const data = await db.select().from(staff).where(eq(staff.storeId, store.id)).orderBy(desc(staff.createdAt));
+    return NextResponse.json({ success: true, data });
+  } catch (error) { return apiError(error); }
 }
-
-// POST /api/staff - เพิ่มพนักงานใหม่
 export async function POST(req: Request) {
   try {
+    const { store, user } = await requireStoreAccess(["owner"]);
     const body = await req.json();
-    const { email, name, role = "cashier" } = body;
-
-    if (!email || typeof email !== "string") {
-      return NextResponse.json(
-        { success: false, error: "Email is required" },
-        { status: 400 }
-      );
-    }
-
-    const store = await getOrCreateStore();
-
-    // หากไม่ระบุชื่อ ให้แปลงจาก username ของ email
-    const username = email.split("@")[0].replace(/[._]/g, " ");
-    const staffName =
-      name ||
-      username
-        .split(" ")
-        .map((p: string) => p.charAt(0).toUpperCase() + p.slice(1))
-        .join(" ") ||
-      "พนักงานใหม่";
-
-    const [newStaff] = await db
-      .insert(staff)
-      .values({
-        storeId: store.id,
-        email: email.trim().toLowerCase(),
-        name: staffName,
-        role: role as "owner" | "manager" | "cashier" | "kitchen",
-      })
-      .returning();
-
-    return NextResponse.json({ success: true, data: newStaff }, { status: 201 });
-  } catch (error: unknown) {
-    console.error("POST /api/staff error:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to add staff" },
-      { status: 500 }
-    );
-  }
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new AccessError("ข้อมูลคำขอไม่ถูกต้อง", 400);
+    if (typeof body.email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email.trim()) || body.email.length > 254) throw new AccessError("อีเมลไม่ถูกต้อง", 400);
+    const email = body.email.trim().toLowerCase();
+    if (email === user.email?.toLowerCase()) throw new AccessError("บัญชีนี้เป็นเจ้าของร้านอยู่แล้ว", 400);
+    if (!["cashier", "kitchen"].includes(body.role)) throw new AccessError("เลือกบทบาทหน้าร้านหรือครัวเท่านั้น", 400);
+    const name = typeof body.name === "string" && body.name.trim() ? body.name.trim() : email.split("@")[0];
+    if (name.length > 200) throw new AccessError("ชื่อยาวเกินไป", 400);
+    const data = await db.transaction(async (tx) => {
+      await tx.select({ id: stores.id }).from(stores).where(eq(stores.id, store.id)).for("update");
+      const existing = await tx.query.staff.findFirst({ where: and(eq(staff.storeId, store.id), sql`lower(trim(${staff.email})) = ${email}`) });
+      if (existing) throw new AccessError("อีเมลนี้อยู่ในรายชื่อร้านแล้ว", 409);
+      const [created] = await tx.insert(staff).values({ storeId: store.id, email, name, role: body.role }).returning();
+      return created;
+    });
+    return NextResponse.json({ success: true, data }, { status: 201 });
+  } catch (error) { return apiError(error); }
 }

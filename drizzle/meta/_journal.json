@@ -8,6 +8,34 @@
       "when": 1789396793635,
       "tag": "0000_green_living_mummy",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792464752357,
+      "tag": "0001_staff_roles_and_kitchen",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792465030467,
+      "tag": "0002_restrict_direct_data_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792485177237,
+      "tag": "0003_unique_store_table_numbers",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792501428277,
+      "tag": "0004_customer_service_requests",
+      "breakpoints": true
     }
   ]
 }

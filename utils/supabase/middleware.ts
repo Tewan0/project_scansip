@@ -1,136 +1,53 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getAccessForUser, AccessError } from "@/lib/auth";
+import { canAccessPath, homeForRole } from "@/lib/permissions";
 
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
-    request,
-  });
-
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
-    return supabaseResponse;
-  }
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          supabaseResponse = NextResponse.next({
-            request,
-          });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
-        },
-      },
-    }
-  );
-
-  // Refresh auth token if expired
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  let response = NextResponse.next({ request });
   const pathname = request.nextUrl.pathname;
-  const isOwnerRoute = pathname.startsWith("/owner");
-  const isOwnerLogin = pathname === "/owner/login";
-
-  // Helper function to create redirect with preserved cookies
-  const createRedirectWithCookies = (targetUrl: URL) => {
-    if (targetUrl.hostname === "0.0.0.0") {
-      targetUrl.hostname = "localhost";
+  const privateResponse = /^\/(api|auth|owner|dashboard|frontdesk|kitchen|workspace|onboarding)(\/|$)/.test(pathname);
+  if (privateResponse) response.headers.set("Cache-Control", "private, no-store");
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return response;
+  const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+    cookies: {
+      getAll: () => request.cookies.getAll(),
+      setAll(cookies, headers) {
+        cookies.forEach(({ name, value }) => request.cookies.set(name, value));
+        response = NextResponse.next({ request });
+        cookies.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+        Object.entries(headers).forEach(([name, value]) => response.headers.set(name, value));
+      },
+    },
+  });
+  const { data: { user } } = await supabase.auth.getUser();
+  const login = pathname === "/owner/login";
+  const protectedPath = ["/owner", "/dashboard", "/frontdesk", "/kitchen", "/workspace", "/onboarding"]
+    .some((prefix) => pathname === prefix || pathname.startsWith(prefix + "/"));
+  function redirectTo(target: string) {
+    const url = request.nextUrl.clone(); url.pathname = target; url.search = "";
+    const redirected = NextResponse.redirect(url);
+    response.cookies.getAll().forEach((cookie) => redirected.cookies.set(cookie.name, cookie.value, cookie));
+    for (const name of ["cache-control", "expires", "pragma"]) {
+      const value = response.headers.get(name);
+      if (value) redirected.headers.set(name, value);
     }
-    const hostHeader = request.headers.get("host");
-    if (hostHeader && !hostHeader.startsWith("0.0.0.0")) {
-      targetUrl.host = hostHeader;
-    }
-    const redirectResponse = NextResponse.redirect(targetUrl);
-    supabaseResponse.cookies.getAll().forEach((cookie) => {
-      redirectResponse.cookies.set(cookie.name, cookie.value, cookie);
-    });
-    return redirectResponse;
-  };
-
-  // 1. If accessing /owner/login while already logged in, redirect to dashboard or onboarding
-  if (isOwnerLogin && user) {
-    try {
-      const { db } = await import("@/db");
-      const { stores } = await import("@/db/schema");
-      const { eq } = await import("drizzle-orm");
-
-      const userStores = await db
-        .select({ id: stores.id })
-        .from(stores)
-        .where(eq(stores.ownerId, user.id))
-        .limit(1);
-
-      const targetPath = userStores.length > 0 ? "/owner/dashboard" : "/owner/onboarding";
-      return createRedirectWithCookies(new URL(targetPath, request.url));
-    } catch (err) {
-      console.error("Middleware /owner/login check error:", err);
-    }
+    return redirected;
   }
-
-  // 2. Protect all other /owner/* routes
-  if (isOwnerRoute && !isOwnerLogin) {
-    // If not authenticated, redirect to /owner/login
-    if (!user) {
-      const loginUrl = new URL("/owner/login", request.url);
-      return createRedirectWithCookies(loginUrl);
+  if (!protectedPath) return response;
+  if (!user || user.is_anonymous) return login ? response : redirectTo("/owner/login");
+  try {
+    const access = await getAccessForUser(user);
+    if (!access) return pathname === "/owner/onboarding" ? response : redirectTo("/owner/onboarding");
+    if (login || pathname === "/owner/onboarding" || pathname === "/onboarding" || pathname === "/workspace" || !canAccessPath(access.role, pathname)) {
+      return redirectTo(homeForRole(access.role));
     }
-
-    // Authenticated user attempting to access /owner/dashboard without a store -> redirect to /owner/onboarding
-    if (pathname === "/owner/dashboard") {
-      try {
-        const { db } = await import("@/db");
-        const { stores } = await import("@/db/schema");
-        const { eq } = await import("drizzle-orm");
-
-        const userStores = await db
-          .select({ id: stores.id })
-          .from(stores)
-          .where(eq(stores.ownerId, user.id))
-          .limit(1);
-
-        if (userStores.length === 0) {
-          return createRedirectWithCookies(new URL("/owner/onboarding", request.url));
-        }
-      } catch (err) {
-        console.error("Middleware store check error for /owner/dashboard:", err);
-      }
-    }
-
-    // Authenticated user attempting to access /owner/onboarding when store already exists -> redirect to /owner/dashboard
-    if (pathname === "/owner/onboarding") {
-      try {
-        const { db } = await import("@/db");
-        const { stores } = await import("@/db/schema");
-        const { eq } = await import("drizzle-orm");
-
-        const userStores = await db
-          .select({ id: stores.id })
-          .from(stores)
-          .where(eq(stores.ownerId, user.id))
-          .limit(1);
-
-        if (userStores.length > 0) {
-          return createRedirectWithCookies(new URL("/owner/dashboard", request.url));
-        }
-      } catch (err) {
-        console.error("Middleware store check error for /owner/onboarding:", err);
-      }
-    }
+    return response;
+  } catch (error) {
+    if (error instanceof AccessError) return redirectTo("/access-denied");
+    console.error("Permission lookup failed:", error);
+    const unavailable = new NextResponse("ไม่สามารถตรวจสิทธิ์ได้ กรุณาลองใหม่", { status: 503, headers: { "Cache-Control": "private, no-store" } });
+    response.cookies.getAll().forEach((cookie) => unavailable.cookies.set(cookie.name, cookie.value, cookie));
+    return unavailable;
   }
-
-  return supabaseResponse;
 }

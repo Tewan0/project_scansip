@@ -4,8 +4,11 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { stores, staff } from "@/db/schema";
+import { stores, staff, categories } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { requireUser, getAccessForUser, AccessError } from "@/lib/auth";
+import { DEFAULT_STORE_CATEGORIES } from "@/utils/store";
+import { validateImageUrl } from "@/utils/supabase/storage";
 
 export interface CreateStoreInput {
   name: string;
@@ -17,8 +20,7 @@ export interface CreateStoreInput {
 }
 
 /**
- * Initiates Supabase Google OAuth for store owner
- * Sets redirect callback to /auth/callback?role=owner
+ * Initiates Google OAuth; the callback resolves the role from current store records.
  */
 export async function signInWithGoogleOwner() {
   const supabase = await createClient();
@@ -36,7 +38,7 @@ export async function signInWithGoogleOwner() {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `${origin}/auth/callback?role=owner`,
+      redirectTo: `${origin}/auth/callback`,
       queryParams: {
         access_type: "offline",
         prompt: "select_account",
@@ -73,74 +75,10 @@ export async function signOutOwner() {
  * Queries current owner store details via Drizzle ORM based on auth.uid()
  */
 export async function getCurrentOwnerStore() {
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return { user: null, store: null, staffRole: null };
-    }
-
-    const userStores = await db
-      .select()
-      .from(stores)
-      .where(eq(stores.ownerId, user.id))
-      .limit(1);
-
-    if (userStores.length === 0) {
-      return { user, store: null, staffRole: null };
-    }
-
-    const store = userStores[0];
-
-    let staffMembers = await db
-      .select()
-      .from(staff)
-      .where(eq(staff.storeId, store.id))
-      .limit(1);
-
-    if (staffMembers.length === 0) {
-      const ownerEmail = user.email || `${user.id.slice(0, 8)}@owner.scansip.com`;
-      const ownerName =
-        user.user_metadata?.full_name ||
-        user.user_metadata?.name ||
-        (user.email ? user.email.split("@")[0] : "เจ้าของร้าน");
-
-      try {
-        const [newStaff] = await db
-          .insert(staff)
-          .values({
-            storeId: store.id,
-            userId: user.id,
-            email: ownerEmail,
-            name: ownerName,
-            role: "owner",
-          })
-          .returning();
-        staffMembers = [newStaff];
-      } catch (e) {
-        console.error("Backfill staff error:", e);
-      }
-    }
-
-    const staffRole = staffMembers[0]?.role || "owner";
-
-    return { user, store, staffRole };
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      "digest" in error &&
-      typeof error.digest === "string" &&
-      error.digest === "DYNAMIC_SERVER_USAGE"
-    ) {
-      throw error;
-    }
-    console.error("getCurrentOwnerStore error:", error);
-    return { user: null, store: null, staffRole: null, error: "Failed to load store data" };
-  }
+  const user = await requireUser();
+  const access = await getAccessForUser(user);
+  if (access && access.role !== "owner") throw new AccessError("เฉพาะเจ้าของร้านเท่านั้น");
+  return { user, store: access?.store ?? null, staffRole: access ? "เจ้าของร้าน" : null };
 }
 
 /**
@@ -189,6 +127,9 @@ export async function createStoreOnboarding(data: FormData | CreateStoreInput) {
         error: "กรุณาเข้าสู่ระบบก่อนสร้างร้านค้า (Unauthorized)",
       };
     }
+
+    const access = await getAccessForUser(user);
+    if (access && access.role !== "owner") throw new AccessError("บัญชีพนักงานไม่สามารถสร้างร้านได้");
 
     // Extract fields based on whether data is FormData or CreateStoreInput object
     let name = "";
@@ -262,8 +203,9 @@ export async function createStoreOnboarding(data: FormData | CreateStoreInput) {
       };
     }
 
-    // Insert new store into stores table via Drizzle ORM
-    const [newStore] = await db
+    logoUrl = validateImageUrl(logoUrl, "restaurant-logos", user.id);
+    const newStore = await db.transaction(async (tx) => {
+    const [newStore] = await tx
       .insert(stores)
       .values({
         ownerId: user.id,
@@ -284,12 +226,16 @@ export async function createStoreOnboarding(data: FormData | CreateStoreInput) {
       user.user_metadata?.name ||
       (user.email ? user.email.split("@")[0] : "เจ้าของร้าน");
 
-    await db.insert(staff).values({
+    await tx.insert(staff).values({
       storeId: newStore.id,
       userId: user.id,
       email: ownerEmail,
       name: ownerName,
       role: "owner",
+    });
+
+    await tx.insert(categories).values(DEFAULT_STORE_CATEGORIES.map((c) => ({ ...c, storeId: newStore.id })));
+    return newStore;
     });
 
     return {

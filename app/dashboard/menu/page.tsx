@@ -272,7 +272,7 @@ export default function MenuManagementPage() {
 
       {/* Menu Items Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
             <Card key={i} className="overflow-hidden p-0">
               <Skeleton className="h-44 w-full rounded-t-xl rounded-b-none" />
@@ -304,14 +304,14 @@ export default function MenuManagementPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
           {filteredItems.map((item) => {
             const isDeleting = deletingId === item.id;
 
             return (
               <Card
                 key={item.id}
-                className={`overflow-hidden justify-between border-border transition-all duration-200 hover:border-foreground/20 ${
+                className={`overflow-hidden gap-0 py-0 justify-between border-border transition-all duration-200 hover:border-foreground/20 ${
                   !item.isAvailable ? "opacity-70 bg-muted/20" : ""
                 }`}
               >
@@ -332,9 +332,9 @@ export default function MenuManagementPage() {
                     )}
 
                     {/* Category Tag overlay */}
-                    <div className="absolute top-2 left-2">
-                      <Badge variant="secondary" className="text-[10px] bg-card/90 backdrop-blur-xs border border-border">
-                        {item.category?.name || "ทั่วไป"}
+                    <div className="absolute top-2 left-2 max-w-[calc(100%-6rem)]">
+                      <Badge variant="secondary" className="max-w-full text-[10px] bg-card/90 backdrop-blur-xs border border-border">
+                        <span className="truncate">{item.category?.name || "ทั่วไป"}</span>
                       </Badge>
                     </div>
 
@@ -344,7 +344,7 @@ export default function MenuManagementPage() {
                         variant={item.isAvailable ? "secondary" : "outline"}
                         className={`text-[10px] ${
                           item.isAvailable
-                            ? "text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800"
+                            ? "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800"
                             : "text-destructive bg-destructive/10 border-destructive/30"
                         }`}
                       >
@@ -355,7 +355,7 @@ export default function MenuManagementPage() {
 
                   {/* Details Header */}
                   <CardHeader className="p-4 pb-2">
-                    <CardTitle className="text-base font-bold text-foreground line-clamp-1">
+                    <CardTitle className="text-base font-bold text-foreground line-clamp-2">
                       {item.name}
                     </CardTitle>
                     {item.description ? (
@@ -371,7 +371,7 @@ export default function MenuManagementPage() {
                 </div>
 
                 {/* Footer Controls */}
-                <CardFooter className="p-4 pt-2 border-t border-border flex items-center justify-between mt-auto">
+                <CardFooter className="p-4 pt-2 border-t border-border flex flex-wrap items-center justify-between gap-3 mt-auto">
                   <span className="font-extrabold text-base text-foreground">
                     ฿{Number(item.price).toFixed(2)}
                   </span>
@@ -422,7 +422,7 @@ export default function MenuManagementPage() {
       {/* Create New Item Modal with Shadcn Card */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fadeIn">
-          <Card className="max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border-border animate-scaleUp">
+          <Card className="max-w-lg w-full max-h-[90dvh] flex flex-col overflow-hidden shadow-2xl border-border animate-scaleUp">
             <CardHeader className="flex flex-row items-center justify-between border-b border-border p-4 bg-card">
               <div className="flex items-center gap-2">
                 <UtensilsCrossed className="size-4 text-foreground" />
@@ -432,13 +432,14 @@ export default function MenuManagementPage() {
                 onClick={() => setIsModalOpen(false)}
                 variant="ghost"
                 size="icon-xs"
-                className="size-7"
+                className="size-11"
+                aria-label="ปิดหน้าต่างเพิ่มเมนู"
               >
                 <X className="size-4" />
               </Button>
             </CardHeader>
 
-            <form onSubmit={handleCreateItem} className="flex-1 overflow-y-auto p-4 space-y-4">
+            <form onSubmit={handleCreateItem} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-4">
               {/* Photo Upload */}
               <div className="space-y-1.5">
                 <Label className="text-xs">รูปภาพเมนู</Label>
@@ -501,7 +502,7 @@ export default function MenuManagementPage() {
               </div>
 
               {/* Category & Price */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="menu-cat" className="text-xs">หมวดหมู่</Label>
                   <select
