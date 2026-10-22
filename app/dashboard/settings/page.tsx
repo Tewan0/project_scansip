@@ -25,7 +25,6 @@ import {
   Store,
   CreditCard,
   Clock,
-  Coins,
   Upload,
   Trash2,
   Globe,
@@ -58,6 +57,9 @@ export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const busy = useRef(false);
 
   const formatSlug = (input: string) => {
     return input
@@ -71,9 +73,10 @@ export default function SettingsPage() {
     const fetchStore = async () => {
       try {
         setIsLoading(true);
+        setLoadError(false);
         const res = await fetch("/api/store");
         const json = await res.json();
-        if (json.success && json.data) {
+        if (res.ok && json.success && json.data) {
           setStoreName(json.data.name || "");
           setPromptPayNumber(json.data.promptPayNumber || "");
           setOpeningTime(json.data.openingTime || "08:00");
@@ -83,16 +86,17 @@ export default function SettingsPage() {
           const initialSlug = json.data.slug || "";
           setSlug(initialSlug);
           setOriginalSlug(initialSlug);
-        }
+        } else throw new Error("โหลดข้อมูลร้านไม่สำเร็จ");
       } catch (err) {
         console.error("Failed to load store settings:", err);
+        setLoadError(true);
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchStore();
-  }, []);
+  }, [loadAttempt]);
 
   useEffect(() => {
     if (!slug || slug === originalSlug) {
@@ -130,14 +134,17 @@ export default function SettingsPage() {
   };
 
   const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (busy.current || loadError || isLoading) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      setLogoUploadError("กรุณาเลือกไฟล์รูปภาพเท่านั้น (JPG, PNG)");
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || !file.size || file.size > 5 * 1024 * 1024) {
+      setLogoUploadError("กรุณาใช้รูป JPG, PNG หรือ WebP ขนาดไม่เกิน 5 MB");
+      e.target.value = "";
       return;
     }
 
+    busy.current = true;
     try {
       setIsUploadingLogo(true);
       setLogoUploadError(null);
@@ -145,9 +152,6 @@ export default function SettingsPage() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("bucket", "restaurant-logos");
-      if (logoUrl) {
-        formData.append("oldUrl", logoUrl);
-      }
 
       const res = await fetch("/api/upload", {
         method: "POST",
@@ -155,7 +159,7 @@ export default function SettingsPage() {
       });
 
       const data = await res.json();
-      if (data.success && data.url) {
+      if (res.ok && data.success && data.url) {
         setLogoUrl(data.url);
       } else {
         setLogoUploadError(data.error || "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ");
@@ -164,40 +168,33 @@ export default function SettingsPage() {
       console.error("Logo upload error:", err);
       setLogoUploadError("ไม่สามารถอัปโหลดรูปภาพได้ กรุณาลองใหม่อีกครั้ง");
     } finally {
+      busy.current = false;
       setIsUploadingLogo(false);
     }
   };
 
-  const handleRemoveLogo = async () => {
-    const prevLogo = logoUrl;
+  const handleRemoveLogo = () => {
+    if (busy.current || loadError || isLoading) return;
     setLogoUrl("");
     setLogoUploadError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
 
-    if (prevLogo) {
-      try {
-        await fetch("/api/upload", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: prevLogo, bucket: "restaurant-logos" }),
-        });
-      } catch (err) {
-        console.error("Failed to delete logo file:", err);
-      }
-    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (busy.current || isLoading || loadError || slugStatus === "checking") return;
     if (slugStatus === "unavailable") {
       setErrorMessage("กรุณาเปลี่ยน URL Slug ให้ไม่ซ้ำกับร้านอื่นก่อนบันทึก");
       return;
     }
 
+    busy.current = true;
     try {
       setIsSaving(true);
+      setSaved(false);
       setErrorMessage(null);
       const res = await fetch("/api/store", {
         method: "PUT",
@@ -209,7 +206,7 @@ export default function SettingsPage() {
           closingTime,
           currency,
           logoUrl: logoUrl.trim() || null,
-          slug: slug.trim() || undefined,
+          slug: slug.trim(),
         }),
       });
 
@@ -229,6 +226,7 @@ export default function SettingsPage() {
       console.error("Failed to save store settings:", err);
       setErrorMessage("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง");
     } finally {
+      busy.current = false;
       setIsSaving(false);
     }
   };
@@ -251,6 +249,13 @@ export default function SettingsPage() {
       </div>
     );
   }
+
+  if (loadError) return (
+    <div className="mx-auto max-w-4xl space-y-4 p-6">
+      <p role="alert" className="text-destructive">โหลดข้อมูลร้านไม่สำเร็จ กรุณาลองใหม่ก่อนแก้ไขการตั้งค่า</p>
+      <Button onClick={() => setLoadAttempt((value) => value + 1)}>ลองโหลดอีกครั้ง</Button>
+    </div>
+  );
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-4xl mx-auto font-sans">
@@ -286,6 +291,7 @@ export default function SettingsPage() {
       )}
 
       <form onSubmit={handleSave} className="space-y-6">
+        <fieldset disabled={isSaving || isUploadingLogo} className="min-w-0 space-y-6">
         {/* Section 1: Logo & Visual Identity */}
         <Card className="border-border">
           <CardHeader className="pb-3">
@@ -350,6 +356,7 @@ export default function SettingsPage() {
                 <p className="text-[11px] text-muted-foreground">
                   รองรับไฟล์ PNG, JPG หรือ WebP ขนาดไม่เกิน 5MB (แนะนำอัตราส่วน 1:1)
                 </p>
+                <p className="text-xs text-muted-foreground">การเปลี่ยนหรือลบโลโก้จะมีผลเมื่อกดบันทึกการตั้งค่า</p>
 
                 {logoUploadError && (
                   <p className="text-xs text-destructive flex items-center gap-1">
@@ -491,7 +498,7 @@ export default function SettingsPage() {
           <CardFooter className="p-4 border-t border-border flex justify-end">
             <Button
               type="submit"
-              disabled={isSaving || slugStatus === "checking" || slugStatus === "unavailable"}
+              disabled={isSaving || isUploadingLogo || slugStatus === "checking" || slugStatus === "unavailable"}
               size="sm"
               className="text-xs font-semibold"
             >
@@ -509,6 +516,7 @@ export default function SettingsPage() {
             </Button>
           </CardFooter>
         </Card>
+        </fieldset>
       </form>
     </div>
   );

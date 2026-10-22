@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { orders, stores, tables, serviceRequests } from "@/db/schema";
-import { and, asc, eq, gt, inArray, ne, or } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, ne, or } from "drizzle-orm";
+import { needsServing } from "@/lib/payments";
 import { requireStoreAccess, apiError } from "@/lib/auth";
 import { isValidTableCount, MAX_TABLE_COUNT } from "@/lib/table-settings";
 import { randomBytes } from "node:crypto";
@@ -86,7 +87,7 @@ export async function POST(req: Request) {
             eq(orders.storeId, store.id),
             or(inArray(orders.tableNumber, removing.map((table) => table.tableNumber)), inArray(orders.tableId, removing.map((table) => table.id))),
             ne(orders.status, "cancelled"),
-            or(eq(orders.paymentStatus, "unpaid"), inArray(orders.status, ["pending", "preparing"])),
+            or(eq(orders.paymentStatus, "unpaid"), inArray(orders.status, ["pending", "preparing"]), and(eq(orders.servingRequired, true), isNull(orders.deliveredAt))),
           )) : [];
         if (outstandingOrders.length) {
           const numbers = [...new Set(outstandingOrders.map((o) => o.tableNumber ?? removing.find((table) => table.id === o.tableId)?.tableNumber ?? null))]
@@ -116,17 +117,19 @@ export async function POST(req: Request) {
         }).where(eq(tables.id, table.id)).returning();
         return opened;
       }
-      const outstanding = await tx.select({ id: orders.id, status: orders.status, paymentStatus: orders.paymentStatus, totalAmount: orders.totalAmount }).from(orders).where(and(
+      const outstanding = await tx.select({ id: orders.id, status: orders.status, paymentStatus: orders.paymentStatus, totalAmount: orders.totalAmount, servingRequired: orders.servingRequired, deliveredAt: orders.deliveredAt }).from(orders).where(and(
         eq(orders.storeId, store.id), eq(orders.sessionToken, table.currentSessionToken ?? ""),
         ne(orders.status, "cancelled"),
-        or(eq(orders.paymentStatus, "unpaid"), inArray(orders.status, ["pending", "preparing"])),
+        or(eq(orders.paymentStatus, "unpaid"), inArray(orders.status, ["pending", "preparing"]), and(eq(orders.servingRequired, true), isNull(orders.deliveredAt))),
       ));
       if (outstanding.length) {
         const unpaid = outstanding.filter((order) => order.paymentStatus === "unpaid");
         const unfinished = outstanding.filter((order) => ["pending", "preparing"].includes(order.status));
+        const unserved = outstanding.filter((order) => order.status === "served" && needsServing(order));
         const amount = unpaid.reduce((sum, order) => sum + Math.round(Number(order.totalAmount) * 100), 0) / 100;
         const reasons = [unpaid.length ? `ยังไม่ได้บันทึกรับเงิน ${unpaid.length} ออเดอร์ รวม ฿${amount.toFixed(2)} กรุณาไปที่ “ตรวจออเดอร์ / รับเงิน”` : "",
-          unfinished.length ? `มีอาหารที่ยังทำไม่เสร็จ ${unfinished.length} ออเดอร์ กรุณาให้ครัวอัปเดตสถานะ` : ""].filter(Boolean);
+          unfinished.length ? `มีอาหารที่ยังทำไม่เสร็จ ${unfinished.length} ออเดอร์ กรุณาให้ครัวอัปเดตสถานะ` : "",
+          unserved.length ? `ยังไม่ยืนยันเสิร์ฟ ${unserved.length} ออเดอร์ กรุณากด “เสิร์ฟแล้ว” ในหน้าบิล` : ""].filter(Boolean);
         throw new TableError(`ยังปิดโต๊ะ ${tableNumber} ไม่ได้: ${reasons.join(" · ")}`, 409);
       }
       await tx.update(serviceRequests).set({ status: "resolved", resolvedAt: new Date() }).where(and(

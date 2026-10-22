@@ -52,7 +52,7 @@ test("blocked browser storage still supports editing in memory and reports no pe
 });
 
 // Execute the actual page handlers with mocked browser/network APIs, without a DOM.
-function customerPage(storage, { checkoutStatus = 201, valid = true, menuAvailable = true } = {}) {
+function customerPage(storage, { checkoutStatus = 201, valid = true, menuAvailable = true, loseResponse = false } = {}) {
   const slots = [], effects = [];
   let cursor = 0;
   const requests = [];
@@ -84,6 +84,7 @@ function customerPage(storage, { checkoutStatus = 201, valid = true, menuAvailab
     "next/navigation": { useSearchParams: () => new URLSearchParams("token=round-one") },
     "@/components/theme-toggle": ui(["ThemeToggle"]),
     "@/components/customer-session-panel": ui(["CustomerSessionPanel"]),
+    "@/components/customer-chatbot": ui(["CustomerChatbot"]),
     "@/components/ui/button": ui(["Button"]), "@/components/ui/badge": ui(["Badge"]),
     "@/components/ui/card": ui(["Card", "CardHeader", "CardTitle", "CardContent", "CardFooter"]),
     "@/components/ui/separator": ui(["Separator"]), "@/components/ui/skeleton": ui(["Skeleton"]),
@@ -97,6 +98,7 @@ function customerPage(storage, { checkoutStatus = 201, valid = true, menuAvailab
       if (url.startsWith("/api/menu")) return Response.json({ success: true, data: menuAvailable ? [{ id: "coffee", name: "กาแฟใหม่", price: "75.00", isAvailable: true }] : [] });
       if (url === "/api/orders") {
         requests.push(JSON.parse(options.body));
+        if (loseResponse) throw new Error("Network lost after commit");
         return Response.json(checkoutStatus === 201 ? { success: true, data: { id: "order-a", orderNumber: "#A", status: "pending", items: [], totalAmount: "150" } } : { success: false, error: "ลองใหม่" }, { status: checkoutStatus });
       }
       throw Error("Unexpected request " + url);
@@ -145,7 +147,7 @@ test("restored cart uses current prices, failed checkout keeps it, success clear
     try {
       const tree = await page.ready();
       assert.ok(textContent(tree).includes("150.00"));
-      const checkout = nodes(tree).find(node => node.type === "Button" && textContent(node).includes("ยืนยันส่งคำสั่งซื้อ"));
+      const checkout = nodes(tree).find(node => node.type === "Button" && /ยืนยันส่งคำสั่งซื้อ|ตรวจสอบการส่งอีกครั้ง/.test(textContent(node)));
       assert.equal(checkout.props.disabled, false);
       await checkout.props.onClick();
       assert.equal(page.requests[0].items[0].unitPrice, "75.00");
@@ -198,4 +200,47 @@ test("confirmed expired QR clears only its own cart", async () => {
     assert.equal(storage.getItem(key), null);
     assert.equal(lib.createCartStore(storage, otherKey).getSnapshot().draft.items.length, 1);
   } finally { page.dispose(); }
+});
+
+test("lost checkout response survives reload, locks edits, and retries the same key even when the menu disappears", async () => {
+  const storage=storageFixture();lib.createCartStore(storage,key).update(()=>draft);
+  const first=customerPage(storage,{loseResponse:true});
+  let firstId;
+  try {
+    let tree=await first.ready();
+    await nodes(tree).find(n=>n.type==="Button"&&textContent(n).includes("ยืนยันส่งคำสั่งซื้อ")).props.onClick();
+    firstId=first.requests[0].requestId;assert.match(firstId,/^[0-9a-f-]{36}$/);
+    tree=first.render();
+    assert.equal(nodes(tree).find(n=>n.props.id==="customer-note").props.disabled,true);
+    assert.equal(nodes(tree).find(n=>n.props["aria-label"]==="นำ กาแฟใหม่ ออกจากตะกร้า").props.disabled,true);
+    assert.equal(lib.createCartStore(storage,key).getSnapshot().draft.requestId,firstId);
+  } finally {first.dispose();}
+  const refreshed=customerPage(storage,{menuAvailable:false});
+  try {
+    const tree=await refreshed.ready();
+    const retry=nodes(tree).find(n=>n.type==="Button"&&textContent(n).includes("ตรวจสอบการส่งอีกครั้ง"));
+    assert.equal(retry.props.disabled,false);await retry.props.onClick();
+    assert.equal(refreshed.requests[0].requestId,firstId);
+    assert.equal(refreshed.requests[0].items[0].specialInstruction,"หวานน้อย");
+    assert.equal(storage.getItem(key),null);
+    const next=lib.createCartStore(storage,key);next.update(()=>draft);
+    assert.notEqual(next.beginCheckout().requestId,firstId);
+  } finally {refreshed.dispose();}
+});
+
+test("a definitive rejected checkout unlocks the retained draft for corrections",async()=>{
+  const storage=storageFixture();lib.createCartStore(storage,key).update(()=>draft);
+  const page=customerPage(storage,{checkoutStatus:400});
+  try {
+    const tree=await page.ready();
+    await nodes(tree).find(n=>n.type==="Button"&&textContent(n).includes("ยืนยันส่งคำสั่งซื้อ")).props.onClick();
+    assert.equal(lib.createCartStore(storage,key).getSnapshot().draft.requestId,undefined);
+    assert.equal(nodes(page.render()).find(n=>n.props.id==="customer-note").props.disabled,false);
+  }finally{page.dispose();}
+});
+
+test("blocked storage still reuses an in-memory request key",()=>{
+  const cart=lib.createCartStore(null,key);cart.update(()=>draft);
+  const attempt=cart.beginCheckout();assert.equal(cart.beginCheckout().requestId,attempt.requestId);
+  assert.equal(cart.getSnapshot().persistent,false);
 });

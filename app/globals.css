@@ -330,6 +330,16 @@
   animation-delay: 300ms;
 }
 
+/* Accessibility: Respect Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @theme inline {
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -373,6 +383,27 @@
 }
 
 :root {
+  color-scheme: light;
+  /* Legacy forms share the same surfaces and text as the current UI. */
+  --color-on-background: var(--foreground);
+  --color-on-surface: var(--foreground);
+  --color-on-surface-variant: var(--muted-foreground);
+  --color-on-primary: var(--primary-foreground);
+  --color-on-secondary: var(--secondary-foreground);
+  --color-error: var(--destructive);
+  --color-surface: var(--background);
+  --color-surface-bright: var(--background);
+  --color-surface-card: var(--card);
+  --color-surface-container-lowest: var(--background);
+  --color-surface-container-low: var(--card);
+  --color-surface-container: var(--muted);
+  --color-surface-container-high: var(--accent);
+  --color-surface-container-highest: var(--accent);
+  --color-surface-variant: var(--muted);
+  --color-surface-dim: var(--background);
+  --color-border-subtle: var(--border);
+  --color-outline: var(--muted-foreground);
+  --color-outline-variant: var(--border);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -470,6 +501,54 @@
     @apply bg-background text-foreground;
     font-family: var(--font-prompt), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   }
+
+  /* Shared by native controls, Next links, and Base UI triggers on every page.
+     Keep this in base so intentional cursors (e.g. sidebar resize) still win. */
+  :where(
+    button, a[href], summary, select,
+    input[type="button"], input[type="submit"], input[type="reset"],
+    input[type="checkbox"], input[type="radio"], input[type="file"],
+    [role="button"], [role="link"], [role="tab"], [role="switch"],
+    [role="checkbox"], [role="radio"], [role="menuitem"],
+    [role="menuitemcheckbox"], [role="menuitemradio"],
+    label[for], label:has(input[type="checkbox"], input[type="radio"], input[type="file"])
+  ):not(:disabled):not([aria-disabled="true"]):not([data-disabled]) {
+    cursor: pointer;
+  }
+
+  input[type="file"]::file-selector-button {
+    cursor: inherit;
+  }
+
+  /* Native popup options do not consistently inherit the select background.
+     Set both colors so switching themes cannot leave light text on light options. */
+  select {
+    color: var(--foreground);
+    background-color: var(--card);
+  }
+
+  select option,
+  select optgroup {
+    color: var(--popover-foreground);
+    background-color: var(--popover);
+  }
+
+  select option:disabled {
+    color: var(--muted-foreground);
+  }
+}
+
+/* Disabled state takes precedence over per-page cursor-pointer utilities.
+   Native disabled controls still block activation, but remain hit-testable
+   so their unavailable cursor is visible instead of the parent's cursor. */
+:is(button, input, select, textarea):disabled {
+  cursor: not-allowed;
+  pointer-events: auto;
+}
+
+:is(a, button, input, select, textarea, [role]):is([aria-disabled="true"], [data-disabled]),
+label:has(input:disabled, select:disabled, textarea:disabled) {
+  cursor: not-allowed;
 }
 
 /* Keep Thai labels readable and touch controls usable, including on iPad. */
@@ -490,4 +569,15 @@
 
 .dark .skeleton-shimmer::after {
   opacity: 0.12;
+}
+
+/* Native page controls need the same keyboard indicator as shared components. */
+:where(a[href], button, summary, input, select, textarea):not([data-slot]):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+/* Long Thai messages and IDs must stay inside their feedback containers. */
+:where([role="alert"], [role="status"]) {
+  overflow-wrap: anywhere;
 }

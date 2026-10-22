@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 // Shadcn UI Components
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,6 @@ import {
   CardTitle,
   CardDescription,
   CardContent,
-  CardFooter,
 } from "@/components/ui/card";
 import {
   Table,
@@ -21,6 +20,7 @@ import {
   TableRow,
   TableCell,
 } from "@/components/ui/table";
+import { reportCsv } from "@/lib/report-export";
 import { Skeleton } from "@/components/ui/skeleton";
 
 // Lucide Icons
@@ -30,12 +30,9 @@ import {
   BarChart3,
   CalendarDays,
   Trophy,
-  UtensilsCrossed,
-  Hash,
   Banknote,
   RefreshCw,
   TrendingUp,
-  Download,
 } from "lucide-react";
 
 interface DailySale {
@@ -67,61 +64,52 @@ export default function SalesReportsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const fetchReports = async (rangeKey = dateRange, isManual = false) => {
+  const [error, setError] = useState<string | null>(null);
+  const activeRequest = useRef<AbortController | null>(null);
+
+  const fetchReports = useCallback(async (rangeKey: string, isManual = false) => {
+    activeRequest.current?.abort();
+    const controller = new AbortController();
+    activeRequest.current = controller;
+    setError(null);
+    setIsRefreshing(isManual);
+    setIsLoading(!isManual);
     try {
-      if (isManual) setIsRefreshing(true);
-      else setIsLoading(true);
-      const res = await fetch(`/api/reports?range=${rangeKey}`);
+      const res = await fetch(`/api/reports?range=${rangeKey}`, { signal: controller.signal, cache: "no-store" });
       const json = await res.json();
-      if (json.success) {
-        setReportData(json.data);
-      }
-    } catch (err) {
-      console.error("Failed to load reports:", err);
+      if (!res.ok || !json.success) throw new Error("โหลดรายงานไม่สำเร็จ กรุณาลองอีกครั้ง");
+      if (!controller.signal.aborted) setReportData(json.data);
+    } catch {
+      if (!controller.signal.aborted) setError("โหลดรายงานไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง");
     } finally {
-      setIsLoading(false);
-      if (isManual) setIsRefreshing(false);
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchReports(dateRange);
-  }, [dateRange]);
+    void fetchReports(dateRange);
+    return () => activeRequest.current?.abort();
+  }, [dateRange, fetchReports]);
 
   const handleExport = () => {
-    if (!reportData) return;
-    const isMonthlyView = dateRange === "3m";
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      (isMonthlyView ? "เดือน,ยอดขาย\n" : "วันที่,วัน,ยอดขาย\n") +
-      dailySales
-        .map((d) =>
-          isMonthlyView
-            ? `${d.dateStr},${d.amount.replace("฿", "").replace(/,/g, "")}`
-            : `${d.dateStr},${d.day},${d.amount.replace("฿", "").replace(/,/g, "")}`
-        )
-        .join("\n") +
-      "\n\nเมนูยอดนิยม,จำนวนขายได้,รายได้รวม\n" +
-      topItems
-        .map(
-          (i) =>
-            `"${i.name}",${i.qty},${i.revenue.replace("฿", "").replace(/,/g, "")}`
-        )
-        .join("\n");
-
-    const encodedUri = encodeURI(csvContent);
+    if (!reportData || reportData.range !== dateRange || error) return;
+    const url = URL.createObjectURL(new Blob([reportCsv(reportData)], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `scansip_sales_report_${dateRange}.csv`);
+    link.href = url;
+    link.download = `scansip_sales_report_${reportData.range}.csv`;
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
-  const now = new Date();
-  const prev1 = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const prev2 = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-  const prev3 = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+  const [now] = useState(() => new Date(Date.now() + 7 * 60 * 60 * 1000));
+  const prev1 = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+  const prev2 = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 2, 1));
+  const prev3 = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 3, 1));
 
   const thaiMonths = [
     "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
@@ -131,9 +119,9 @@ export default function SalesReportsPage() {
   const rangeLabels: Record<string, string> = {
     "7d": "7 วันล่าสุด",
     month: "เดือนนี้",
-    "month-1": `เดือนที่แล้ว (${thaiMonths[prev1.getMonth()]})`,
-    "month-2": `2 เดือนที่แล้ว (${thaiMonths[prev2.getMonth()]})`,
-    "month-3": `3 เดือนที่แล้ว (${thaiMonths[prev3.getMonth()]})`,
+    "month-1": `เดือนที่แล้ว (${thaiMonths[prev1.getUTCMonth()]})`,
+    "month-2": `2 เดือนที่แล้ว (${thaiMonths[prev2.getUTCMonth()]})`,
+    "month-3": `3 เดือนที่แล้ว (${thaiMonths[prev3.getUTCMonth()]})`,
     "3m": "3 เดือนล่าสุด",
   };
 
@@ -143,22 +131,27 @@ export default function SalesReportsPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto font-sans">
+      <div>
+        <h1 className="text-2xl font-bold">รายงานยอดขาย</h1>
+        <p className="mt-1 text-sm text-muted-foreground">ยอดสั่งซื้อที่ไม่ถูกยกเลิก ตามวันที่สั่งอาหาร รวมออเดอร์ที่ยังไม่ได้ชำระเงิน · เวลาไทย</p>
+      </div>
       {/* Controls & Filter Bar */}
       <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
         <div className="flex items-center gap-2">
           {/* Date Range Selector */}
-          <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 min-h-9 shadow-2xs">
+          <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 min-h-9 shadow-2xs focus-within:ring-2 focus-within:ring-ring">
             <Calendar className="size-4 text-muted-foreground shrink-0" />
             <select
-              className="bg-transparent border-none text-xs text-foreground cursor-pointer outline-none w-full"
+              className="bg-card border-none text-xs text-card-foreground cursor-pointer outline-none w-full min-h-9"
+              aria-label="ช่วงเวลาของรายงาน"
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value)}
             >
               <option value="7d">7 วันล่าสุด</option>
               <option value="month">เดือนนี้</option>
-              <option value="month-1">เดือนที่แล้ว ({thaiMonths[prev1.getMonth()]})</option>
-              <option value="month-2">2 เดือนที่แล้ว ({thaiMonths[prev2.getMonth()]})</option>
-              <option value="month-3">3 เดือนที่แล้ว ({thaiMonths[prev3.getMonth()]})</option>
+              <option value="month-1">เดือนที่แล้ว ({thaiMonths[prev1.getUTCMonth()]})</option>
+              <option value="month-2">2 เดือนที่แล้ว ({thaiMonths[prev2.getUTCMonth()]})</option>
+              <option value="month-3">3 เดือนที่แล้ว ({thaiMonths[prev3.getUTCMonth()]})</option>
               <option value="3m">3 เดือนล่าสุด</option>
             </select>
           </div>
@@ -166,7 +159,7 @@ export default function SalesReportsPage() {
           <Button
             type="button"
             onClick={() => fetchReports(dateRange, true)}
-            disabled={isRefreshing}
+            disabled={isRefreshing || isLoading}
             variant="outline"
             size="sm"
             className="h-9 text-xs"
@@ -179,15 +172,16 @@ export default function SalesReportsPage() {
         <Button
           type="button"
           onClick={handleExport}
-          disabled={isLoading || !reportData}
+          disabled={isLoading || isRefreshing || !!error || !reportData || reportData.range !== dateRange}
           size="sm"
           className="h-9 text-xs"
         >
           <FileSpreadsheet data-icon="inline-start" />
-          <span>ส่งออกไฟล์ Excel (CSV)</span>
+          <span>ส่งออก CSV (เปิดใน Excel ได้)</span>
         </Button>
       </div>
 
+      {error && <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{error}</div>}
       {isLoading ? (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -215,7 +209,7 @@ export default function SalesReportsPage() {
             </Card>
           </div>
         </div>
-      ) : (
+      ) : reportData?.range === dateRange ? (
         <>
           {/* Top Quick KPI summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -255,7 +249,7 @@ export default function SalesReportsPage() {
           {/* Main Reports Bento Grid */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
             {/* Sales Bar Chart Card */}
-            <Card className="xl:col-span-8 border-border flex flex-col justify-between">
+            <Card className="xl:col-span-8 border-border flex flex-col">
               <CardHeader className="flex flex-wrap flex-row items-center justify-between gap-3 pb-3 border-b border-border bg-card">
                 <div className="flex items-center gap-2">
                   <BarChart3 className="size-4 text-foreground" />
@@ -269,93 +263,40 @@ export default function SalesReportsPage() {
                 </Badge>
               </CardHeader>
 
-              <CardContent className="pt-6">
-                {/* Chart Structure with Fixed Y-axis and Scrollable Bars */}
-                <div className="flex w-full overflow-hidden">
-                  {/* Fixed Y-axis labels */}
-                  <div className="w-14 shrink-0 flex flex-col justify-between text-right pr-2 text-muted-foreground pb-7 text-xs border-r border-border select-none">
-                    <span>฿{Math.round(maxSaleAmount).toLocaleString()}</span>
-                    <span>฿{Math.round(maxSaleAmount / 2).toLocaleString()}</span>
-                    <span>฿0</span>
+              <CardContent className="pt-2">
+                <p className="mb-3 text-xs text-muted-foreground">หน่วย: บาท · เลื่อนแนวนอนเพื่อดูครบทุกวัน</p>
+                <div className="flex min-w-0 gap-2">
+                  <div aria-hidden="true" className="flex h-[200px] w-20 shrink-0 flex-col justify-between text-right text-xs tabular-nums text-muted-foreground">
+                    <span>{maxSaleAmount.toLocaleString("th-TH")}</span>
+                    <span>{(maxSaleAmount / 2).toLocaleString("th-TH")}</span>
+                    <span>0</span>
                   </div>
-
-                  {/* Scrollable Bar + X-axis area */}
-                  <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden pl-3">
-                    <div className={`h-60 flex flex-col justify-between ${dailySales.length > 10 ? "min-w-[650px] xl:min-w-0" : "w-full"}`}>
-                      {/* Bars Container */}
-                      <div className="relative flex-1 flex items-end border-b border-border pb-1 pt-6">
-                        {/* Horizontal dashed grid lines */}
-                        <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-1 pt-6">
-                          <div className="w-full border-t border-dashed border-border/80"></div>
-                          <div className="w-full border-t border-dashed border-border/80"></div>
-                          <div className="w-full"></div>
-                        </div>
-
-                        {/* Bars */}
-                        <div className="w-full flex justify-between items-end gap-1.5 z-10 h-full">
-                          {dailySales.map((item, idx) => (
-                            <div
-                              key={idx}
-                              className={`group relative flex-1 ${
-                                dailySales.length <= 3
-                                  ? "max-w-[70px]"
-                                  : dailySales.length <= 7
-                                  ? "max-w-[42px]"
-                                  : "min-w-[8px]"
-                              } rounded-t-sm transition-all duration-200 cursor-pointer ${
-                                item.highlight
-                                  ? "bg-primary hover:bg-primary/90"
-                                  : "bg-muted-foreground/30 hover:bg-primary"
-                              }`}
-                              style={{ height: `${Math.max(item.heightPct, 4)}%` }}
-                            >
-                              {/* Hover Tooltip */}
-                              <div
-                                className={`${
-                                  item.highlight
-                                    ? "opacity-100 z-30"
-                                    : "opacity-0 group-hover:opacity-100 z-20"
-                                } absolute -top-8 left-1/2 -translate-x-1/2 bg-foreground text-background text-[10px] font-semibold px-2 py-0.5 rounded shadow whitespace-nowrap transition-opacity pointer-events-none`}
-                              >
-                                {item.dateStr}: {item.amount}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                  <div className="min-w-0 flex-1 overflow-x-auto pb-2" tabIndex={0} role="region" aria-label="กราฟยอดขาย เลื่อนเพื่อดูแต่ละวัน">
+                    <div className="relative" style={{ minWidth: dailySales.length * (dateRange === "3m" ? 100 : 44) }}>
+                      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 flex h-[200px] flex-col justify-between">
+                        {[0, 1, 2].map(line => <div key={line} className="border-t border-dashed border-border" />)}
                       </div>
-
-                      {/* X-axis labels */}
-                      <div className="w-full flex justify-between pt-2 text-muted-foreground select-none">
-                        {dailySales.map((item, idx) => (
-                          <div
-                            key={idx}
-                            className={`flex-1 text-center truncate ${
-                              dailySales.length <= 3
-                                ? "max-w-[70px]"
-                                : dailySales.length <= 7
-                                ? "max-w-[42px]"
-                                : "min-w-[8px]"
-                            }`}
-                          >
-                            <span
-                              className={`text-[11px] block truncate ${
-                                item.highlight ? "text-foreground font-bold" : ""
-                              }`}
-                              title={item.dateStr}
-                            >
-                              {item.day}
-                            </span>
+                      <div className="relative grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.max(dailySales.length, 1)}, minmax(0, 1fr))` }}>
+                        {dailySales.map(item => (
+                          <div key={item.dateStr} className="min-w-0 text-center">
+                            <div className="group relative flex h-[200px] items-end justify-center focus-visible:outline-2 focus-visible:outline-ring" tabIndex={0} aria-label={`${item.dateStr}: ${item.amount}`} title={`${item.dateStr}: ${item.amount}`}>
+                              <div className={`w-full max-w-12 rounded-t-sm ${item.highlight ? "bg-primary" : "bg-primary/50"}`} style={{ height: `${item.rawAmount / maxSaleAmount * 200}px` }} />
+                              <span className="pointer-events-none absolute inset-x-0 top-1 rounded bg-foreground px-0.5 py-1 text-[10px] text-background opacity-0 group-hover:opacity-100 group-focus:opacity-100">{item.amount}</span>
+                            </div>
+                            <div className="mt-2 text-[11px] text-muted-foreground">{item.day}</div>
+                            {dateRange === "7d" && <div className="text-[10px] text-muted-foreground">{item.dateStr.slice(8)}/{item.dateStr.slice(5, 7)}</div>}
                           </div>
                         ))}
                       </div>
                     </div>
                   </div>
                 </div>
+                {dailySales.every(item => item.rawAmount === 0) && <p className="mt-3 text-center text-sm text-muted-foreground">ยังไม่มียอดขายในช่วงเวลานี้</p>}
               </CardContent>
             </Card>
 
             {/* Top Items Table Card */}
-            <Card className="xl:col-span-4 border-border flex flex-col justify-between overflow-hidden">
+            <Card className="xl:col-span-4 border-border flex flex-col overflow-hidden">
               <CardHeader className="flex flex-wrap flex-row items-center justify-between gap-3 pb-3 border-b border-border bg-card">
                 <div className="flex items-center gap-2">
                   <Trophy className="size-4 text-foreground" />
@@ -383,7 +324,7 @@ export default function SalesReportsPage() {
                     <TableBody>
                       {topItems.map((item) => (
                         <TableRow key={item.name} className="hover:bg-muted/30">
-                          <TableCell className="font-semibold text-xs text-foreground truncate max-w-[140px]">
+                          <TableCell className="font-semibold text-xs text-foreground whitespace-normal break-words max-w-[180px]">
                             {item.name}
                           </TableCell>
                           <TableCell className="text-right text-xs text-muted-foreground">
@@ -401,7 +342,7 @@ export default function SalesReportsPage() {
             </Card>
           </div>
         </>
-      )}
+      ) : null}
     </div>
   );
 }

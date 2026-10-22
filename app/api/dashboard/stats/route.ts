@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { orders, orderItems } from "@/db/schema";
-import { eq, desc, gte } from "drizzle-orm";
+import { orders } from "@/db/schema";
+import { eq, desc } from "drizzle-orm";
 import { requireStoreAccess, apiError } from "@/lib/auth";
 
 export async function GET() {
@@ -18,8 +18,9 @@ export async function GET() {
     });
 
     // กำหนดวันเริ่มต้นของวันนี้ (00:00:00)
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // Shift to Bangkok calendar time; use UTC accessors so server timezone cannot change the day.
+    const now = new Date(Date.now() + 7 * 60 * 60 * 1000);
+    const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     const startOfYesterday = new Date(startOfToday.getTime() - 24 * 60 * 60 * 1000);
 
     // คำนวณยอดขายวันนี้
@@ -29,7 +30,7 @@ export async function GET() {
     let completedOrdersCount = 0;
 
     // คำนวณเมนูขายดีประจำวัน (Map menuName -> count)
-    const itemCounts: Record<string, number> = {};
+    const itemCounts: Record<string, number> = Object.create(null);
 
     // คำนวณยอดขายย้อนหลัง 7 วัน สำหรับกราฟ
     // วันย้อนหลัง 7 วัน: [day-6, day-5, day-4, day-3, day-2, day-1, today]
@@ -37,26 +38,26 @@ export async function GET() {
     const last7DaysData: { dateStr: string; dayLabel: string; sales: number }[] = [];
 
     for (let i = 6; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i));
+      const yyyy = d.getUTCFullYear();
+      const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(d.getUTCDate()).padStart(2, "0");
       const dateStr = `${yyyy}-${mm}-${dd}`;
       last7DaysData.push({
         dateStr,
-        dayLabel: daysTh[d.getDay()],
+        dayLabel: daysTh[d.getUTCDay()],
         sales: 0,
       });
     }
 
     for (const o of allOrders) {
-      const orderDate = new Date(o.createdAt);
+      const orderDate = new Date(new Date(o.createdAt).getTime() + 7 * 60 * 60 * 1000);
       const amount = Number(o.totalAmount) || 0;
 
       // กรองเฉพาะออเดอร์ที่ไม่ถูกยกเลิก สำหรับคิดยอดขาย
       const isCountable = o.status !== "cancelled";
 
-      if (orderDate >= startOfToday) {
+      if (orderDate >= startOfToday && orderDate.getTime() < startOfToday.getTime() + 24 * 60 * 60 * 1000) {
         todayOrdersCount++;
         if (o.status === "completed") {
           completedOrdersCount++;
@@ -78,25 +79,14 @@ export async function GET() {
 
       // หายอดขาย 7 วันล่าสุด
       if (isCountable) {
-        const yyyy = orderDate.getFullYear();
-        const mm = String(orderDate.getMonth() + 1).padStart(2, "0");
-        const dd = String(orderDate.getDate()).padStart(2, "0");
+        const yyyy = orderDate.getUTCFullYear();
+        const mm = String(orderDate.getUTCMonth() + 1).padStart(2, "0");
+        const dd = String(orderDate.getUTCDate()).padStart(2, "0");
         const oDateStr = `${yyyy}-${mm}-${dd}`;
 
         const dayEntry = last7DaysData.find((d) => d.dateStr === oDateStr);
         if (dayEntry) {
           dayEntry.sales += amount;
-        }
-      }
-    }
-
-    // หากไม่มีออเดอร์เลยในวันนี้ ให้เช็คเมนูขายดีตลอดกาลเป็น fallback
-    if (Object.keys(itemCounts).length === 0) {
-      for (const o of allOrders) {
-        if (o.status !== "cancelled" && o.items) {
-          for (const it of o.items) {
-            itemCounts[it.menuName] = (itemCounts[it.menuName] || 0) + (it.quantity || 1);
-          }
         }
       }
     }
@@ -111,11 +101,11 @@ export async function GET() {
     }
 
     // คำนวณ % การเติบโตเทียบกับเมื่อวาน
-    let growthPercent = 0;
+    let growthPercent: number | null = 0;
     if (yesterdaySales > 0) {
       growthPercent = ((todaySales - yesterdaySales) / yesterdaySales) * 100;
     } else if (todaySales > 0) {
-      growthPercent = 100;
+      growthPercent = null;
     }
 
     // ออเดอร์ล่าสุด 5 รายการ
@@ -138,7 +128,7 @@ export async function GET() {
       const statusMap: Record<string, { label: string; class: string }> = {
         pending: { label: "รอดำเนินการ", class: "bg-surface-container text-on-surface" },
         preparing: { label: "กำลังเตรียม", class: "bg-amber-100 text-amber-800" },
-        served: { label: "เสิร์ฟแล้ว", class: "bg-emerald-100 text-emerald-800" },
+        served: { label: o.servingRequired && !o.deliveredAt ? "รอเสิร์ฟ" : "เสิร์ฟแล้ว", class: "bg-emerald-100 text-emerald-800" },
         completed: { label: "เสร็จสิ้น", class: "bg-surface-variant text-on-surface-variant" },
         cancelled: { label: "ยกเลิก", class: "bg-rose-100 text-rose-800" },
       };
@@ -162,7 +152,7 @@ export async function GET() {
       data: {
         todaySales,
         yesterdaySales,
-        growthPercent: Number(growthPercent.toFixed(1)),
+        growthPercent: growthPercent === null ? null : Number(growthPercent.toFixed(1)),
         totalOrdersCount: allOrders.length,
         todayOrdersCount,
         completedOrdersCount,

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { updateMenuItem } from "@/app/actions/menu";
 import type { Category, MenuItem } from "./page";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 interface EditMenuItemModalProps {
   isOpen: boolean;
@@ -34,14 +35,14 @@ export default function EditMenuItemModal({
   categories,
   onSuccess,
 }: EditMenuItemModalProps) {
-  const [name, setName] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [price, setPrice] = useState("");
-  const [description, setDescription] = useState("");
-  const [isAvailable, setIsAvailable] = useState(true);
+  const [name, setName] = useState(item?.name || "");
+  const [categoryId, setCategoryId] = useState(item?.categoryId || "");
+  const [price, setPrice] = useState(String(item?.price ?? ""));
+  const [description, setDescription] = useState(item?.description || "");
+  const [isAvailable, setIsAvailable] = useState(item?.isAvailable ?? true);
 
   // Image states
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(item?.imageUrl || null);
   const [newImageFile, setNewImageFile] = useState<File | null>(null);
   const [removeImage, setRemoveImage] = useState(false);
 
@@ -51,24 +52,11 @@ export default function EditMenuItemModal({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const submitting = useRef(false);
 
-  // Populate state when item or modal state changes
-  useEffect(() => {
-    if (item && isOpen) {
-      setName(item.name || "");
-      setCategoryId(
-        item.categoryId || (categories.length > 0 ? categories[0].id : ""),
-      );
-      setPrice(String(item.price ?? ""));
-      setDescription(item.description || "");
-      setIsAvailable(item.isAvailable ?? true);
-      setImagePreview(item.imageUrl || null);
-      setNewImageFile(null);
-      setRemoveImage(false);
-      setErrorMessage(null);
-      setSuccessMessage(null);
-    }
-  }, [item, isOpen, categories]);
+  useEffect(() => () => {
+    if (imagePreview?.startsWith("blob:")) URL.revokeObjectURL(imagePreview);
+  }, [imagePreview]);
 
   if (!isOpen || !item) return null;
 
@@ -103,6 +91,7 @@ export default function EditMenuItemModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting.current) return;
 
     if (!name.trim()) {
       setErrorMessage("กรุณาระบุชื่อเมนู");
@@ -115,6 +104,7 @@ export default function EditMenuItemModal({
     }
 
     try {
+      submitting.current = true;
       setIsSubmitting(true);
       setErrorMessage(null);
       setSuccessMessage(null);
@@ -140,9 +130,7 @@ export default function EditMenuItemModal({
       if (result.success && result.data) {
         setSuccessMessage("บันทึกการแก้ไขเรียบร้อยแล้ว");
         onSuccess(result.data as MenuItem);
-        setTimeout(() => {
-          onClose();
-        }, 400);
+        onClose();
       } else {
         setErrorMessage(result.error || "เกิดข้อผิดพลาดในการบันทึกข้อมูล");
       }
@@ -152,6 +140,7 @@ export default function EditMenuItemModal({
         err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการบันทึกข้อมูล";
       setErrorMessage(msg);
     } finally {
+      submitting.current = false;
       setIsSubmitting(false);
     }
   };
@@ -159,25 +148,27 @@ export default function EditMenuItemModal({
   const hasImageChanged = newImageFile !== null || removeImage;
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-gutter animate-fadeIn">
-      <div className="bg-surface-card border border-border-subtle rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl animate-scaleUp max-h-[90dvh] flex flex-col">
+    <Dialog open={isOpen} onOpenChange={open => { if (!open && !submitting.current) onClose(); }}>
+      <DialogContent showCloseButton={false} className="sm:max-w-lg p-0 gap-0 overflow-hidden flex flex-col">
         {/* Modal Header */}
         <div className="p-stack-md border-b border-border-subtle flex justify-between items-center bg-surface-bright shrink-0">
           <div className="flex items-center gap-2">
             <Tag className="w-5 h-5 text-primary" />
-            <h3 className="font-headline-md text-headline-md font-bold text-on-surface">
+            <DialogTitle className="font-headline-md text-headline-md font-bold text-on-surface">
               แก้ไขเมนูอาหาร
-            </h3>
+            </DialogTitle>
           </div>
           <button
             type="button"
             onClick={onClose}
+            aria-label="ปิดหน้าต่างแก้ไขเมนู"
             disabled={isSubmitting}
             className="text-on-surface-variant hover:text-on-surface size-11 shrink-0 inline-flex items-center justify-center rounded cursor-pointer disabled:opacity-50"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
+        <DialogDescription className="sr-only">แก้ไขข้อมูลเมนูแล้วกดบันทึก การยกเลิกจะไม่บันทึกการแก้ไข</DialogDescription>
 
         {/* Modal Body / Form */}
         <form
@@ -186,20 +177,21 @@ export default function EditMenuItemModal({
         >
           {/* Alerts */}
           {errorMessage && (
-            <div className="p-3 bg-error-container/20 border border-error/30 text-error rounded-lg text-sm flex items-start gap-2">
+            <div role="alert" className="p-3 bg-error-container/20 border border-error/30 text-error rounded-lg text-sm flex items-start gap-2">
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
               <span>{errorMessage}</span>
             </div>
           )}
 
           {successMessage && (
-            <div className="p-3 bg-status-success/15 border border-status-success/30 text-status-success rounded-lg text-sm flex items-center gap-2">
+            <div role="status" className="p-3 bg-status-success/15 border border-status-success/30 text-status-success rounded-lg text-sm flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               <span>{successMessage}</span>
             </div>
           )}
 
           {/* Photo Upload & Preview Section */}
+          <fieldset disabled={isSubmitting} className="min-w-0 space-y-stack-md">
           <div>
             <label className="flex items-center justify-between font-label-md text-label-md text-on-surface mb-unit">
               <span className="flex items-center gap-1">
@@ -242,13 +234,15 @@ export default function EditMenuItemModal({
                   )}
                 </div>
               ) : (
-                <div
+                <button
+                  type="button"
+                  disabled={isSubmitting}
                   onClick={() => !isSubmitting && fileInputRef.current?.click()}
-                  className="w-20 h-20 rounded-lg border-2 border-dashed border-border-subtle flex flex-col items-center justify-center text-on-surface-variant bg-surface hover:bg-surface-container-low cursor-pointer transition-colors shrink-0"
+                  className="w-20 h-20 rounded-lg border-2 border-dashed border-border-subtle flex flex-col items-center justify-center text-on-surface-variant bg-surface hover:bg-surface-container-low transition-colors shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
                 >
                   <Upload className="w-5 h-5 mb-0.5" />
                   <span className="text-[10px]">เลือกรูป</span>
-                </div>
+                </button>
               )}
 
               <div className="flex-1">
@@ -278,11 +272,12 @@ export default function EditMenuItemModal({
 
           {/* Menu Name */}
           <div>
-            <label className="flex items-center gap-1 font-label-md text-label-md text-on-surface mb-unit">
+            <label htmlFor="edit-menu-name" className="flex items-center gap-1 font-label-md text-label-md text-on-surface mb-unit">
               <Tag className="w-3.5 h-3.5 text-on-surface-variant" />
               ชื่อเมนู <span className="text-error">*</span>
             </label>
             <input
+              id="edit-menu-name"
               required
               className="w-full h-9 px-3 rounded-lg border border-border-subtle bg-surface text-body-md font-body-md focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-shadow text-on-surface"
               placeholder="เช่น มัทฉะลาเต้เย็น"
@@ -295,15 +290,17 @@ export default function EditMenuItemModal({
           {/* Category & Price */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-stack-sm">
             <div>
-              <label className="flex items-center gap-1 font-label-md text-label-md text-on-surface mb-unit">
+              <label htmlFor="edit-menu-category" className="flex items-center gap-1 font-label-md text-label-md text-on-surface mb-unit">
                 <Layers className="w-3.5 h-3.5 text-on-surface-variant" />
                 หมวดหมู่
               </label>
               <select
+                id="edit-menu-category"
                 className="w-full h-9 px-3 rounded-lg border border-border-subtle bg-surface text-body-md font-body-md focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-shadow text-on-surface cursor-pointer"
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
               >
+                <option value="">ไม่ระบุหมวดหมู่</option>
                 {categories.map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {cat.name}
@@ -312,18 +309,19 @@ export default function EditMenuItemModal({
               </select>
             </div>
             <div>
-              <label className="flex items-center gap-1 font-label-md text-label-md text-on-surface mb-unit">
+              <label htmlFor="edit-menu-price" className="flex items-center gap-1 font-label-md text-label-md text-on-surface mb-unit">
                 <span className="font-bold text-xs text-on-surface-variant">
                   ฿
                 </span>
                 ราคา (บาท) <span className="text-error">*</span>
               </label>
               <input
+                id="edit-menu-price"
                 required
                 className="w-full h-9 px-3 rounded-lg border border-border-subtle bg-surface text-body-md font-body-md focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-shadow text-on-surface"
                 placeholder="เช่น 85.00"
                 type="number"
-                step="0.5"
+                step="0.01"
                 min="0"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
@@ -333,11 +331,12 @@ export default function EditMenuItemModal({
 
           {/* Description */}
           <div>
-            <label className="flex items-center gap-1 font-label-md text-label-md text-on-surface mb-unit">
+            <label htmlFor="edit-menu-description" className="flex items-center gap-1 font-label-md text-label-md text-on-surface mb-unit">
               <FileText className="w-3.5 h-3.5 text-on-surface-variant" />
               คำอธิบายเมนู
             </label>
             <textarea
+              id="edit-menu-description"
               rows={2}
               className="w-full p-2.5 rounded-lg border border-border-subtle bg-surface text-body-md font-body-md focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-shadow text-on-surface resize-none"
               placeholder="รายละเอียด ส่วนผสม หรือรสชาติ..."
@@ -361,6 +360,9 @@ export default function EditMenuItemModal({
             <button
               type="button"
               onClick={() => setIsAvailable(!isAvailable)}
+              role="switch"
+              aria-checked={isAvailable}
+              aria-label="เปิดจำหน่ายเมนู"
               className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                 isAvailable ? "bg-status-success" : "bg-surface-container-high"
               }`}
@@ -374,6 +376,7 @@ export default function EditMenuItemModal({
           </div>
 
           {/* Footer Buttons */}
+          </fieldset>
           <div className="flex justify-end gap-stack-sm pt-stack-sm border-t border-border-subtle shrink-0">
             <button
               type="button"
@@ -397,7 +400,7 @@ export default function EditMenuItemModal({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

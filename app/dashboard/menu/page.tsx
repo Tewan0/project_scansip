@@ -6,18 +6,12 @@ import {
   Search,
   Plus,
   UtensilsCrossed,
-  Tag,
   Coffee,
-  FileQuestion,
-  ImagePlus,
   Trash2,
   X,
   Upload,
-  CheckCircle2,
   Pencil,
   RotateCw,
-  SlidersHorizontal,
-  Layers,
 } from "lucide-react";
 import EditMenuItemModal from "./EditMenuItemModal";
 import { deleteMenuItem } from "@/app/actions/menu";
@@ -36,6 +30,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useConfirmation } from "@/hooks/use-confirmation";
 
 export interface Category {
   id: string;
@@ -55,6 +51,9 @@ export interface MenuItem {
 }
 
 export default function MenuManagementPage() {
+  const { confirm, confirmationDialog } = useConfirmation();
+  const [feedback, setFeedback] = useState<{ type: "error" | "success"; text: string } | null>(null);
+  const deleting = useRef(false);
   const [items, setItems] = useState<MenuItem[]>([]);
   const [categoriesList, setCategoriesList] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -62,6 +61,8 @@ export default function MenuManagementPage() {
   const [selectedCategory, setSelectedCategory] = useState("ทุกหมวดหมู่");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const createInFlight = useRef(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -73,6 +74,10 @@ export default function MenuManagementPage() {
   const [newItemImageFile, setNewItemImageFile] = useState<File | null>(null);
   const [newItemImagePreview, setNewItemImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    return () => { if (newItemImagePreview) URL.revokeObjectURL(newItemImagePreview); };
+  }, [newItemImagePreview]);
 
   // Fetch menu and categories from database
   const fetchData = async () => {
@@ -119,6 +124,12 @@ export default function MenuManagementPage() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type) || !file.size || file.size > 5 * 1024 * 1024) {
+        setCreateError("กรุณาใช้รูป JPG, PNG, WebP หรือ GIF ขนาดไม่เกิน 5 MB");
+        e.target.value = "";
+        return;
+      }
+      setCreateError("");
       setNewItemImageFile(file);
       setNewItemImagePreview(URL.createObjectURL(file));
     }
@@ -126,10 +137,12 @@ export default function MenuManagementPage() {
 
   const handleCreateItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newItemName.trim() || !newItemPrice) return;
+    if (createInFlight.current || !newItemName.trim() || !newItemPrice) return;
+    createInFlight.current = true;
 
     try {
       setIsSubmitting(true);
+      setCreateError("");
       const formData = new FormData();
       formData.append("name", newItemName.trim());
       formData.append("price", newItemPrice);
@@ -145,7 +158,7 @@ export default function MenuManagementPage() {
       });
 
       const json = await res.json();
-      if (json.success && json.data) {
+      if (res.ok && json.success && json.data) {
         setItems((prev) => [json.data, ...prev]);
         setNewItemName("");
         setNewItemPrice("");
@@ -153,30 +166,38 @@ export default function MenuManagementPage() {
         setNewItemImageFile(null);
         setNewItemImagePreview(null);
         setIsModalOpen(false);
+        setFeedback({ type: "success", text: "เพิ่มเมนูใหม่แล้ว" });
       } else {
-        alert(json.error || "เกิดข้อผิดพลาดในการเพิ่มเมนู");
+        setCreateError(json.error || "เกิดข้อผิดพลาดในการเพิ่มเมนู");
       }
     } catch (err) {
       console.error("Create menu item error:", err);
-      alert("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
+      setCreateError("ยังยืนยันผลการบันทึกไม่ได้ กรุณาโหลดรายการเมนูเพื่อตรวจสอบก่อนเพิ่มซ้ำ");
     } finally {
+      createInFlight.current = false;
       setIsSubmitting(false);
     }
   };
 
   const handleDeleteItem = async (id: string) => {
-    if (!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบเมนูนี้?")) return;
+    if (deleting.current || !await confirm({ title: "ลบเมนูอาหาร", description: `ต้องการลบ “${items.find(item => item.id === id)?.name || "เมนูนี้"}” ใช่ไหม? เมนูนี้จะไม่แสดงให้ลูกค้าสั่งอีก`, confirmLabel: "ลบเมนู" })) return;
+    if (deleting.current) return;
+    deleting.current = true;
+    setFeedback(null);
     try {
       setDeletingId(id);
       const res = await deleteMenuItem(id);
       if (res.success) {
         setItems((prev) => prev.filter((it) => it.id !== id));
+        setFeedback({ type: "success", text: "ลบเมนูแล้ว" });
       } else {
-        alert(res.error || "ไม่สามารถลบรายการได้");
+        setFeedback({ type: "error", text: res.error || "ไม่สามารถลบรายการได้" });
       }
     } catch (err) {
       console.error("Delete menu error:", err);
+      setFeedback({ type: "error", text: "ยังยืนยันผลการลบไม่ได้ กรุณาโหลดรายการใหม่เพื่อตรวจสอบ" });
     } finally {
+      deleting.current = false;
       setDeletingId(null);
     }
   };
@@ -195,14 +216,19 @@ export default function MenuManagementPage() {
             it.id === item.id ? { ...it, isAvailable: updatedStatus } : it
           )
         );
+      } else {
+        const result = await res.json();
+        setFeedback({ type: "error", text: result.error || "เปลี่ยนสถานะเมนูไม่สำเร็จ" });
       }
     } catch (err) {
       console.error("Toggle availability error:", err);
+      setFeedback({ type: "error", text: "เปลี่ยนสถานะเมนูไม่สำเร็จ กรุณาลองใหม่" });
     }
   };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto font-sans">
+      {feedback && <p role={feedback.type === "error" ? "alert" : "status"} className={`rounded-lg border p-3 text-sm ${feedback.type === "error" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"}`}>{feedback.text}</p>}
       {/* Top Header & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -312,7 +338,7 @@ export default function MenuManagementPage() {
               <Card
                 key={item.id}
                 className={`overflow-hidden gap-0 py-0 justify-between border-border transition-all duration-200 hover:border-foreground/20 ${
-                  !item.isAvailable ? "opacity-70 bg-muted/20" : ""
+                  !item.isAvailable ? "bg-muted/20" : ""
                 }`}
               >
                 <div>
@@ -421,12 +447,12 @@ export default function MenuManagementPage() {
 
       {/* Create New Item Modal with Shadcn Card */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fadeIn">
-          <Card className="max-w-lg w-full max-h-[90dvh] flex flex-col overflow-hidden shadow-2xl border-border animate-scaleUp">
+        <Dialog open onOpenChange={open => { if (!open && !createInFlight.current) setIsModalOpen(false); }}>
+          <DialogContent showCloseButton={false} className="sm:max-w-lg p-0 gap-0 flex flex-col overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between border-b border-border p-4 bg-card">
               <div className="flex items-center gap-2">
                 <UtensilsCrossed className="size-4 text-foreground" />
-                <CardTitle className="text-base font-bold">เพิ่มเมนูอาหารใหม่</CardTitle>
+                <DialogTitle className="text-base font-bold">เพิ่มเมนูอาหารใหม่</DialogTitle>
               </div>
               <Button
                 onClick={() => setIsModalOpen(false)}
@@ -434,12 +460,16 @@ export default function MenuManagementPage() {
                 size="icon-xs"
                 className="size-11"
                 aria-label="ปิดหน้าต่างเพิ่มเมนู"
+                disabled={isSubmitting}
               >
                 <X className="size-4" />
               </Button>
             </CardHeader>
+            <DialogDescription className="sr-only">กรอกชื่อ ราคา และรายละเอียดเมนู แล้วกดบันทึก</DialogDescription>
 
             <form onSubmit={handleCreateItem} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-4">
+              {createError && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{createError}</p>}
+              <fieldset disabled={isSubmitting} className="min-w-0 space-y-4">
               {/* Photo Upload */}
               <div className="space-y-1.5">
                 <Label className="text-xs">รูปภาพเมนู</Label>
@@ -452,6 +482,7 @@ export default function MenuManagementPage() {
                         onClick={() => {
                           setNewItemImageFile(null);
                           setNewItemImagePreview(null);
+                          if (fileInputRef.current) fileInputRef.current.value = "";
                         }}
                         className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 hover:bg-black/80"
                       >
@@ -459,19 +490,21 @@ export default function MenuManagementPage() {
                       </button>
                     </div>
                   ) : (
-                    <div
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
                       onClick={() => fileInputRef.current?.click()}
-                      className="size-20 rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center text-muted-foreground bg-muted/40 hover:bg-muted cursor-pointer transition-colors shrink-0"
+                      className="size-20 rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center text-muted-foreground bg-muted/40 hover:bg-muted transition-colors shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
                     >
                       <Upload className="size-5 mb-0.5" />
                       <span className="text-[10px]">เลือกรูป</span>
-                    </div>
+                    </button>
                   )}
 
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
                     className="hidden"
                     onChange={handleImageChange}
                   />
@@ -525,7 +558,7 @@ export default function MenuManagementPage() {
                     id="menu-price"
                     required
                     type="number"
-                    step="0.5"
+                    step="0.01"
                     min="0"
                     placeholder="85.00"
                     value={newItemPrice}
@@ -548,10 +581,13 @@ export default function MenuManagementPage() {
                 />
               </div>
 
+              </fieldset>
+
               <div className="pt-3 border-t border-border flex justify-end gap-2">
                 <Button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
+                  disabled={isSubmitting}
                   variant="outline"
                   size="sm"
                 >
@@ -566,22 +602,25 @@ export default function MenuManagementPage() {
                 </Button>
               </div>
             </form>
-          </Card>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Edit Modal Component */}
-      <EditMenuItemModal
+      {editingItem && <EditMenuItemModal
+        key={editingItem.id}
         isOpen={Boolean(editingItem)}
         onClose={() => setEditingItem(null)}
         item={editingItem}
         categories={categoriesList}
         onSuccess={(updated) => {
+          setFeedback({ type: "success", text: "บันทึกการแก้ไขเมนูแล้ว" });
           setItems((prev) =>
             prev.map((it) => (it.id === updated.id ? updated : it))
           );
         }}
-      />
+      />}
+      {confirmationDialog}
     </div>
   );
 }

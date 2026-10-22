@@ -17,8 +17,10 @@ function panel(file, name, props, fetch, globals = {}) {
   const router = { replace() {} };
   const f = fixture("anonymous", { react, "next/navigation": { useRouter: () => router }, "next/link": { default: "Link" },
     "@/components/service-request-board": { ServiceRequestBoard: "ServiceRequestBoard" },
-    "@/components/ui/card": Object.fromEntries(["Card", "CardHeader", "CardTitle", "CardContent", "CardFooter"].map(name => [name, name])),
-    "@/components/ui/dialog": Object.fromEntries(["Dialog", "DialogContent", "DialogHeader", "DialogTitle", "DialogDescription"].map(name => [name, name])),
+    "@/components/ui/card": Object.fromEntries(["Card", "CardHeader", "CardTitle", "CardDescription", "CardContent", "CardFooter"].map(name => [name, name])),
+    "@/components/ui/table": Object.fromEntries(["Table", "TableHeader", "TableBody", "TableHead", "TableRow", "TableCell"].map(name => [name, name])),
+    "@/components/ui/skeleton": { Skeleton: "Skeleton" },
+    "@/components/ui/dialog": Object.fromEntries(["Dialog", "DialogContent", "DialogHeader", "DialogTitle", "DialogDescription", "DialogFooter"].map(name => [name, name])),
     "@/components/ui/button": { Button: "Button" }, "@/components/ui/badge": { Badge: "Badge" } }, {
     fetch, setInterval: () => 1, clearInterval() {}, ...globals,
   });
@@ -116,7 +118,7 @@ test("frontdesk board shows table requests, keeps failed updates visible and rem
 test("bill board groups repeated orders, hides history initially and requires explicit review before bulk receipt", async () => {
   let paid = false; const payments = [], views = [];
   const page = panel("components/bill-board.tsx", "BillBoard", {}, async (url, options) => {
-    if (options.method === "POST") { payments.push(JSON.parse(options.body)); paid = true; return Response.json({ success: true, data: { paidCents: 7000 } }); }
+    if (options.method === "POST") { payments.push(JSON.parse(options.body)); paid = true; return Response.json({ success: true, data: { paidCents: 7000, changeCents: 3000 } }); }
     const history = new URL(url, "http://localhost").searchParams.get("view") === "history"; views.push(history);
     return Response.json({ success: true, currentCount: 1, historyCount: 1, page: 1, pageCount: 1, data: history ? [{ ...sampleBill, id: "older", number: "B06-OLDER", current: false, unpaidCents: 0, unpaidOrderIds: [] }] : [{ ...sampleBill, unpaidCents: paid ? 0 : 7000, paidCents: paid ? 7000 : 0, unpaidOrderIds: paid ? [] : sampleBill.unpaidOrderIds }] });
   });
@@ -128,8 +130,11 @@ test("bill board groups repeated orders, hides history initially and requires ex
     assert.equal(payments.length, 0); assert.equal(nodes(tree).find(node => node.type === "Dialog").props.open, true);
     button(tree, "ย้อนกลับ").props.onClick(); assert.equal(payments.length, 0);
     button(page.render(), "รับเงินรวมทั้งบิล ฿70.00").props.onClick(); tree = page.render();
+    assert.equal(button(tree, "ยืนยันว่าได้รับเงินแล้ว").props.disabled, true);
+    nodes(tree).find(node => node.props["aria-label"] === "รับเงินสด (บาท)").props.onChange({ target: { value: "100" } }); tree = page.render();
+    assert.match(text(tree), /เงินทอน ฿30.00/);
     button(tree, "ยืนยันว่าได้รับเงินแล้ว").props.onClick(); await new Promise(resolve => setTimeout(resolve, 0)); tree = page.render();
-    assert.deepEqual(payments, [{ anchorOrderId: "a", expectedOrderIds: ["a", "b"], expectedTotalCents: 7000 }]);
+    assert.deepEqual(payments, [{ anchorOrderId: "a", expectedOrderIds: ["a", "b"], expectedTotalCents: 7000, method: "cash", receivedCents: 10000 }]);
     assert.match(text(tree), /ปิดโต๊ะได้จากผังโต๊ะ/); assert.equal(button(tree, "รับเงินรวมทั้งบิล ฿70.00"), undefined);
     button(tree, "ประวัติบิล (1)").props.onClick(); tree = await page.ready();
     assert.match(text(tree), /B06-OLDER/); assert.equal(text(tree).includes("B06-ABCDEF"), false);
@@ -144,6 +149,7 @@ test("stale payment closes review, loads the changed total and requires a new co
   });
   try {
     let tree = await page.ready(); button(tree, "รับเงินรวมทั้งบิล ฿70.00").props.onClick(); tree = page.render();
+    nodes(tree).find(node => node.props["aria-label"] === "รับเงินสด (บาท)").props.onChange({ target: { value: "100" } }); tree = page.render();
     button(tree, "ยืนยันว่าได้รับเงินแล้ว").props.onClick(); await new Promise(resolve => setTimeout(resolve, 0)); tree = page.render();
     assert.equal(submissions, 1); assert.match(text(tree), /รายการหรือยอดบิลเปลี่ยนแล้ว/);
     assert.equal(nodes(tree).find(node => node.type === "Dialog").props.open, false);
@@ -152,3 +158,70 @@ test("stale payment closes review, loads the changed total and requires a new co
   } finally { page.dispose(); }
 });
 
+test("transfer receipt requires explicit bank confirmation and sends the exact current total", async () => {
+  const payments = [];
+  const page = panel("components/bill-board.tsx", "BillBoard", {}, async (_url, options) => {
+    if (options.method === "POST") { payments.push(JSON.parse(options.body)); return Response.json({ success: true, data: { paidCents: 7000, changeCents: 0 } }); }
+    return Response.json({ success: true, currentCount: 1, historyCount: 0, page: 1, pageCount: 1, data: [sampleBill] });
+  });
+  try {
+    let tree = await page.ready(); button(tree, "รับเงินรวมทั้งบิล ฿70.00").props.onClick(); tree = page.render();
+    nodes(tree).find(node => node.type === "input" && node.props.value === "transfer").props.onChange(); tree = page.render();
+    assert.equal(button(tree, "ยืนยันว่าได้รับเงินแล้ว").props.disabled, true);
+    button(tree, "ยืนยันว่าได้รับเงินแล้ว").props.onClick(); assert.equal(payments.length, 0);
+    nodes(tree).find(node => node.props.type === "checkbox").props.onChange({ target: { checked: true } }); tree = page.render();
+    button(tree, "ยืนยันว่าได้รับเงินแล้ว").props.onClick(); await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(payments[0].method, "transfer"); assert.equal(payments[0].receivedCents, 7000);
+  } finally { page.dispose(); }
+});
+
+test("chatbot retains a failed question, prevents double sends and only adds a menu after a customer clicks", async () => {
+  let fail = true, sent = 0; const added = [];
+  const page = panel("components/customer-chatbot.tsx", "CustomerChatbot", { ...props, onAdd: id => { added.push(id); return true; } }, async (url, options) => {
+    sent++; assert.equal(url, "/api/customer/chat"); assert.equal(options.headers.Authorization, "Bearer round-a");
+    assert.equal(JSON.parse(options.body).messages.at(-1).content, "อยากดื่มชา");
+    return fail ? Response.json({ success: false, error: "AI ไม่พร้อม" }, { status: 503 }) : Response.json({ success: true, data: { answer: "ลองชาดูครับ", recommendations: [{ id: "tea", name: "ชา", price: "35.00" }] } });
+  }, { AbortController });
+  try {
+    let tree = await page.ready(); nodes(tree).find(node => node.type === "Button" && text(node).includes("ถาม AI ช่วยเลือกเมนู")).props.onClick();
+    nodes(tree).find(node => node.type === "textarea").props.onChange({ target: { value: "อยากดื่มชา" } }); tree = page.render();
+    const submit = nodes(tree).find(node => node.type === "form").props.onSubmit;
+    submit({ preventDefault() {} }); submit({ preventDefault() {} }); await new Promise(resolve => setTimeout(resolve, 0)); tree = page.render();
+    assert.equal(sent, 1); assert.match(text(tree), /AI ไม่พร้อม/); assert.equal(nodes(tree).find(node => node.type === "textarea").props.value, "อยากดื่มชา");
+    fail = false; nodes(tree).find(node => node.type === "form").props.onSubmit({ preventDefault() {} }); await new Promise(resolve => setTimeout(resolve, 0)); tree = page.render();
+    assert.match(text(tree), /ลองชาดูครับ/); assert.equal(added.length, 0);
+    button(tree, "เพิ่มในตะกร้า").props.onClick(); assert.deepEqual(added, ["tea"]);
+    assert.equal(nodes(page.render()).find(node => node.type === "textarea").props.value, "");
+  } finally { page.dispose(); }
+});
+
+
+
+test("report failure shows an error instead of zero revenue and disables export", async () => {
+  const page = panel("app/dashboard/reports/page.tsx", "default", {}, async () => Response.json({ success: false }, { status: 500 }), { AbortController });
+  try {
+    const tree = await page.ready();
+    assert.match(text(tree), /โหลดรายงานไม่สำเร็จ/);
+    assert.equal(button(tree, "ส่งออก CSV (เปิดใน Excel ได้)").props.disabled, true);
+    assert.equal(text(tree).includes("฿0.00"), false);
+  } finally { page.dispose(); }
+});
+
+test("switching report ranges ignores late responses even when transport ignores abort", async () => {
+  const pending = [];
+  const page = panel("app/dashboard/reports/page.tsx", "default", {}, (url, options) => new Promise(resolve => pending.push({ url, options, resolve })), { AbortController });
+  try {
+    let tree = await page.ready();
+    nodes(tree).find(n => n.type === "select").props.onChange({ target: { value: "month" } });
+    tree = await page.ready();
+    assert.equal(pending[0].options.signal.aborted, true);
+    const data = (range, totalRevenue) => ({ range, totalRevenue, totalOrdersCount: 1, dailySales: [], topItems: [] });
+    pending[1].resolve(Response.json({ success: true, data: data("month", 222) }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    pending[0].resolve(Response.json({ success: true, data: data("7d", 111) }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    tree = page.render();
+    assert.match(text(tree), /222/);
+    assert.equal(text(tree).includes("111"), false);
+  } finally { page.dispose(); }
+});

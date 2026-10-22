@@ -157,7 +157,7 @@ export default function DashboardLayout({
                   return (
                     <SidebarMenuItem key={item.name}>
                       <SidebarMenuButton
-                        render={<Link href={item.href} />}
+                        render={<Link href={item.href} aria-current={isActive ? "page" : undefined} />}
                         isActive={isActive}
                         tooltip={item.name}
                         className={
@@ -181,7 +181,7 @@ export default function DashboardLayout({
         <SidebarFooter className="border-t border-border p-2">
           <SidebarMenu>
             <SidebarMenuItem>
-              <div className="flex items-center justify-between p-2 rounded-lg hover:bg-sidebar-accent transition-colors">
+              <div className="flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-sidebar-accent transition-colors group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:px-0">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   {currentUser?.avatarUrl ? (
                     <img
@@ -194,7 +194,7 @@ export default function DashboardLayout({
                       {currentUser?.name ? currentUser.name.slice(0, 2).toUpperCase() : "OW"}
                     </div>
                   )}
-                  <div className="grid flex-1 text-left text-xs leading-tight min-w-0">
+                  <div className="grid flex-1 text-left text-xs leading-tight min-w-0 group-data-[collapsible=icon]:hidden">
                     <span className="truncate font-medium text-foreground">
                       {currentUser?.name || "เจ้าของร้าน"}
                     </span>
@@ -208,7 +208,8 @@ export default function DashboardLayout({
                   <button
                     type="submit"
                     title="ออกจากระบบ"
-                    className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors cursor-pointer"
+                    aria-label="ออกจากระบบ"
+                    className="inline-flex size-11 items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors cursor-pointer group-data-[collapsible=icon]:size-8"
                   >
                     <LogOut className="size-4" />
                   </button>

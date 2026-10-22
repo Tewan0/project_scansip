@@ -1,5 +1,5 @@
 export const MIN_TABLE_COUNT = 1;
-export const MAX_TABLE_COUNT = 50;
+export const MAX_TABLE_COUNT = 15;
 
 export const TABLE_STATUS_LABELS = {
   available: "ว่าง",

@@ -7,13 +7,13 @@ const require = createRequire(import.meta.url);
 const root = path.resolve(import.meta.dirname, "..");
 
 export function fixture(role = "owner", overrides = {}, globals = {}) {
-  const tableNames = ["stores", "staff", "tables", "orders", "orderItems", "menuItems", "categories", "serviceRequests"];
+  const tableNames = ["stores", "staff", "tables", "orders", "orderItems", "menuItems", "categories", "serviceRequests", "billPayments", "chatRateLimits"];
   const schema = Object.fromEntries(tableNames.map((name) => [name, Object.fromEntries([
-    ...["id", "storeId", "ownerId", "userId", "email", "role", "orderId", "tableId", "tableNumber", "sessionToken", "currentSessionToken", "status", "kind", "paymentStatus", "totalAmount", "createdAt", "slug"].map((key) => [key, { key }]), ["tableName", name],
+    ...["id", "storeId", "ownerId", "userId", "email", "role", "orderId", "tableId", "tableNumber", "sessionToken", "currentSessionToken", "status", "kind", "paymentStatus", "totalAmount", "createdAt", "slug", "servingRequired", "deliveredAt", "billId", "name", "description", "price", "isAvailable", "requestKey"].map((key) => [key, { key }]), ["tableName", name],
   ])]));
   const state = { stores: [{ id: "shop-a", ownerId: "owner", slug: "cafe-a" }, { id: "shop-b", ownerId: "owner-b", slug: "cafe-b" }],
     staff: ["cashier", "kitchen"].includes(role) ? [{ id: "member-a", storeId: "shop-a", role, userId: null, email: "staff@example.com" }] : [],
-    tables: [], orders: [], orderItems: [], menuItems: [], categories: [], serviceRequests: [],
+    tables: [], orders: [], orderItems: [], menuItems: [], categories: [], serviceRequests: [], billPayments: [], chatRateLimits: [],
   };
   const context = { user: role === "anonymous" ? null : { id: role, email: "STAFF@example.com", email_confirmed_at: "2026-01-01", is_anonymous: false }, state, writes: [] };
   const orm = {
@@ -55,7 +55,7 @@ export function fixture(role = "owner", overrides = {}, globals = {}) {
       insert(table) { return { values: values => {
         const execute = () => {
           context.writes.push(["insert", table.tableName]);
-          const saved = (Array.isArray(values) ? values : [values]).map(row => ({ id: "new-" + nextId++, ...(table.tableName === "serviceRequests" ? { status: "pending", createdAt: new Date(), resolvedAt: null } : {}), ...(table.tableName === "orderItems" ? { status: "pending" } : {}), ...(table.tableName === "orders" ? { status: "pending", paymentStatus: "unpaid" } : {}), ...row }));
+          const saved = (Array.isArray(values) ? values : [values]).map(row => ({ id: "new-" + nextId++, ...(table.tableName === "billPayments" ? { createdAt: new Date() } : {}), ...(table.tableName === "serviceRequests" ? { status: "pending", createdAt: new Date(), resolvedAt: null } : {}), ...(table.tableName === "orderItems" ? { status: "pending" } : {}), ...(table.tableName === "orders" ? { status: "pending", paymentStatus: "unpaid", servingRequired: false, deliveredAt: null } : {}), ...row }));
           data[table.tableName].push(...saved); return structuredClone(saved);
         };
         return { returning: async () => execute(), then: (resolve, reject) => Promise.resolve(execute()).then(resolve, reject) };
@@ -76,6 +76,7 @@ export function fixture(role = "owner", overrides = {}, globals = {}) {
     ...overrides,
   };
   function load(file) {
+    if (!fs.existsSync(path.join(root, file)) && file.endsWith(".ts") && fs.existsSync(path.join(root, file + "x"))) file += "x";
     if (cache.has(file)) return cache.get(file);
     const exports = {}; cache.set(file, exports);
     const code = ts.transpileModule(fs.readFileSync(path.join(root, file), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
@@ -84,7 +85,7 @@ export function fixture(role = "owner", overrides = {}, globals = {}) {
       if (name.startsWith("@/")) return load(name.slice(2) + ".ts");
       if (name.startsWith(".")) return load(path.posix.join(path.posix.dirname(file), name + ".ts"));
       return require(name);
-    }, console, Request, Response, URL, URLSearchParams, File, FormData, process, setTimeout, clearTimeout, setInterval, clearInterval, ...globals }, { filename: file });
+    }, console, Request, Response, URL, URLSearchParams, File, FormData, crypto: globalThis.crypto, process, setTimeout, clearTimeout, setInterval, clearInterval, ...globals }, { filename: file });
     return exports;
   }
   return { ...context, context, db, load, orm, schema };

@@ -20,7 +20,7 @@ function setup(role = "cashier") {
   const get = async (query = "") => f.load("app/api/bills/route.ts").GET(new Request("http://localhost/api/bills" + query));
   const bill = () => bills.buildBills(f.state.orders, f.state.tables).find(b => b.current);
   const pay = (snapshot = bill(), extra = {}) => f.load("app/api/bills/[id]/payment/route.ts").POST(request({
-    anchorOrderId: snapshot.anchorOrderId, expectedOrderIds: snapshot.unpaidOrderIds, expectedTotalCents: snapshot.unpaidCents, ...extra,
+    anchorOrderId: snapshot.anchorOrderId, expectedOrderIds: snapshot.unpaidOrderIds, expectedTotalCents: snapshot.unpaidCents, method: "cash", receivedCents: snapshot.unpaidCents, ...extra,
   }), params(snapshot.id));
   return { ...f, add, get, bill, pay, bills };
 }
@@ -82,7 +82,7 @@ test("bill endpoints enforce staff roles and store scope; unrelated or forged an
   }
   const f = setup(); const foreign = f.add(6, "foreign-round", "300.00", { storeId: "shop-b" });
   const foreignIdentity = f.bills.billIdentity(foreign);
-  const response = await f.load("app/api/bills/[id]/payment/route.ts").POST(request({ anchorOrderId: foreign.id, expectedOrderIds: [foreign.id], expectedTotalCents: 30000 }), params(foreignIdentity.id));
+  const response = await f.load("app/api/bills/[id]/payment/route.ts").POST(request({ anchorOrderId: foreign.id, expectedOrderIds: [foreign.id], expectedTotalCents: 30000, method: "transfer", receivedCents: 30000 }), params(foreignIdentity.id));
   assert.equal(response.status, 404);
   assert.equal((await f.pay(f.bill(), { anchorOrderId: f.state.orders[0].id })).status, 404);
   assert.equal((await f.pay(f.bill(), { anchorOrderId: "not-a-uuid" })).status, 400);

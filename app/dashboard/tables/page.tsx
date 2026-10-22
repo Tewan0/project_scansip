@@ -1,6 +1,8 @@
 "use client";
+import { useConfirmation } from "@/hooks/use-confirmation";
 import { ServiceRequestBoard } from "@/components/service-request-board";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -27,6 +29,7 @@ function uniqueTables(items: TableItem[]) {
 }
 
 export default function TablesManagementPage() {
+  const { confirm, confirmationDialog } = useConfirmation();
   const [tables, setTables] = useState<TableItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
@@ -128,12 +131,12 @@ export default function TablesManagementPage() {
     }
   }
 
-  function saveTableCount(event: React.FormEvent) {
+  async function saveTableCount(event: React.FormEvent) {
     event.preventDefault();
     if (!validCount || busyRemoving.length || processing) return;
-    if (removing.length && !window.confirm(
+    if (removing.length && !await confirm({ title: "ลดจำนวนโต๊ะ", description:
       `ลดเหลือ ${requestedCount} โต๊ะใช่ไหม?\nโต๊ะหมายเลข ${removing.map((table) => table.tableNumber).join(", ")} จะถูกนำออกจากผัง ประวัติออเดอร์เดิมยังคงอยู่`,
-    )) return;
+      confirmLabel: "ยืนยันลดโต๊ะ" })) return;
     void performAction("sync_tables", { count: requestedCount });
   }
 
@@ -164,7 +167,9 @@ export default function TablesManagementPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-            <Link href="/frontdesk/orders" className="inline-flex min-h-11 items-center rounded-lg border bg-background px-4 text-sm font-medium">ตรวจออเดอร์ / รับเงิน</Link>
+          <Link href="/frontdesk/orders" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-medium hover:bg-muted transition-colors shadow-2xs">
+            ตรวจออเดอร์ / รับเงิน
+          </Link>
           <Badge variant="outline" className="gap-1.5 border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
             <span className="size-2 rounded-full bg-emerald-500" /> ว่าง {availableCount}
           </Badge>
@@ -240,33 +245,70 @@ export default function TablesManagementPage() {
             const working = processing === String(table.tableNumber);
             const number = String(table.tableNumber).padStart(2, "0");
             return (
-              <Card key={table.id} className={occupied ? "gap-0 border border-amber-500/40 py-0" : "gap-0 border border-border py-0"}>
+              <Card
+                key={table.id}
+                className={cn(
+                  "gap-0 py-0 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
+                  occupied
+                    ? "border-amber-500/50 shadow-xs bg-card"
+                    : "border-border/80 bg-card hover:border-emerald-500/30"
+                )}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2 p-4">
                   <div className="flex min-w-0 items-center gap-3">
-                    <span className={occupied ? "flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-sm font-bold text-black" : "flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted text-sm font-bold text-foreground"}>{number}</span>
-                    <h2 className="text-base font-semibold">โต๊ะ {number}</h2>
+                    <span
+                      className={cn(
+                        "flex size-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold transition-transform",
+                        occupied
+                          ? "bg-amber-500 text-black shadow-xs"
+                          : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-semibold"
+                      )}
+                    >
+                      {number}
+                    </span>
+                    <div>
+                      <h2 className="text-base font-semibold flex items-center gap-2">
+                        <span>โต๊ะ {number}</span>
+                        {occupied && (
+                          <span className="relative flex size-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full size-2 bg-amber-500"></span>
+                          </span>
+                        )}
+                      </h2>
+                    </div>
                   </div>
-                  <Badge variant="outline" className={occupied ? "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300" : reserved ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300" : "text-muted-foreground"}>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-xs font-semibold",
+                      occupied
+                        ? "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
+                        : reserved
+                        ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300"
+                        : "border-emerald-300/70 bg-emerald-50/70 text-emerald-700 dark:border-emerald-800/80 dark:bg-emerald-950/40 dark:text-emerald-300"
+                    )}
+                  >
                     {TABLE_STATUS_LABELS[table.status]}
                   </Badge>
                 </div>
                 <div className="flex-1 px-4 pb-4 text-sm text-muted-foreground">
                   {occupied ? (
-                    <p className="flex items-center gap-2"><Clock className="size-4 shrink-0" /> เปิดเมื่อ {table.sessionStartedAt ? new Date(table.sessionStartedAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "สักครู่"}</p>
+                    <p className="flex items-center gap-2"><Clock className="size-4 shrink-0 text-amber-500" /> เปิดเมื่อ {table.sessionStartedAt ? new Date(table.sessionStartedAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "สักครู่"}</p>
                   ) : <p>{reserved ? "โต๊ะนี้จองไว้ สามารถเปิดเมื่อมีลูกค้ามาถึง" : "พร้อมรับลูกค้าและเปิดรอบใหม่"}</p>}
                 </div>
                 <div className="flex flex-wrap gap-2 border-t border-border bg-muted/30 p-3">
                   {occupied ? <>
-                    <Button type="button" variant="outline" className="min-h-11 flex-1" disabled={!table.currentSessionToken || !storeSlug}
+                    <Button type="button" variant="outline" className="min-h-11 flex-1 cursor-pointer" disabled={!table.currentSessionToken || !storeSlug}
                       onClick={() => { setCopied(false); setActiveQrTable(table.tableNumber); }}><QrCode className="size-4" /> ดู QR</Button>
-                    <Button type="button" variant="destructive" className="min-h-11 flex-1" disabled={!!processing}
-                      onClick={() => {
-                        if (window.confirm(`ปิดโต๊ะ ${number} ใช่ไหม? QR รอบนี้จะใช้สั่งต่อไม่ได้ กรุณาตรวจสอบการรับเงินให้เรียบร้อยก่อน`)) {
+                    <Button type="button" variant="destructive" className="min-h-11 flex-1 cursor-pointer" disabled={!!processing}
+                      onClick={async () => {
+                        if (await confirm({ title: `ปิดโต๊ะ ${number}`, description: "QR รอบนี้จะใช้สั่งต่อไม่ได้ กรุณาตรวจสอบการรับเงินและการเสิร์ฟให้ครบก่อนปิดโต๊ะ", confirmLabel: "ยืนยันปิดโต๊ะ" })) {
                           void performAction("close_session", { tableNumber: table.tableNumber });
                         }
                       }}>{working ? <RotateCw className="size-4 animate-spin" /> : <LogOut className="size-4" />} ปิดโต๊ะ</Button>
                   </> : (
-                    <Button type="button" className="min-h-11 w-full" disabled={!!processing}
+                    <Button type="button" className="min-h-11 w-full cursor-pointer active:scale-[0.99] transition-transform" disabled={!!processing}
                       onClick={() => void performAction("open_session", { tableNumber: table.tableNumber })}>
                       {working ? <RotateCw className="size-4 animate-spin" /> : <Plus className="size-4" />}
                       {working ? "กำลังเปิดโต๊ะ..." : "เปิดโต๊ะและสร้าง QR"}
@@ -279,6 +321,7 @@ export default function TablesManagementPage() {
         </div>
       )}
 
+      {confirmationDialog}
       <Dialog open={!!qrTable} onOpenChange={(open) => { if (!open) setActiveQrTable(null); }}>
         <DialogContent showCloseButton={false} className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
           {qrTable && <>

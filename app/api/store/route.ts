@@ -4,6 +4,7 @@ import { stores } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requireStoreAccess, requireUser, getAccessForUser, AccessError, apiError } from "@/lib/auth";
 import { createStoreOnboarding } from "@/app/actions/owner-auth";
+import { validateStoreSettings } from "@/lib/store-validation";
 import { deleteStorageFile, validateImageUrl } from "@/utils/supabase/storage";
 
 // GET /api/store - ดึงข้อมูลร้านค้าปัจจุบัน หรือค้นหาจาก slug/id
@@ -45,62 +46,25 @@ export async function PUT(req: Request) {
   try {
     const { store, user } = await requireStoreAccess(["owner"]);
     const body = await req.json();
-    const { name, promptPayNumber, openingTime, closingTime, currency, logoUrl, slug } = body;
-    if (logoUrl !== undefined) validateImageUrl(logoUrl, "restaurant-logos", user.id, store.logoUrl);
-    if (!store) {
-      return NextResponse.json({ success: false, error: "Store not found" }, { status: 404 });
+    const values = validateStoreSettings(body);
+    const logoUrl = body.logoUrl === undefined ? undefined
+      : validateImageUrl(body.logoUrl, "restaurant-logos", user.id, store.logoUrl);
+    if (values.slug !== undefined && values.slug !== store.slug) {
+      const existing = await db.query.stores.findFirst({ where: eq(stores.slug, values.slug) });
+      if (existing && existing.id !== store.id) throw new AccessError("URL ร้านนี้มีผู้ใช้งานแล้ว กรุณาเลือกชื่อใหม่", 409);
     }
+    // Patch supplied fields only, so saving one setting does not restore stale values.
+    const [updatedStore] = await db.update(stores).set({
+      ...values, ...(logoUrl !== undefined ? { logoUrl } : {}), updatedAt: new Date(),
+    }).where(eq(stores.id, store.id)).returning();
+    if (!updatedStore) throw new AccessError("ไม่พบร้านค้า", 404);
 
-    let updatedSlug = store.slug;
-    if (slug !== undefined) {
-      const cleanSlug = typeof slug === "string"
-        ? slug
-            .trim()
-            .toLowerCase()
-            .replace(/[^\u0E00-\u0E7Fa-zA-Z0-9_-]+/g, "-")
-            .replace(/^-+|-+$/g, "")
-        : "";
-
-      if (!cleanSlug) {
-        return NextResponse.json(
-          { success: false, error: "URL Slug cannot be empty" },
-          { status: 400 }
-        );
-      }
-
-      if (cleanSlug !== store.slug) {
-        const existing = await db.query.stores.findFirst({
-          where: eq(stores.slug, cleanSlug),
-        });
-        if (existing && existing.id !== store.id) {
-          return NextResponse.json(
-            { success: false, error: `URL Slug "${cleanSlug}" มีผู้อื่นใช้งานแล้ว` },
-            { status: 400 }
-          );
-        }
-        updatedSlug = cleanSlug;
-      }
-    }
-
-    // ลบไฟล์โลโก้เก่าออกจาก Storage ทันทีเมื่อมีการเปลี่ยนรูปหรือลบรูป
+    // The saved record must point to the replacement before removing the old file.
+    // Cleanup failure must not turn a successful settings save into a failed response.
     if (logoUrl !== undefined && store.logoUrl && store.logoUrl !== logoUrl) {
-      await deleteStorageFile(store.logoUrl, "restaurant-logos", user.id);
+      try { await deleteStorageFile(store.logoUrl, "restaurant-logos", user.id); }
+      catch (error) { console.error("Store logo cleanup failed:", error); }
     }
-
-    const [updatedStore] = await db
-      .update(stores)
-      .set({
-        name: name !== undefined ? name : store.name,
-        slug: updatedSlug,
-        promptPayNumber: promptPayNumber !== undefined ? promptPayNumber : store.promptPayNumber,
-        openingTime: openingTime !== undefined ? openingTime : store.openingTime,
-        closingTime: closingTime !== undefined ? closingTime : store.closingTime,
-        currency: currency !== undefined ? currency : store.currency,
-        logoUrl: logoUrl !== undefined ? logoUrl : store.logoUrl,
-        updatedAt: new Date(),
-      })
-      .where(eq(stores.id, store.id))
-      .returning();
 
     return NextResponse.json({ success: true, data: updatedStore });
   } catch (error) { return apiError(error); }

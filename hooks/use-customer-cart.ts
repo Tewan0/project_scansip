@@ -16,5 +16,5 @@ export function useCustomerCart(key: string) {
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, [key, store]);
-  return { ...snapshot, updateDraft: store.update };
+  return { ...snapshot, updateDraft: store.update, beginCheckout: store.beginCheckout, releaseCheckout: store.releaseCheckout };
 }
