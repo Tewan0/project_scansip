@@ -25,7 +25,7 @@ function loadTs(file, dependencies = {}, globals = {}) {
 
 function fixture({ role = "owner", tableCount = 8 } = {}) {
   const schema = Object.fromEntries(["stores", "tables", "orders", "staff", "serviceRequests"].map((name) => [name,
-    Object.fromEntries(["id", "storeId", "ownerId", "tableId", "tableNumber", "status", "sessionToken", "paymentStatus", "totalAmount", "userId", "email", "role"]
+    Object.fromEntries(["id", "storeId", "ownerId", "tableId", "tableNumber", "status", "sessionToken", "paymentStatus", "totalAmount", "userId", "email", "role", "servingRequired", "deliveredAt"]
       .map((key) => [key, { key }]).concat([["tableName", name]])),
   ]));
   const state = {
@@ -100,6 +100,7 @@ function fixture({ role = "owner", tableCount = 8 } = {}) {
     "@/db": { db: database(state) }, "@/db/schema": schema, "drizzle-orm": orm,
     "@/utils/supabase/server": { createClient: async () => ({ auth: { getUser: async () => ({ data: { user }, error: null }) } }) },
     "@/lib/table-settings": loadTs("lib/table-settings.ts"),
+    "@/lib/payments": loadTs("lib/payments.ts"),
   };
   dependencies["@/lib/auth"] = loadTs("lib/auth.ts", {
     ...dependencies, "server-only": {}, "@/lib/permissions": loadTs("lib/permissions.ts"),

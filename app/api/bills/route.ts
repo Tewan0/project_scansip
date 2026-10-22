@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { orders, orderItems, tables } from "@/db/schema";
+import { orders, orderItems, tables, billPayments } from "@/db/schema";
 import { requireStoreAccess, AccessError, apiError } from "@/lib/auth";
 import { buildBills } from "@/lib/bills-server";
 
@@ -31,6 +31,10 @@ export async function GET(req: Request) {
     const pageCount = Math.max(1, Math.ceil(filtered.length / 20)), currentPage = Math.min(page, pageCount);
     const data = filtered.slice((currentPage - 1) * 20, currentPage * 20);
     const ids = data.flatMap((bill) => bill.orders.map((order) => order.id));
+    const payments = data.length ? await db.query.billPayments.findMany({ where: and(eq(billPayments.storeId, store.id), inArray(billPayments.billId, data.map((bill) => bill.id))) }) : [];
+    for (const bill of data) bill.payments = payments.filter((payment) => payment.billId === bill.id)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .map(({ id, method, amountCents, receivedCents, changeCents, createdAt }) => ({ id, method, amountCents, receivedCents, changeCents, createdAt: createdAt.toISOString() }));
     const items = ids.length ? await db.query.orderItems.findMany({ where: inArray(orderItems.orderId, ids) }) : [];
     for (const bill of data) for (const order of bill.orders) order.items = items.filter((item) => item.orderId === order.id).map(({ id, menuName, quantity, unitPrice, specialInstruction, status }) => ({ id, menuName, quantity, unitPrice, specialInstruction, status }));
     return NextResponse.json({ success: true, data, currentCount, historyCount, page: currentPage, pageCount }, { headers: { "Cache-Control": "private, no-store" } });

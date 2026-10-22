@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useConfirmation } from "@/hooks/use-confirmation";
 
 // Shadcn UI Components
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,8 @@ interface StaffMember {
 }
 
 export default function ManageStaffPage() {
+  const { confirm, confirmationDialog } = useConfirmation();
+  const removing = useRef(false);
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [emailInput, setEmailInput] = useState("");
   const [nameInput, setNameInput] = useState("");
@@ -103,12 +106,14 @@ export default function ManageStaffPage() {
       setStatusMessage({ text: "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้", type: "error" });
     } finally {
       setIsSubmitting(false);
-      setTimeout(() => setStatusMessage(null), 4000);
     }
   };
 
   const handleRemoveStaff = async (id: string, name: string) => {
-    if (!confirm(`คุณต้องการลบพนักงาน "${name}" ออกจากระบบหรือไม่?`)) return;
+    if (removing.current || !await confirm({ title: "ลบพนักงาน", description: `ต้องการลบ “${name}” ออกจากร้านใช่ไหม? บัญชีนี้จะสูญเสียสิทธิ์พนักงานของร้าน`, confirmLabel: "ลบพนักงาน" })) return;
+    if (removing.current) return;
+    removing.current = true;
+    setStatusMessage(null);
 
     try {
       setDeletingId(id);
@@ -119,7 +124,6 @@ export default function ManageStaffPage() {
       if (res.ok) {
         setStaffList((prev) => prev.filter((staff) => staff.id !== id));
         setStatusMessage({ text: `ลบ ${name} ออกจากระบบแล้ว`, type: "success" });
-        setTimeout(() => setStatusMessage(null), 3000);
       } else {
         const result = await res.json();
         throw new Error(result.error || "ลบพนักงานไม่สำเร็จ");
@@ -127,6 +131,7 @@ export default function ManageStaffPage() {
     } catch (err) {
       setStatusMessage({ text: err instanceof Error ? err.message : "ลบพนักงานไม่สำเร็จ", type: "error" });
     } finally {
+      removing.current = false;
       setDeletingId(null);
     }
   };
@@ -188,6 +193,7 @@ export default function ManageStaffPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-4xl mx-auto font-sans">
+      {confirmationDialog}
       {/* Top Header */}
       <div>
         <div className="flex flex-wrap items-center gap-2">
@@ -206,6 +212,7 @@ export default function ManageStaffPage() {
       {/* Status Message Banner */}
       {statusMessage && (
         <div
+          role={statusMessage.type === "error" ? "alert" : "status"}
           className={`p-3 rounded-lg border flex flex-wrap items-center gap-2 text-xs animate-fadeIn ${
             statusMessage.type === "success"
               ? "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300"
@@ -342,7 +349,7 @@ export default function ManageStaffPage() {
                 return (
                   <div
                     key={staff.id}
-                    className="flex flex-wrap items-center justify-between gap-3 p-4 hover:bg-muted/30 transition-colors"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 hover:bg-muted/30 transition-colors"
                   >
                     <div className="flex flex-1 items-center gap-3 min-w-0">
                       <Avatar size="default" className="rounded-full border border-border">
@@ -350,7 +357,7 @@ export default function ManageStaffPage() {
                           {getInitials(staff.name)}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="font-semibold text-sm text-foreground truncate">
                             {staff.name}
@@ -364,7 +371,7 @@ export default function ManageStaffPage() {
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border/60 pt-3 sm:border-0 sm:pt-0">
                       {!isOwner && <select aria-label={"บทบาทของ " + staff.name} value={staff.role} disabled={updatingRoleId === staff.id || isDeleting}
                         onChange={(e) => void changeRole(staff.id, e.target.value)} className="min-h-11 rounded-lg border bg-background px-2 text-sm">
                         {staff.role === "manager" && <option value="manager" disabled>เลือกบทบาทใหม่</option>}
@@ -376,8 +383,9 @@ export default function ManageStaffPage() {
                           disabled={isDeleting || updatingRoleId === staff.id}
                           variant="outline"
                           size="icon-xs"
-                          className="size-8 text-muted-foreground hover:text-destructive hover:border-destructive/40"
+                          className="size-11 text-muted-foreground hover:text-destructive hover:border-destructive/40"
                           title="ลบพนักงาน"
+                          aria-label={"ลบพนักงาน " + staff.name}
                         >
                           {isDeleting ? (
                             <RotateCw className="size-3.5 animate-spin" />

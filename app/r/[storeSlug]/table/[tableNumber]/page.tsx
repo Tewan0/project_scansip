@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useRef, use } from "react";
 import { CustomerSessionPanel } from "@/components/customer-session-panel";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { CustomerChatbot } from "@/components/customer-chatbot";
 import { useCustomerCart } from "@/hooks/use-customer-cart";
 import { cartStorageKey, MAX_CART_LINES, MAX_CART_QUANTITY } from "@/lib/customer-cart";
 import {
@@ -18,6 +18,7 @@ import {
   UtensilsCrossed,
   Check,
   Trash2,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -101,7 +102,7 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
   const [menuLoadError, setMenuLoadError] = useState("");
 
   // Cart State
-  const { draft, ready: cartReady, persistent, updateDraft } = useCustomerCart(cartKey);
+  const { draft, ready: cartReady, persistent, updateDraft, beginCheckout, releaseCheckout } = useCustomerCart(cartKey);
   const customerNote = draft.customerNote;
   const cart: CartItem[] = draft.items.map((line) => ({
     menuItem: menuList.find((item) => item.id === line.menuItemId) ?? {
@@ -113,9 +114,14 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const checkoutInFlight = useRef(false);
   const [checkoutError, setCheckoutError] = useState("");
-  const [cartFeedback, setCartFeedback] = useState("");
 
   const [historyRevision, setHistoryRevision] = useState(0);
+
+  // Search and Item Detail Modal
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
+  const [detailQuantity, setDetailQuantity] = useState(1);
+  const [detailNote, setDetailNote] = useState("");
 
   // Validate Table Session Token
   const validateSession = useCallback(async () => {
@@ -202,31 +208,34 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
   }, [validateSession, loadData]);
 
   // Cart operations
-  const addToCart = (item: MenuItem) => {
-    if (!item.isAvailable || !canEditCart) return;
+  const addToCart = (item: MenuItem, qty = 1, note = "") => {
+    if (!item.isAvailable || !canEditCart) return false;
     const existing = draft.items.find((line) => line.menuItemId === item.id);
-    if (existing && existing.quantity >= MAX_CART_QUANTITY) { setCartFeedback("เพิ่มได้สูงสุด 99 ชิ้นต่อเมนู"); return; }
-    if (!existing && draft.items.length >= MAX_CART_LINES) { setCartFeedback("เลือกได้สูงสุด 50 เมนูต่อออเดอร์"); return; }
+    if (existing && existing.quantity + qty > MAX_CART_QUANTITY) return false;
+    if (!existing && draft.items.length >= MAX_CART_LINES) return false;
     updateDraft((previous) => ({ ...previous, items: existing
-      ? previous.items.map((line) => line.menuItemId === item.id ? { ...line, quantity: line.quantity + 1 } : line)
-      : [...previous.items, { menuItemId: item.id, name: item.name, quantity: 1, note: "" }],
+      ? previous.items.map((line) => line.menuItemId === item.id
+          ? { ...line, quantity: Math.min(MAX_CART_QUANTITY, line.quantity + qty), note: note ? `${line.note ? line.note + " · " : ""}${note}`.slice(0, 300) : line.note }
+          : line)
+      : [...previous.items, { menuItemId: item.id, name: item.name, quantity: qty, note: note.slice(0, 300) }],
     }));
-    setCartFeedback(`เพิ่ม ${item.name} ลงตะกร้าแล้ว`);
+    return true;
   };
 
   const updateQuantity = (itemId: string, delta: number) => {
-    if (!cartReady || checkoutInFlight.current) return;
+    if (!cartReady || checkoutInFlight.current || draft.requestId) return;
     updateDraft((previous) => ({ ...previous, items: previous.items
       .map((line) => line.menuItemId === itemId ? { ...line, quantity: Math.min(MAX_CART_QUANTITY, line.quantity + delta) } : line)
       .filter((line) => line.quantity > 0) }));
   };
 
   const updateItemNote = (itemId: string, note: string) => {
-    if (checkoutInFlight.current) return;
+    if (checkoutInFlight.current || draft.requestId) return;
     updateDraft((previous) => ({ ...previous, items: previous.items.map((line) => line.menuItemId === itemId ? { ...line, note: note.slice(0, 300) } : line) }));
   };
 
-  const canEditCart = cartReady && !isLoading && !menuLoadError && !sessionValidation.isChecking && sessionValidation.isValid && !isSubmittingOrder;
+  const canCheckout = cartReady && !sessionValidation.isChecking && sessionValidation.isValid && !isSubmittingOrder && (Boolean(draft.requestId) || (!isLoading && !menuLoadError));
+  const canEditCart = canCheckout && !draft.requestId;
   const hasUnavailableItems = cart.some((line) => !line.menuItem.isAvailable);
 
   const cartTotalAmount = cart.reduce((sum, item) => {
@@ -237,21 +246,23 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
 
   // Submit order to POST /api/orders targeting this specific store
   const handleCheckout = async () => {
-    if (!canEditCart || !cart.length || hasUnavailableItems || checkoutInFlight.current) return;
+    if (!canCheckout || !cart.length || (hasUnavailableItems && !draft.requestId) || checkoutInFlight.current) return;
     checkoutInFlight.current = true;
     try {
       setIsSubmittingOrder(true);
       setCheckoutError("");
+      const attempt = beginCheckout();
       const payload = {
+        requestId: attempt.requestId,
         storeSlug,
         storeId: storeInfo.id,
         tableNumber: parseInt(tableNumber) || 1,
         sessionToken,
-        customerNote: customerNote.trim() || null,
-        items: cart.map((c) => ({
-          menuItemId: c.menuItem.id,
-          menuName: c.menuItem.name,
-          unitPrice: c.menuItem.price,
+        customerNote: attempt.customerNote.trim() || null,
+        items: attempt.items.map((c) => ({
+          menuItemId: c.menuItemId,
+          menuName: c.name,
+          unitPrice: menuList.find((item) => item.id === c.menuItemId)?.price,
           quantity: c.quantity,
           specialInstruction: c.note.trim() || null,
         })),
@@ -267,9 +278,11 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
       if (res.ok && json.success && json.data) {
         updateDraft(() => ({ items: [], customerNote: "" }));
         setHistoryRevision((previous) => previous + 1);
-        setCartFeedback("ส่งออเดอร์แล้ว เลือกเมนูเพิ่มได้เลย");
         setIsCartOpen(false);
       } else {
+        // These responses mean the request was rejected before creating an order.
+        // Keep the key on server/network failures, where the commit may have succeeded.
+        if ([400, 403, 404].includes(res.status)) releaseCheckout();
         setCheckoutError(json.error || "ส่งคำสั่งซื้อไม่สำเร็จ รายการในตะกร้ายังอยู่ กรุณาลองใหม่");
         if (json.sessionExpired) {
           validateSession();
@@ -277,7 +290,7 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
       }
     } catch (err) {
       console.error("Failed to checkout:", err);
-      setCheckoutError("ยังยืนยันผลการส่งไม่ได้ รายการในตะกร้ายังอยู่ กรุณาตรวจสอบกับพนักงานก่อนส่งซ้ำ");
+      setCheckoutError("ยังยืนยันผลการส่งไม่ได้ กดตรวจสอบการส่งอีกครั้ง ระบบจะใช้รหัสเดิมเพื่อป้องกันออเดอร์ซ้ำ");
     } finally {
       checkoutInFlight.current = false;
       setIsSubmittingOrder(false);
@@ -285,8 +298,10 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
   };
 
   const filteredMenu = menuList.filter((item) => {
-    if (selectedCategory === "ทั้งหมด") return true;
-    return item.category?.name === selectedCategory;
+    const matchesCategory = selectedCategory === "ทั้งหมด" || item.category?.name === selectedCategory;
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch = !q || item.name.toLowerCase().includes(q) || (item.description && item.description.toLowerCase().includes(q));
+    return matchesCategory && matchesSearch;
   });
 
   // If table is not open or token is expired/invalid -> Show blocked screen
@@ -324,7 +339,6 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
             >
               ลองตรวจสอบสถานะอีกครั้ง
             </Button>
-            <div className="flex justify-center"><ThemeToggle /></div>
           </CardContent>
         </Card>
       </div>
@@ -335,7 +349,7 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
     <div className="min-h-screen bg-muted/20 pb-[calc(7rem+env(safe-area-inset-bottom))]">
       {/* Top Header */}
       <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-md border-b border-border shadow-2xs px-4 py-3">
-        <div className="max-w-md mx-auto flex flex-wrap items-center justify-between gap-2">
+        <div className="max-w-md mx-auto flex items-center justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl overflow-hidden bg-primary flex items-center justify-center text-primary-foreground shadow-2xs shrink-0">
               {storeInfo.logoUrl ? (
@@ -358,25 +372,36 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <Badge variant="outline" className="font-semibold text-xs border-primary/30 text-primary bg-primary/5">
               โต๊ะ {tableNumber.padStart(2, "0")}
             </Badge>
-            <ThemeToggle />
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!cartReady}
+              onClick={() => setIsCartOpen(true)}
+              aria-label={`เปิดตะกร้า ${cartTotalItemsCount} รายการ`}
+              className="relative flex size-9 items-center justify-center p-0 rounded-lg border-border cursor-pointer active:scale-95 transition-all shadow-2xs"
+            >
+              <ShoppingBag className="size-4 text-foreground" />
+              {cartTotalItemsCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 flex size-4.5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground shadow-xs animate-popIn">
+                  {cartTotalItemsCount}
+                </span>
+              )}
+            </Button>
           </div>
-          <Button type="button" variant="outline" className="min-h-11 w-full justify-center gap-2"
-            disabled={!cartReady} onClick={() => setIsCartOpen(true)}
-            aria-label={`เปิดตะกร้า ${cartTotalItemsCount} รายการ`}>
-            <ShoppingBag className="size-4" /> ตะกร้าของฉัน
-            <Badge variant="secondary">{cartTotalItemsCount}</Badge>
-            {cartTotalItemsCount > 0 && <span className="ml-auto font-semibold">฿{cartTotalAmount.toFixed(2)}</span>}
-          </Button>
         </div>
       </header>
 
       {/* Main Content Area */}
       <main className="max-w-md mx-auto px-4 pt-4">
-        {cartFeedback && <p role="status" className="mb-3 rounded-lg bg-primary/10 p-3 text-sm text-foreground">{cartFeedback}</p>}
+        <CustomerChatbot storeSlug={storeSlug} tableNumber={tableNumber} sessionToken={sessionToken}
+          enabled={!!canEditCart} onSessionExpired={validateSession}
+          onAdd={(id) => { const item = menuList.find((menu) => menu.id === id); return item ? addToCart(item) : false; }} />
         {cartReady && !persistent && <p role="alert" className="mb-3 rounded-lg border border-amber-500/40 p-3 text-sm text-foreground">
           เบราว์เซอร์ไม่อนุญาตให้บันทึกตะกร้า รายการอาจหายเมื่อรีเฟรชหรือปิดหน้านี้
         </p>}
@@ -386,6 +411,28 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
         <CustomerSessionPanel storeSlug={storeSlug} tableNumber={tableNumber} sessionToken={sessionToken}
           enabled={!sessionValidation.isChecking && sessionValidation.isValid} refreshKey={historyRevision}
           onSessionExpired={validateSession} promptPayNumber={storeInfo.promptPayNumber} />
+
+        {/* Search Bar */}
+        <div className="relative mb-3">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+          <input
+            type="search"
+            placeholder="ค้นหาชื่อเมนู เช่น กาแฟ, ชา..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-8 h-9 text-xs bg-card rounded-xl border border-border shadow-2xs focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1.5 cursor-pointer"
+              aria-label="ล้างคำค้นหา"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
 
         {/* Categories Pills */}
         <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-none mb-3">
@@ -434,15 +481,37 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
         ) : filteredMenu.length === 0 ? (
           <Card className="p-8 text-center my-6 border-dashed border-border shadow-none">
             <UtensilsCrossed className="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
-            <p className="text-sm font-medium text-foreground">ไม่พบรายการเมนูในหมวดนี้</p>
+            <p className="text-sm font-medium text-foreground">
+              {searchQuery ? `ไม่พบเมนูที่ตรงกับ "${searchQuery}"` : "ไม่พบรายการเมนูในหมวดนี้"}
+            </p>
+            {searchQuery && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setSearchQuery("")}
+                className="mt-3 text-xs"
+              >
+                ล้างการค้นหา
+              </Button>
+            )}
           </Card>
         ) : (
           <div className="space-y-2.5">
             {filteredMenu.map((item) => (
               <Card
                 key={item.id}
+                onClick={() => {
+                  if (item.isAvailable) {
+                    setSelectedMenuItem(item);
+                    setDetailQuantity(1);
+                    setDetailNote("");
+                  }
+                }}
                 className={`p-3 flex flex-row gap-3 border-border shadow-2xs transition-all ${
-                  !item.isAvailable ? "opacity-60" : ""
+                  !item.isAvailable
+                    ? "opacity-60"
+                    : "cursor-pointer hover:border-primary/40 active:scale-[0.99]"
                 }`}
               >
                 {/* Menu Image */}
@@ -485,10 +554,13 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
                       <Button
                         type="button"
                         size="icon-xs"
-                        onClick={() => addToCart(item)}
+                        onClick={(e) => {
+                          e?.stopPropagation?.();
+                          addToCart(item);
+                        }}
                         disabled={!canEditCart}
                         aria-label={`เพิ่ม ${item.name} ลงตะกร้า`}
-                        className="size-11 rounded-full shadow-2xs cursor-pointer"
+                        className="size-11 rounded-full shadow-2xs cursor-pointer active:scale-90 transition-transform"
                         title="เพิ่มลงตะกร้า"
                       >
                         <Plus className="w-3.5 h-3.5" />
@@ -508,16 +580,20 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
 
       {/* Floating Bottom Cart Bar */}
       {!isCartOpen && (
-        <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] inset-x-4 max-w-md mx-auto z-40">
+        <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] inset-x-4 max-w-md mx-auto z-40 animate-in fade-in slide-in-from-bottom-4 duration-300">
           <Button
             type="button"
             size="lg"
             onClick={() => setIsCartOpen(true)}
             disabled={!cartReady}
-            className="w-full h-12 shadow-lg flex items-center justify-between cursor-pointer rounded-xl px-4"
+            aria-label={`เปิดตะกร้า ${cartTotalItemsCount} รายการ`}
+            className="w-full h-12 shadow-xl shadow-primary/15 hover:shadow-2xl flex items-center justify-between cursor-pointer rounded-xl px-4 active:scale-[0.99] transition-all"
           >
             <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-primary-foreground text-primary flex items-center justify-center font-bold text-xs">
+              <span
+                key={cartTotalItemsCount}
+                className="w-6 h-6 rounded-full bg-primary-foreground text-primary flex items-center justify-center font-bold text-xs animate-popIn"
+              >
                 {cartTotalItemsCount}
               </span>
               <span className="font-semibold text-sm">{cart.length ? "ดูรายการในตะกร้า" : "เปิดตะกร้า"}</span>
@@ -586,7 +662,7 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
                       ฿{(Number(c.menuItem.price) * c.quantity).toFixed(2)}
                     </span>
                   </div>
-                  {!isLoading && !menuLoadError && !c.menuItem.isAvailable && <p className="text-sm text-destructive">เมนูนี้หมดหรือไม่มีในร้านแล้ว กรุณานำออกก่อนสั่ง</p>}
+                  {!draft.requestId && !isLoading && !menuLoadError && !c.menuItem.isAvailable && <p className="text-sm text-destructive">เมนูนี้หมดหรือไม่มีในร้านแล้ว กรุณานำออกก่อนสั่ง</p>}
 
                   {/* Note for kitchen */}
                   <input
@@ -595,14 +671,14 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
                     value={c.note}
                     aria-label={`หมายเหตุสำหรับ ${c.menuItem.name}`}
                     maxLength={300}
-                    disabled={isSubmittingOrder}
+                    disabled={isSubmittingOrder || Boolean(draft.requestId)}
                     onChange={(e) => updateItemNote(c.menuItem.id, e.target.value)}
                     className="min-h-11 w-full text-base sm:text-sm p-2 rounded-md border border-border bg-background outline-none focus:ring-1 focus:ring-primary"
                   />
 
                   {/* Quantity Stepper */}
                   <div className="flex flex-wrap items-center justify-end gap-2.5">
-                    <Button type="button" variant="ghost" className="mr-auto min-h-11" disabled={isSubmittingOrder}
+                    <Button type="button" variant="ghost" className="mr-auto min-h-11" disabled={isSubmittingOrder || Boolean(draft.requestId)}
                       aria-label={`นำ ${c.menuItem.name} ออกจากตะกร้า`} onClick={() => updateDraft((previous) => ({ ...previous, items: previous.items.filter((line) => line.menuItemId !== c.menuItem.id) }))}>
                       <Trash2 className="size-4" /> นำออก
                     </Button>
@@ -612,7 +688,7 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
                       size="icon-xs"
                       onClick={() => updateQuantity(c.menuItem.id, -1)}
                       aria-label={`ลดจำนวน ${c.menuItem.name}`}
-                      disabled={isSubmittingOrder}
+                      disabled={isSubmittingOrder || Boolean(draft.requestId)}
                       className="size-11 rounded-full cursor-pointer"
                     >
                       <Minus className="w-3 h-3" />
@@ -645,7 +721,7 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
                   placeholder="เช่น รับของพร้อมกัน, ขอจานแบ่ง..."
                   value={customerNote}
                   maxLength={500}
-                  disabled={isSubmittingOrder}
+                  disabled={isSubmittingOrder || Boolean(draft.requestId)}
                   onChange={(e) => updateDraft((previous) => ({ ...previous, customerNote: e.target.value }))}
                   className="min-h-11 w-full text-base sm:text-sm p-2 rounded-md border border-border bg-background outline-none focus:ring-1 focus:ring-primary"
                 />
@@ -654,8 +730,9 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
 
             {/* Footer Checkout */}
             <CardFooter className="shrink-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-border flex flex-col gap-3">
+              {draft.requestId && <p role="status" className="text-sm text-muted-foreground">มีรายการรอยืนยันผล กรุณาตรวจสอบการส่งเดิมก่อนแก้ตะกร้าหรือสั่งเพิ่ม</p>}
               {checkoutError && <p role="alert" className="w-full text-sm text-destructive">{checkoutError}</p>}
-              {hasUnavailableItems && !isLoading && !menuLoadError && <p className="w-full text-sm text-destructive">กรุณานำเมนูที่สั่งไม่ได้ออกจากตะกร้าก่อน</p>}
+              {hasUnavailableItems && !draft.requestId && !isLoading && !menuLoadError && <p className="w-full text-sm text-destructive">กรุณานำเมนูที่สั่งไม่ได้ออกจากตะกร้าก่อน</p>}
               <div className="flex justify-between items-center w-full font-bold">
                 <span className="text-sm text-foreground">ยอดชำระทั้งหมด</span>
                 <span className="text-lg text-primary">฿{cartTotalAmount.toFixed(2)}</span>
@@ -665,7 +742,7 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
                 type="button"
                 size="lg"
                 onClick={handleCheckout}
-                disabled={!canEditCart || !cart.length || hasUnavailableItems}
+                disabled={!canCheckout || !cart.length || (hasUnavailableItems && !draft.requestId)}
                 className="w-full h-11 text-sm font-semibold cursor-pointer shadow-xs justify-center"
               >
                 {isSubmittingOrder ? (
@@ -676,12 +753,116 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
                 ) : (
                   <>
                     <Check className="w-4 h-4" data-icon="inline-start" />
-                    ยืนยันส่งคำสั่งซื้อ
+                    {draft.requestId ? "ตรวจสอบการส่งอีกครั้ง" : "ยืนยันส่งคำสั่งซื้อ"}
                   </>
                 )}
               </Button>
             </CardFooter>
           </Card>
+        </DialogContent>
+      </Dialog>
+
+      {/* Item Detail Modal */}
+      <Dialog open={!!selectedMenuItem} onOpenChange={(open) => !open && setSelectedMenuItem(null)}>
+        <DialogContent className="max-w-sm rounded-2xl p-0 overflow-hidden bg-card border-border">
+          {selectedMenuItem && (
+            <div>
+              {/* Image banner */}
+              <div className="relative aspect-video w-full bg-muted flex items-center justify-center overflow-hidden border-b border-border">
+                {selectedMenuItem.imageUrl ? (
+                  <img
+                    src={selectedMenuItem.imageUrl}
+                    alt={selectedMenuItem.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Coffee className="size-12 text-muted-foreground/40" />
+                )}
+              </div>
+
+              <div className="p-4 space-y-4">
+                <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-bold text-lg text-foreground leading-tight">
+                      {selectedMenuItem.name}
+                    </h3>
+                    <span className="font-bold text-lg text-primary shrink-0">
+                      ฿{Number(selectedMenuItem.price).toFixed(2)}
+                    </span>
+                  </div>
+                  {selectedMenuItem.description && (
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                      {selectedMenuItem.description}
+                    </p>
+                  )}
+                </div>
+
+                {/* Special Instruction Note */}
+                <div className="space-y-1.5">
+                  <label htmlFor="item-detail-note" className="text-xs font-semibold text-foreground flex items-center justify-between">
+                    <span>หมายเหตุถึงครัว (ไม่บังคับ)</span>
+                    <span className="text-[10px] text-muted-foreground">{detailNote.length}/300</span>
+                  </label>
+                  <textarea
+                    id="item-detail-note"
+                    rows={2}
+                    maxLength={300}
+                    placeholder="เช่น หวานน้อย, แยกน้ำแข็ง, ไม่ใส่ผักชี..."
+                    value={detailNote}
+                    onChange={(e) => setDetailNote(e.target.value)}
+                    className="w-full rounded-xl border border-border bg-muted/30 p-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+                  />
+                </div>
+
+                {/* Quantity and Add Button */}
+                <div className="space-y-3 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-foreground">จำนวน</span>
+                    <div className="flex items-center gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon-xs"
+                        className="size-8 rounded-lg cursor-pointer"
+                        disabled={detailQuantity <= 1}
+                        onClick={() => setDetailQuantity((q) => Math.max(1, q - 1))}
+                        aria-label="ลดจำนวน"
+                      >
+                        <Minus className="size-3.5" />
+                      </Button>
+                      <span className="font-bold text-sm min-w-5 text-center">{detailQuantity}</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon-xs"
+                        className="size-8 rounded-lg cursor-pointer"
+                        disabled={detailQuantity >= MAX_CART_QUANTITY}
+                        onClick={() => setDetailQuantity((q) => Math.min(MAX_CART_QUANTITY, q + 1))}
+                        aria-label="เพิ่มจำนวน"
+                      >
+                        <Plus className="size-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    className="w-full h-11 rounded-xl text-sm font-semibold justify-center cursor-pointer shadow-xs"
+                    disabled={!canEditCart}
+                    onClick={() => {
+                      addToCart(selectedMenuItem, detailQuantity, detailNote.trim());
+                      setSelectedMenuItem(null);
+                      setDetailNote("");
+                      setDetailQuantity(1);
+                    }}
+                  >
+                    <span>เพิ่มลงตะกร้า</span>
+                    <span className="ml-1.5 opacity-90">· ฿{(Number(selectedMenuItem.price) * detailQuantity).toFixed(2)}</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

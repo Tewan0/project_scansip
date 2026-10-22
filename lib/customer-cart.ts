@@ -1,5 +1,5 @@
 export type CartLine = { menuItemId: string; name: string; quantity: number; note: string };
-export type CartDraft = { items: CartLine[]; customerNote: string };
+export type CartDraft = { items: CartLine[]; customerNote: string; requestId?: string };
 type CartSnapshot = { draft: CartDraft; ready: boolean; persistent: boolean };
 type CartStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
@@ -27,7 +27,8 @@ export function parseCartDraft(raw: string | null): CartDraft {
         quantity: Math.min(line.quantity, MAX_CART_QUANTITY), note: typeof line.note === "string" ? line.note.slice(0, 300) : "" });
       if (items.length === MAX_CART_LINES) break;
     }
-    return { items, customerNote: typeof data.customerNote === "string" ? data.customerNote.slice(0, 500) : "" };
+    const requestId = typeof data.requestId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(data.requestId) ? data.requestId : undefined;
+    return { items, customerNote: typeof data.customerNote === "string" ? data.customerNote.slice(0, 500) : "", ...(requestId && items.length ? { requestId } : {}) };
   } catch { return emptyDraft(); }
 }
 
@@ -41,7 +42,7 @@ export function createCartStore(storage: CartStorage | null, key: string) {
   }
   snapshot = read();
   function publish(next: CartSnapshot) { snapshot = next; listeners.forEach(listener => listener()); }
-  return {
+  const controller = {
     getSnapshot: () => snapshot,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     reload() { publish(read()); },
@@ -57,5 +58,15 @@ export function createCartStore(storage: CartStorage | null, key: string) {
       // Update memory even when storage is blocked; do not prevent ordering.
       publish({ draft, ready: true, persistent });
     },
+    beginCheckout() {
+      // A retry must reuse the same draft/key, including after a page reload.
+      if (!snapshot.draft.items.length) throw new Error("ตะกร้าว่าง");
+      if (!snapshot.draft.requestId) controller.update(previous => ({ ...previous, requestId: crypto.randomUUID() }));
+      return snapshot.draft;
+    },
+    releaseCheckout() {
+      controller.update(({ items, customerNote }) => ({ items, customerNote }));
+    },
   };
+  return controller;
 }

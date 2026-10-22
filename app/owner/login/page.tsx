@@ -39,7 +39,12 @@ export default function OwnerLoginPage({ searchParams }: LoginPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-muted/20 flex flex-col items-center justify-center p-4">
+    <div className="relative min-h-screen bg-muted/20 flex flex-col items-center justify-center p-4 overflow-hidden">
+      {/* Ambient Radial Glow */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 -top-16 -z-10 flex justify-center overflow-hidden blur-3xl opacity-50 dark:opacity-20">
+        <div className="aspect-[1100/300] w-[60rem] flex-none bg-gradient-to-r from-emerald-500/20 via-teal-400/20 to-blue-500/15" />
+      </div>
+
       {/* Back to Home Link */}
       <div className="w-full max-w-md mb-4 flex justify-between items-center">
         <Button variant="ghost" size="sm" render={<Link href="/" />}>
@@ -53,14 +58,14 @@ export default function OwnerLoginPage({ searchParams }: LoginPageProps) {
       </div>
 
       {/* Main Login Card */}
-      <Card className="w-full max-w-md shadow-xs border-border">
+      <Card className="w-full max-w-md shadow-xs border-border animate-cardEnter">
         <CardHeader className="text-center pb-4 pt-6">
           <div className="flex justify-center mb-3">
             <div className="w-12 h-12 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-xs">
               <Coffee className="w-6 h-6" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight">
+          <CardTitle className="text-2xl font-bold tracking-normal">
             ScanSip Portal
           </CardTitle>
           <CardDescription className="text-sm">
@@ -71,7 +76,7 @@ export default function OwnerLoginPage({ searchParams }: LoginPageProps) {
         <CardContent className="space-y-4 pt-2">
           {/* Error Banner */}
           {errorMessage && (
-            <div className="p-3.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-start gap-2.5">
+            <div className="p-3.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-start gap-2.5 animate-shake">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <div>
                 <p className="font-semibold">เข้าสู่ระบบไม่สำเร็จ</p>

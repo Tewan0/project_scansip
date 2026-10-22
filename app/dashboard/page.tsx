@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 
 // Shadcn UI Components
@@ -23,12 +23,13 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
 
 // Lucide Icons
 import {
   Banknote,
   TrendingUp,
+  TrendingDown,
+  Minus,
   Receipt,
   CheckCircle2,
   Coffee,
@@ -65,7 +66,7 @@ interface ChartItem {
 interface DashboardStats {
   todaySales: number;
   yesterdaySales: number;
-  growthPercent: number;
+  growthPercent: number | null;
   totalOrdersCount: number;
   todayOrdersCount: number;
   completedOrdersCount: number;
@@ -82,28 +83,41 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const fetchStats = async (isManual = false) => {
+  const [error, setError] = useState<string | null>(null);
+  const activeRequest = useRef<AbortController | null>(null);
+  const fetchStats = useCallback(async (isManual = false) => {
+    if (activeRequest.current) return;
+    const controller = new AbortController();
+    activeRequest.current = controller;
+    if (isManual) setIsRefreshing(true);
     try {
-      if (isManual) setIsRefreshing(true);
-      const res = await fetch("/api/dashboard/stats");
+      const res = await fetch("/api/dashboard/stats", { signal: controller.signal, cache: "no-store" });
       const json = await res.json();
-      if (json.success) {
+      if (!res.ok || !json.success) throw new Error("Failed to load dashboard");
+      if (!controller.signal.aborted) {
         setStats(json.data);
+        setError(null);
       }
-    } catch (err) {
-      console.error("Failed to load dashboard stats:", err);
+    } catch {
+      if (!controller.signal.aborted) setError("อัปเดตข้อมูลไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง");
     } finally {
-      setIsLoading(false);
-      if (isManual) setIsRefreshing(false);
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+      if (activeRequest.current === controller) activeRequest.current = null;
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchStats();
-    // Refresh stats automatically every 15 seconds
-    const timer = setInterval(() => fetchStats(), 15000);
-    return () => clearInterval(timer);
-  }, []);
+    void fetchStats();
+    const timer = setInterval(() => void fetchStats(), 15000);
+    return () => {
+      clearInterval(timer);
+      activeRequest.current?.abort();
+      activeRequest.current = null;
+    };
+  }, [fetchStats]);
 
   // Compute SVG chart coordinates based on chartData
   const chartPoints = stats?.chartData || [];
@@ -187,6 +201,10 @@ export default function DashboardPage() {
     );
   }
 
+  if (!stats) {
+    return <div className="p-6 space-y-4"><h1 className="text-2xl font-bold">ภาพรวมร้านค้า</h1><p role="alert" className="text-destructive">{error || "ไม่พบข้อมูล"}</p><Button onClick={() => void fetchStats(true)} disabled={isRefreshing}>ลองอีกครั้ง</Button></div>;
+  }
+
   const todaySalesDisplay = `฿${(stats?.todaySales || 0).toLocaleString("th-TH", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -202,12 +220,12 @@ export default function DashboardPage() {
               ภาพรวมร้านค้า
             </h1>
             <Badge variant="outline" className="gap-1.5 text-xs font-normal">
-              <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-              Live Sync
+              <span className={`size-2 rounded-full ${error ? "bg-amber-500" : "bg-emerald-500 animate-pulse"}`} />
+              {error ? "ข้อมูลยังไม่อัปเดต" : "อัปเดตทุก 15 วินาที"}
             </Badge>
           </div>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            สถิติยอดขาย คำสั่งซื้อประจำวัน และข้อมูลความเคลื่อนไหวในร้าน
+            ยอดสั่งซื้อที่ไม่ยกเลิก รวมรายการที่ยังไม่ชำระ · แบ่งวันตามเวลาไทย
           </p>
         </div>
 
@@ -223,16 +241,17 @@ export default function DashboardPage() {
         </Button>
       </div>
 
+      {error && <p role="alert" className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive">{error} · กำลังแสดงข้อมูลที่โหลดได้ครั้งล่าสุด</p>}
       {/* 3 Metric Cards Bento Grid using Shadcn Card */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Metric 1: Sales */}
-        <Card className="justify-between border-border hover:border-foreground/20 transition-colors">
+        <Card className="justify-between border-border/80 hover:border-foreground/20 hover:-translate-y-0.5 hover:shadow-md transition-all animate-fadeIn shadow-xs">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardDescription className="text-xs font-semibold uppercase tracking-wider">
                 ยอดขายวันนี้
               </CardDescription>
-              <div className="size-9 rounded-lg bg-muted flex items-center justify-center border border-border text-foreground">
+              <div className="size-9 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center justify-center">
                 <Banknote className="size-4" />
               </div>
             </div>
@@ -240,25 +259,23 @@ export default function DashboardPage() {
               {todaySalesDisplay}
             </CardTitle>
           </CardHeader>
-          <CardFooter className="pt-0 text-xs flex items-center gap-1.5">
-            <span className="font-semibold text-emerald-600 flex items-center gap-0.5">
-              <TrendingUp className="size-3.5" />
-              {stats?.growthPercent !== undefined && stats.growthPercent > 0
-                ? `+${stats.growthPercent}%`
-                : `${stats?.growthPercent || 0}%`}
+          <CardFooter className="py-3 text-xs flex items-center gap-1.5">
+            <span className={`font-semibold flex items-center gap-0.5 ${(stats?.growthPercent ?? 0) < 0 ? "text-destructive" : (stats?.growthPercent ?? 0) > 0 ? "text-emerald-600" : "text-muted-foreground"}`}>
+              {(stats?.growthPercent ?? 0) < 0 ? <TrendingDown className="size-3.5" /> : (stats?.growthPercent ?? 0) > 0 ? <TrendingUp className="size-3.5" /> : <Minus className="size-3.5" />}
+              {stats?.growthPercent === null ? "เมื่อวานไม่มียอดขาย" : `${(stats?.growthPercent ?? 0) > 0 ? "+" : ""}${stats?.growthPercent ?? 0}%`}
             </span>
             <span className="text-muted-foreground">เทียบกับเมื่อวาน</span>
           </CardFooter>
         </Card>
 
         {/* Metric 2: Orders Count */}
-        <Card className="justify-between border-border hover:border-foreground/20 transition-colors">
+        <Card className="justify-between border-border/80 hover:border-foreground/20 hover:-translate-y-0.5 hover:shadow-md transition-all animate-fadeIn animation-delay-100 shadow-xs">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardDescription className="text-xs font-semibold uppercase tracking-wider">
                 จำนวนออเดอร์วันนี้
               </CardDescription>
-              <div className="size-9 rounded-lg bg-muted flex items-center justify-center border border-border text-foreground">
+              <div className="size-9 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center justify-center">
                 <Receipt className="size-4" />
               </div>
             </div>
@@ -266,20 +283,20 @@ export default function DashboardPage() {
               {stats?.todayOrdersCount ?? 0}
             </CardTitle>
           </CardHeader>
-          <CardFooter className="pt-0 text-xs flex items-center gap-1.5 text-muted-foreground">
-            <CheckCircle2 className="size-3.5 text-emerald-600" />
+          <CardFooter className="py-3 text-xs flex items-center gap-1.5 text-muted-foreground">
+            <CheckCircle2 className="size-3.5 text-emerald-600 dark:text-emerald-400" />
             <span>เสร็จสิ้น {stats?.completedOrdersCount ?? 0} ออเดอร์</span>
           </CardFooter>
         </Card>
 
         {/* Metric 3: Best Menu Item */}
-        <Card className="justify-between border-border hover:border-foreground/20 transition-colors sm:col-span-2 lg:col-span-1">
+        <Card className="justify-between border-border/80 hover:border-foreground/20 hover:-translate-y-0.5 hover:shadow-md transition-all sm:col-span-2 lg:col-span-1 animate-fadeIn animation-delay-200 shadow-xs">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardDescription className="text-xs font-semibold uppercase tracking-wider">
                 เมนูขายดีประจำวัน
               </CardDescription>
-              <div className="size-9 rounded-lg bg-muted flex items-center justify-center border border-border text-foreground">
+              <div className="size-9 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center justify-center">
                 <Coffee className="size-4" />
               </div>
             </div>
@@ -287,7 +304,7 @@ export default function DashboardPage() {
               {stats?.topMenu.name || "ยังไม่มีข้อมูล"}
             </CardTitle>
           </CardHeader>
-          <CardFooter className="pt-0 text-xs flex items-center gap-1.5 text-amber-700 dark:text-amber-400 font-semibold">
+          <CardFooter className="py-3 text-xs flex items-center gap-1.5 text-amber-700 dark:text-amber-400 font-semibold">
             <Flame className="size-3.5" />
             <span>{stats?.topMenu.count ?? 0} รายการที่สั่ง</span>
           </CardFooter>
@@ -303,7 +320,7 @@ export default function DashboardPage() {
               <LineChart className="size-5 text-foreground" />
               <div>
                 <CardTitle className="text-base font-bold">ยอดขาย (7 วันล่าสุด)</CardTitle>
-                <CardDescription className="text-xs">แนวโน้มรายรับรวมแต่ละวัน</CardDescription>
+                <CardDescription className="text-xs">ยอดสั่งซื้อที่ไม่ยกเลิก รวมรายการที่ยังไม่ชำระ</CardDescription>
               </div>
             </div>
             <Button

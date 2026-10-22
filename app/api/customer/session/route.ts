@@ -18,7 +18,7 @@ export async function GET(req: Request) {
       ]);
       return {
         orders: tickets.map((order) => ({ id: order.id, orderNumber: order.orderNumber, status: order.status,
-          paymentStatus: order.paymentStatus, totalAmount: order.totalAmount, customerNote: order.customerNote, createdAt: order.createdAt,
+          paymentStatus: order.paymentStatus, totalAmount: order.totalAmount, customerNote: order.customerNote, createdAt: order.createdAt, deliveredAt: order.deliveredAt,
           items: order.items.map(({ id, menuName, quantity, unitPrice, specialInstruction, status }) => ({ id, menuName, quantity, unitPrice, specialInstruction, status })),
         })),
         requests: [...pending, ...resolved].map(({ id, kind, status, createdAt, resolvedAt }) => ({ id, kind, status, createdAt, resolvedAt })),

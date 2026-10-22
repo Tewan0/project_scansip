@@ -220,7 +220,12 @@ export default function OwnerOnboardingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-muted/20 flex flex-col items-center justify-center p-4 sm:p-8">
+    <div className="relative min-h-screen bg-muted/20 flex flex-col items-center justify-center p-4 sm:p-8 overflow-hidden">
+      {/* Ambient Radial Glow */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 -top-20 -z-10 flex justify-center overflow-hidden blur-3xl opacity-50 dark:opacity-20">
+        <div className="aspect-[1100/300] w-[60rem] flex-none bg-gradient-to-r from-emerald-500/20 via-teal-400/20 to-blue-500/15" />
+      </div>
+
       <div className="max-w-xl w-full">
         {/* Account Info & Sign Out Bar */}
         <div className="mb-3 flex justify-end"><ThemeToggle /></div>
@@ -246,12 +251,12 @@ export default function OwnerOnboardingPage() {
           </div>
         )}
 
-        <Card className="border-border shadow-xs">
+        <Card className="border-border shadow-xs animate-cardEnter">
           <CardHeader className="text-center pb-6 pt-8">
             <div className="w-12 h-12 bg-primary text-primary-foreground rounded-xl flex items-center justify-center mx-auto mb-3 shadow-2xs">
               <Coffee className="w-6 h-6" />
             </div>
-            <CardTitle className="text-2xl font-bold tracking-tight">
+            <CardTitle className="text-2xl font-bold tracking-normal">
               เริ่มต้นตั้งค่าร้านค้าของคุณ
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm">
@@ -261,7 +266,7 @@ export default function OwnerOnboardingPage() {
 
           <CardContent>
             {errorMessage && (
-              <div className="mb-6 p-3.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-start gap-2.5">
+              <div className="mb-6 p-3.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-start gap-2.5 animate-shake">
                 <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
                 <span className="flex-1">{errorMessage}</span>
               </div>
@@ -343,7 +348,7 @@ export default function OwnerOnboardingPage() {
                 </Label>
                 <Input
                   type="text"
-                  placeholder="08X-XXX-XXXX หรือ เลขบัตรประชาชน 13 หลัก"
+                  placeholder="เบอร์มือถือ หรือ เลขบัตรประชาชน 13 หลัก"
                   value={promptPayNumber}
                   onChange={(e) => setPromptPayNumber(e.target.value)}
                   className="h-10 text-sm"
@@ -440,24 +445,26 @@ export default function OwnerOnboardingPage() {
                     </div>
                   </div>
                 ) : (
-                  <div
+                  <button
+                    type="button"
+                    disabled={isUploadingLogo}
                     onClick={() => !isUploadingLogo && fileInputRef.current?.click()}
-                    className={`w-full border border-dashed rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-colors ${
+                    className={`w-full border border-dashed rounded-xl p-4 flex flex-col items-center justify-center text-center transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${
                       isUploadingLogo
-                        ? "bg-muted/50 border-muted pointer-events-none"
+                        ? "bg-muted/50 border-muted"
                         : "border-border hover:border-primary/50 hover:bg-muted/30"
                     }`}
                   >
                     {isUploadingLogo ? (
-                      <div className="flex flex-col items-center gap-1 py-1">
+                      <span className="flex flex-col items-center gap-1 py-1">
                         <Loader2 className="w-5 h-5 animate-spin text-primary" />
                         <span className="text-xs font-medium text-foreground">กำลังอัปโหลดรูปภาพโลโก้...</span>
-                      </div>
+                      </span>
                     ) : (
                       <>
-                        <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-1.5">
+                        <span className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-1.5">
                           <Upload className="w-4 h-4" />
-                        </div>
+                        </span>
                         <span className="text-xs font-semibold text-foreground">
                           คลิกเพื่อเลือกไฟล์รูปภาพโลโก้
                         </span>
@@ -466,7 +473,7 @@ export default function OwnerOnboardingPage() {
                         </span>
                       </>
                     )}
-                  </div>
+                  </button>
                 )}
 
                 {logoUploadError && (

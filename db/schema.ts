@@ -98,6 +98,31 @@ export const tables = pgTable("tables", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [unique("tables_store_number_unique").on(table.storeId, table.tableNumber)]).enableRLS();
 
+// Each receipt records one atomic payment, including later top-ups in the same round.
+export const billPayments = pgTable("bill_payments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  storeId: uuid("store_id").references(() => stores.id, { onDelete: "cascade" }).notNull(),
+  billId: text("bill_id").notNull(),
+  method: text("method").$type<"cash" | "transfer">().notNull(),
+  amountCents: integer("amount_cents").notNull(),
+  receivedCents: integer("received_cents").notNull(),
+  changeCents: integer("change_cents").notNull(),
+  receivedBy: uuid("received_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (payment) => [
+  index("bill_payments_store_bill_idx").on(payment.storeId, payment.billId),
+  check("bill_payments_amount_check", sql`${payment.amountCents} >= 0 and ${payment.receivedCents} >= ${payment.amountCents} and ${payment.changeCents} = ${payment.receivedCents} - ${payment.amountCents}`),
+  check("bill_payments_method_check", sql`${payment.method} in ('cash', 'transfer') and (${payment.method} = 'cash' or ${payment.changeCents} = 0)`),
+]).enableRLS();
+
+// Persistent counters work across Vercel instances; no chat text is stored here.
+export const chatRateLimits = pgTable("chat_rate_limits", {
+  id: text("id").primaryKey(),
+  windowKey: text("window_key").notNull(),
+  count: integer("count").notNull(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }).notNull(),
+}, (limit) => [check("chat_rate_limits_count_check", sql`${limit.count} >= 0`)]).enableRLS();
+
 // 5. Orders (คำสั่งซื้อ)
 export const orders = pgTable("orders", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -108,13 +133,22 @@ export const orders = pgTable("orders", {
   tableNumber: integer("table_number"), // Snapshot of table number
   orderNumber: text("order_number").notNull(),
   sessionToken: text("session_token"), // Links order to a specific active table session
+  requestKey: uuid("request_key"),
+  requestHash: text("request_hash"),
   status: orderStatusEnum("status").default("pending").notNull(),
   paymentStatus: paymentStatusEnum("payment_status").default("unpaid").notNull(),
+  paymentId: uuid("payment_id").references(() => billPayments.id),
+  // New API opts in explicitly so an older deployment remains compatible during rollout.
+  servingRequired: boolean("serving_required").default(false).notNull(),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
   totalAmount: numeric("total_amount", { precision: 10, scale: 2 }).default("0").notNull(),
   customerNote: text("customer_note"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-}).enableRLS();
+}, (order) => [
+  index("orders_payment_id_idx").on(order.paymentId),
+  uniqueIndex("orders_request_key_unique").on(order.storeId, order.tableNumber, order.sessionToken, order.requestKey),
+]).enableRLS();
 
 // Requests belong to one QR round; they never mark a bill paid or close a table.
 export const serviceRequests = pgTable("service_requests", {
