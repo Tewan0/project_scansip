@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LogoutButton } from "@/components/logout-button";
 
 export const dynamic = "force-dynamic";
-import { getCurrentOwnerStore, signOutOwner } from "@/app/actions/owner-auth";
+import { getCurrentOwnerStore } from "@/app/actions/owner-auth";
 
 import { cn } from "@/lib/utils";
 
@@ -60,8 +61,8 @@ export default async function OwnerDashboardPage() {
       href: "/frontdesk",
       icon: Armchair,
       badge: "หน้าร้าน",
-      iconClass: "bg-amber-500/10 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400 border-amber-500/20",
-      badgeClass: "text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200/60 dark:border-amber-800/60",
+      iconClass: "bg-muted text-foreground border-border",
+      badgeClass: "bg-muted text-muted-foreground border-border",
     },
     {
       title: "ช่วยงานครัว",
@@ -69,8 +70,8 @@ export default async function OwnerDashboardPage() {
       href: "/kitchen",
       icon: ChefHat,
       badge: "ครัว",
-      iconClass: "bg-orange-500/10 text-orange-600 dark:bg-orange-500/15 dark:text-orange-400 border-orange-500/20",
-      badgeClass: "text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/40 border-orange-200/60 dark:border-orange-800/60",
+      iconClass: "bg-muted text-foreground border-border",
+      badgeClass: "bg-muted text-muted-foreground border-border",
     },
     {
       title: "แดชบอร์ดสถิติ",
@@ -78,8 +79,8 @@ export default async function OwnerDashboardPage() {
       href: "/dashboard",
       icon: LayoutDashboard,
       badge: "ภาพรวมหลัก",
-      iconClass: "bg-blue-500/10 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400 border-blue-500/20",
-      badgeClass: "text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 border-blue-200/60 dark:border-blue-800/60",
+      iconClass: "bg-muted text-foreground border-border",
+      badgeClass: "bg-muted text-muted-foreground border-border",
     },
     {
       title: "จัดการเมนูอาหาร",
@@ -87,26 +88,26 @@ export default async function OwnerDashboardPage() {
       href: "/dashboard/menu",
       icon: UtensilsCrossed,
       badge: "จัดการเมนู",
-      iconClass: "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400 border-emerald-500/20",
-      badgeClass: "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200/60 dark:border-emerald-800/60",
+      iconClass: "bg-muted text-foreground border-border",
+      badgeClass: "bg-muted text-muted-foreground border-border",
     },
     {
       title: "รายการออเดอร์",
       desc: "ติดตามสถานะคำสั่งซื้อในครัวและของลูกค้าทุกโต๊ะในร้าน",
       href: "/dashboard/orders",
       icon: Receipt,
-      badge: "Live Orders",
-      iconClass: "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400 border-rose-500/20",
-      badgeClass: "text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border-rose-200/60 dark:border-rose-800/60",
+      badge: "ออเดอร์",
+      iconClass: "bg-muted text-foreground border-border",
+      badgeClass: "bg-muted text-muted-foreground border-border",
     },
     {
       title: "ผังโต๊ะอาหาร",
-      desc: "เปิด-ปิดโต๊ะ และสร้าง Dynamic QR Code สั่งอาหารเฉพาะรอบบิล",
+      desc: "เปิด-ปิดโต๊ะ และสร้าง QR สำหรับสั่งอาหารในแต่ละรอบโต๊ะ",
       href: "/dashboard/tables",
       icon: QrCode,
-      badge: "Dynamic QR",
-      iconClass: "bg-teal-500/10 text-teal-600 dark:bg-teal-500/15 dark:text-teal-400 border-teal-500/20",
-      badgeClass: "text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 border-teal-200/60 dark:border-teal-800/60",
+      badge: "QR รายรอบ",
+      iconClass: "bg-muted text-foreground border-border",
+      badgeClass: "bg-muted text-muted-foreground border-border",
     },
     {
       title: "จัดการพนักงาน",
@@ -114,8 +115,8 @@ export default async function OwnerDashboardPage() {
       href: "/dashboard/staff",
       icon: Users,
       badge: "สิทธิ์ทีมงาน",
-      iconClass: "bg-violet-500/10 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400 border-violet-500/20",
-      badgeClass: "text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/40 border-violet-200/60 dark:border-violet-800/60",
+      iconClass: "bg-muted text-foreground border-border",
+      badgeClass: "bg-muted text-muted-foreground border-border",
     },
     {
       title: "รายงานยอดขาย",
@@ -123,8 +124,8 @@ export default async function OwnerDashboardPage() {
       href: "/dashboard/reports",
       icon: BarChart3,
       badge: "สถิติ & กราฟ",
-      iconClass: "bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400 border-indigo-500/20",
-      badgeClass: "text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200/60 dark:border-indigo-800/60",
+      iconClass: "bg-muted text-foreground border-border",
+      badgeClass: "bg-muted text-muted-foreground border-border",
     },
     {
       title: "ตั้งค่าร้านค้า",
@@ -132,8 +133,8 @@ export default async function OwnerDashboardPage() {
       href: "/dashboard/settings",
       icon: Settings,
       badge: "การตั้งค่า",
-      iconClass: "bg-slate-500/10 text-slate-700 dark:bg-slate-500/15 dark:text-slate-300 border-slate-500/20",
-      badgeClass: "text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50 border-slate-200/60 dark:border-slate-800/60",
+      iconClass: "bg-muted text-foreground border-border",
+      badgeClass: "bg-muted text-muted-foreground border-border",
     },
   ];
 
@@ -160,40 +161,28 @@ export default async function OwnerDashboardPage() {
                 {staffRole}
               </Badge>
             </div>
-            <p className="text-xs text-muted-foreground">พอร์ทัลเจ้าของร้าน</p>
+            <p className="text-xs text-muted-foreground">จัดการร้าน</p>
           </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          <form action={signOutOwner}>
-            <Button
-              type="submit"
-              variant="outline"
-              size="sm"
-              className="h-11 w-11 text-muted-foreground hover:text-destructive hover:border-destructive/40 sm:w-auto"
-            >
-              <LogOut data-icon="inline-start" />
-              <span className="sr-only sm:not-sr-only">ออกจากระบบ</span>
-            </Button>
-          </form>
+          <LogoutButton
+            variant="outline"
+            size="sm"
+            className="h-11 w-11 text-muted-foreground hover:text-destructive hover:border-destructive/40 sm:w-auto"
+          >
+            <LogOut data-icon="inline-start" />
+            <span className="sr-only sm:not-sr-only">ออกจากระบบ</span>
+          </LogoutButton>
           <ThemeToggle />
         </div>
       </header>
 
       {/* Main Content Hub */}
       <main className="relative flex-1 max-w-6xl w-full mx-auto p-4 sm:p-8 space-y-6">
-        {/* Ambient Top Glow (Works in both Dark & Light mode) */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 -top-8 -z-10 flex justify-center overflow-hidden blur-3xl opacity-50 dark:opacity-20"
-        >
-          <div className="aspect-[1100/300] w-[64rem] flex-none bg-gradient-to-r from-emerald-500/20 via-teal-400/20 to-blue-500/15" />
-        </div>
 
         {/* Store Profile Card using Shadcn Card */}
         <Card className="border-border/80 shadow-xs hover:shadow-sm transition-all bg-card/95 backdrop-blur-xs relative overflow-hidden">
-          {/* Subtle top accent gradient line */}
-          <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-emerald-500 via-teal-400 to-blue-500 opacity-70" />
 
           <CardHeader className="pb-3 pt-5">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -271,14 +260,14 @@ export default async function OwnerDashboardPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-foreground">
-                เมนูการจัดการระบบร้านค้า
+                งานในร้าน
               </h2>
               <p className="text-xs text-muted-foreground">
-                เลือกโมดูลเพื่อเข้าสู่ระบบบริหารจัดการส่วนต่างๆ ของร้าน
+                เลือกงานที่ต้องการจัดการ
               </p>
             </div>
             <Badge variant="outline" className="text-xs">
-              {navCards.length} โมดูลพร้อมใช้งาน
+              {navCards.length} รายการ
             </Badge>
           </div>
 
@@ -292,12 +281,12 @@ export default async function OwnerDashboardPage() {
                   href={card.href}
                   className="group block rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
                 >
-                  <Card className="h-full py-0 border-border/80 bg-card shadow-xs transition-all duration-200 ease-out hover:-translate-y-1 motion-reduce:hover:translate-y-0 hover:shadow-md hover:border-foreground/20 dark:hover:border-primary/40 dark:hover:shadow-lg dark:hover:shadow-black/20">
+                  <Card className="h-full py-0 border-border/80 bg-card shadow-xs transition-all duration-200 ease-out hover:-translate-y-0.5 motion-reduce:hover:translate-y-0 hover:shadow-md hover:border-foreground/20 dark:hover:border-primary/40 dark:hover:shadow-lg dark:hover:shadow-black/20">
                     <CardHeader className="p-5">
                       <div className="flex flex-wrap items-center justify-between gap-3 mb-3.5">
                         <div
                           className={cn(
-                            "size-10 rounded-lg flex items-center justify-center border transition-transform duration-200 group-hover:scale-110",
+                            "size-10 rounded-lg flex items-center justify-center border transition-transform duration-200 group-hover:scale-105",
                             card.iconClass
                           )}
                         >

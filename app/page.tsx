@@ -45,6 +45,7 @@ import {
 // Lucide Icons
 import {
   Coffee,
+  Croissant,
   QrCode,
   Zap,
   BarChart3,
@@ -56,13 +57,12 @@ import {
   ChevronRight,
   ShieldCheck,
   Smartphone,
-  Flame,
   Armchair,
   MessageCircle,
 } from "lucide-react";
 
 export const metadata = {
-  title: "ScanSip - ระบบสั่งอาหารผ่าน QR Code และจัดการร้านอาหารอัจฉริยะ",
+  title: "ScanSip - สั่งอาหารผ่าน QR และจัดการร้าน",
   description:
     "ระบบสั่งอาหารผ่าน QR ตามรอบโต๊ะ จัดการออเดอร์ ครัว บิล และรายงานยอดขาย พร้อม AI ช่วยลูกค้าเลือกเมนูเมื่อเปิดใช้งาน",
 };
@@ -112,10 +112,8 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col selection:bg-secondary selection:text-foreground">
-      {/* Top Header / Navigation */}
       <header className="sticky top-0 z-40 w-full bg-background/80 dark:bg-card/80 backdrop-blur-md border-b border-border transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-          {/* Brand Logo */}
           <Link href="/" className="flex items-center gap-2.5 group shrink-0">
             <div className="size-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center border border-border shadow-xs group-hover:scale-105 transition-transform">
               <Coffee className="size-5" />
@@ -125,12 +123,10 @@ export default async function HomePage() {
                 ScanSip
               </span>
               <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                Restaurant OS
+                สั่งอาหารและจัดการร้าน
               </span>
             </div>
           </Link>
-
-          {/* Navigation Links (Desktop & iPad) */}
           <nav className="hidden md:flex items-center gap-4 lg:gap-6 text-xs lg:text-sm font-medium text-muted-foreground">
             <a href="#preview" className="hover:text-foreground transition-colors">
               ตัวอย่างหน้าจอ
@@ -141,15 +137,10 @@ export default async function HomePage() {
             <a href="#how-it-works" className="hover:text-foreground transition-colors">
               วิธีเริ่มต้น
             </a>
-            <a href="#pricing" className="hover:text-foreground transition-colors">
-              การใช้งาน
-            </a>
             <a href="#faq" className="hover:text-foreground transition-colors">
               คำถามที่พบบ่อย
             </a>
           </nav>
-
-          {/* Right Action using Shadcn Button */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <ThemeToggle />
             {user ? (
@@ -167,14 +158,6 @@ export default async function HomePage() {
               </div>
             ) : (
               <>
-                <Button
-                  render={<Link href="/owner/login" />}
-                  variant="ghost"
-                  size="sm"
-                  className="hidden sm:inline-flex text-xs sm:text-sm"
-                >
-                  เข้าสู่ระบบ
-                </Button>
                 <Button render={<Link href="/owner/login" />} size="sm" className="font-semibold shadow-xs">
                   <span>เริ่มต้นใช้งาน</span>
                   <ArrowRight data-icon="inline-end" />
@@ -184,47 +167,18 @@ export default async function HomePage() {
           </div>
         </div>
       </header>
-
-      {/* Hero Section */}
       <section className="relative pt-8 pb-12 sm:pt-14 sm:pb-18 md:pt-16 md:pb-20 border-b border-border overflow-hidden">
-        {/* Ambient Radial Background Glow (Works in both Dark & Light mode) */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 -top-24 -z-10 flex justify-center overflow-hidden blur-3xl"
-        >
-          <div className="aspect-[1100/400] w-[68rem] flex-none bg-gradient-to-r from-emerald-500/15 via-teal-400/20 to-emerald-500/10 dark:from-emerald-500/25 dark:via-teal-400/15 dark:to-emerald-400/10 opacity-70" />
-        </div>
-
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mx-auto text-center">
-            {/* Pill Badge using Shadcn Badge */}
-            <div className="flex justify-center mb-4 sm:mb-5">
-              <Badge
-                variant="outline"
-                className="gap-2 py-1 px-3 sm:px-3.5 text-xs font-normal rounded-full bg-background/80 backdrop-blur-xs border-emerald-500/30 text-foreground/90 shadow-2xs"
-              >
-                <span className="relative flex size-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full size-2 bg-emerald-500"></span>
-                </span>
-                <span>ระบบ QR Code Menu & จัดการร้านอาหารยุคใหม่</span>
-              </Badge>
-            </div>
-
-            {/* Main Headline with controlled Thai word wrapping and vibrant emphasis */}
-            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold text-foreground tracking-normal leading-[1.22] sm:leading-[1.18]">
-              เปลี่ยนโต๊ะอาหารให้พร้อม<span className="inline-block">รับออเดอร์</span>{" "}
-              <span className="inline-block bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-600 dark:from-emerald-400 dark:via-teal-300 dark:to-emerald-400 bg-clip-text text-transparent">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground tracking-normal leading-[1.22] sm:leading-[1.18]">
+              ลูกค้าสั่งจากโต๊ะ ร้านรับออเดอร์
+              <span className="block text-emerald-700 dark:text-emerald-300">
                 ผ่าน QR Code
               </span>
             </h1>
-
-            {/* Sub-headline */}
             <p className="mt-4 sm:mt-5 text-sm sm:text-base md:text-lg text-muted-foreground leading-relaxed max-w-2xl mx-auto px-2 sm:px-0">
-              ลูกค้าสแกน QR ของรอบโต๊ะเพื่อเลือกเมนู ส่งออเดอร์ และขอเช็กบิล ทีมงานติดตามงานครัว การเสิร์ฟ และการรับเงิน ส่วนเจ้าของร้านดูสรุปยอดขายได้ในระบบเดียว
+              เปิดโต๊ะให้ลูกค้าสแกนเลือกเมนู ครัวดูรายการที่ต้องทำ หน้าร้านดูแลการเสิร์ฟและรับเงิน เจ้าของร้านดูยอดขายย้อนหลังได้
             </p>
-
-            {/* CTA Buttons using Shadcn Button */}
             <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 w-full sm:w-auto max-w-xs sm:max-w-none mx-auto">
               <Button
                 render={<Link href={primaryCtaHref} />}
@@ -244,8 +198,6 @@ export default async function HomePage() {
                 <ChevronRight data-icon="inline-end" />
               </Button>
             </div>
-
-            {/* Micro Trust Indicators */}
             <div className="mt-8 sm:mt-10 pt-6 sm:pt-7 border-t border-border/70 flex flex-wrap items-center justify-center gap-y-2.5 gap-x-6 sm:gap-x-8 text-xs sm:text-sm text-muted-foreground">
               <span className="inline-flex items-center gap-1.5 font-medium">
                 <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -261,23 +213,10 @@ export default async function HomePage() {
               </span>
             </div>
           </div>
-
-          {/* Interactive Preview Mockup Box with Shadcn Tabs & Table */}
           <div id="preview" className="mt-8 sm:mt-12 lg:mt-14 max-w-5xl mx-auto relative scroll-mt-20">
-            {/* Soft backlight for the mockup in both themes */}
-            <div className="absolute -inset-1 rounded-2xl bg-gradient-to-b from-emerald-500/10 via-border/40 to-transparent blur-xl -z-10 dark:from-emerald-500/15" />
-            <Card className="shadow-2xl shadow-black/5 dark:shadow-2xl dark:shadow-emerald-950/20 border-border/80 bg-card/95 backdrop-blur-xs transition-all overflow-hidden">
+            <Card className="border-border bg-card shadow-sm overflow-hidden">
               <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 sm:pb-4 border-b border-border/80 gap-3 bg-muted/20">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <div className="size-2.5 sm:size-3 rounded-full bg-red-400/80 dark:bg-red-500/70" />
-                    <div className="size-2.5 sm:size-3 rounded-full bg-amber-400/80 dark:bg-amber-500/70" />
-                    <div className="size-2.5 sm:size-3 rounded-full bg-emerald-400/80 dark:bg-emerald-500/70" />
-                  </div>
-                  <span className="ml-2 px-2.5 py-0.5 rounded-md bg-background/80 border border-border/60 text-[11px] font-mono text-muted-foreground hidden sm:inline-block">
-                    ScanSip / ตัวอย่างหน้าจอ
-                  </span>
-                </div>
+                <CardTitle className="text-base">ตัวอย่างหน้าสั่งอาหารและออเดอร์</CardTitle>
                 <Badge variant="secondary" className="gap-1.5 text-xs text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 w-fit">
                   ข้อมูลสมมติสำหรับแสดงตัวอย่าง
                 </Badge>
@@ -292,7 +231,7 @@ export default async function HomePage() {
                     <TabsList className="w-full sm:w-auto grid grid-cols-2 sm:inline-flex">
                       <TabsTrigger value="pos" className="text-xs sm:text-sm">
                         <Receipt className="size-3.5 mr-1.5" />
-                        ออเดอร์และยอดขาย
+                        รายการออเดอร์
                       </TabsTrigger>
                       <TabsTrigger value="customer" className="text-xs sm:text-sm">
                         <Smartphone className="size-3.5 mr-1.5" />
@@ -303,8 +242,6 @@ export default async function HomePage() {
                       กดสลับแท็บเพื่อดูมุมมองแต่ละฝ่าย
                     </span>
                   </div>
-
-                  {/* Tab 1: Live Kitchen & POS Feed using Shadcn Table */}
                   <TabsContent value="pos" className="space-y-4">
                     <div className="border border-border/80 rounded-lg overflow-x-auto bg-card">
                       <Table className="min-w-[540px] sm:min-w-full">
@@ -364,32 +301,7 @@ export default async function HomePage() {
                       </Table>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="p-3 rounded-lg border border-border/80 bg-background/50 flex items-center justify-between">
-                        <div>
-                          <p className="text-xs text-muted-foreground">ยอดขายวันนี้</p>
-                          <p className="text-sm font-bold text-foreground">฿14,850.00</p>
-                        </div>
-                        <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-semibold">+12%</Badge>
-                      </div>
-                      <div className="p-3 rounded-lg border border-border/80 bg-background/50 flex items-center justify-between">
-                        <div>
-                          <p className="text-xs text-muted-foreground">ออเดอร์ทั้งหมด</p>
-                          <p className="text-sm font-bold text-foreground">48 ออเดอร์</p>
-                        </div>
-                        <Badge variant="outline">ข้อมูลตัวอย่าง</Badge>
-                      </div>
-                      <div className="p-3 rounded-lg border border-border/80 bg-background/50 flex items-center justify-between">
-                        <div>
-                          <p className="text-xs text-muted-foreground">เมนูขายดี</p>
-                          <p className="text-sm font-bold text-foreground truncate">Dirty Coffee</p>
-                        </div>
-                        <Flame className="size-4 text-amber-500" />
-                      </div>
-                    </div>
                   </TabsContent>
-
-                  {/* Tab 2: Customer Ordering UI Preview */}
                   <TabsContent value="customer" className="space-y-4">
                     <div className="bg-muted/30 border border-border/80 rounded-lg p-3 sm:p-4 max-w-lg mx-auto">
                       <div className="flex items-center justify-between pb-3 border-b border-border/80">
@@ -398,7 +310,7 @@ export default async function HomePage() {
                             <Coffee className="size-4" />
                           </div>
                           <div>
-                            <p className="text-xs font-bold text-foreground">The Artisan Roast</p>
+                            <p className="text-xs font-bold text-foreground">ร้านตัวอย่าง</p>
                             <p className="text-[11px] text-muted-foreground">โต๊ะ 05 • กำลังสั่งอาหาร</p>
                           </div>
                         </div>
@@ -411,7 +323,7 @@ export default async function HomePage() {
                         <div className="p-2.5 rounded-lg bg-card border border-border flex items-center justify-between">
                           <div className="flex items-center gap-2.5">
                             <div className="size-10 rounded-lg bg-muted flex items-center justify-center text-xs font-bold text-foreground">
-                              ☕
+                              <Coffee aria-hidden="true" className="size-5" />
                             </div>
                             <div>
                               <p className="text-xs font-bold text-foreground">Dirty Coffee</p>
@@ -424,7 +336,7 @@ export default async function HomePage() {
                         <div className="p-2.5 rounded-lg bg-card border border-border flex items-center justify-between">
                           <div className="flex items-center gap-2.5">
                             <div className="size-10 rounded-lg bg-muted flex items-center justify-center text-xs font-bold text-foreground">
-                              🥐
+                              <Croissant aria-hidden="true" className="size-5" />
                             </div>
                             <div>
                               <p className="text-xs font-bold text-foreground">Almond Croissant</p>
@@ -453,14 +365,9 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* Bento Grid Feature Section */}
       <section id="bento" className="py-16 md:py-24 border-b border-border bg-muted/20 scroll-mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-10 sm:mb-14">
-            <Badge variant="secondary" className="mb-2 uppercase tracking-wider text-[11px]">
-              ความสามารถของ ScanSip
-            </Badge>
             <p className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-normal">
               ดูแลงานตั้งแต่รับออเดอร์จนถึงปิดโต๊ะ
             </p>
@@ -468,10 +375,7 @@ export default async function HomePage() {
               จัดการเมนู โต๊ะ ทีมงาน และรายงานยอดขายจากพื้นที่ทำงานของร้าน
             </p>
           </div>
-
-          {/* Bento Grid Container with Shadcn Cards (Balanced for Mobile, iPad & Desktop) */}
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {/* Bento Item 1: Large Box - QR Code Generator & Table Management */}
             <Card className="md:col-span-2 lg:col-span-2 justify-between border-border/80 hover:border-border transition-colors">
               <CardHeader>
                 <div className="size-10 rounded-lg bg-muted flex items-center justify-center mb-2 border border-border/80">
@@ -491,12 +395,10 @@ export default async function HomePage() {
                 </Badge>
               </CardFooter>
             </Card>
-
-            {/* Bento Item 2: Realtime Kitchen Ticket */}
             <Card className="md:col-span-1 lg:col-span-2 justify-between border-border/80 hover:border-border transition-colors">
               <CardHeader>
                 <div className="size-10 rounded-lg bg-muted flex items-center justify-center mb-2 border border-border/80">
-                  <Zap className="size-5 text-amber-500" />
+                  <Zap className="size-5 text-muted-foreground" />
                 </div>
                 <CardTitle className="text-lg">
                   ติดตามออเดอร์และงานครัว
@@ -512,8 +414,6 @@ export default async function HomePage() {
                 </Badge>
               </CardFooter>
             </Card>
-
-            {/* Bento Item 3: Menu Customizer */}
             <Card className="md:col-span-1 lg:col-span-1 justify-between border-border/80 hover:border-border transition-colors">
               <CardHeader>
                 <div className="size-10 rounded-lg bg-muted flex items-center justify-center mb-2 border border-border/80">
@@ -530,12 +430,10 @@ export default async function HomePage() {
                 ลูกค้าเขียนหมายเหตุรายเมนูและถึงครัวได้
               </CardFooter>
             </Card>
-
-            {/* Bento Item 4: Sales & Analytics */}
             <Card className="md:col-span-1 lg:col-span-2 justify-between border-border/80 hover:border-border transition-colors">
               <CardHeader>
                 <div className="size-10 rounded-lg bg-muted flex items-center justify-center mb-2 border border-border/80">
-                  <BarChart3 className="size-5 text-indigo-500" />
+                  <BarChart3 className="size-5 text-muted-foreground" />
                 </div>
                 <CardTitle className="text-base">
                   แดชบอร์ดสรุปยอดขาย & เมนูขายดี
@@ -549,8 +447,6 @@ export default async function HomePage() {
                 <span className="font-medium text-foreground">ส่งออก CSV</span>
               </CardFooter>
             </Card>
-
-            {/* Bento Item 5: Staff Role Management */}
             <Card className="md:col-span-1 lg:col-span-1 justify-between border-border/80 hover:border-border transition-colors">
               <CardHeader>
                 <div className="size-10 rounded-lg bg-muted flex items-center justify-center mb-2 border border-border/80">
@@ -585,21 +481,15 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* How it works Section */}
       <section id="how-it-works" className="py-16 md:py-24 border-b border-border scroll-mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-10 sm:mb-14">
-            <Badge variant="outline" className="mb-2 uppercase tracking-wider text-[11px]">
-              Workflow
-            </Badge>
             <p className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-normal">
               3 ขั้นตอนเริ่มใช้งานร้าน
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Step 1 */}
             <Card className="border-border/80 hover:border-border transition-all">
               <CardHeader>
                 <span className="text-2xl font-black text-emerald-600/40 dark:text-emerald-400/40 mb-1 block">01</span>
@@ -609,8 +499,6 @@ export default async function HomePage() {
                 </CardDescription>
               </CardHeader>
             </Card>
-
-            {/* Step 2 */}
             <Card className="border-border/80 hover:border-border transition-all">
               <CardHeader>
                 <span className="text-2xl font-black text-emerald-600/40 dark:text-emerald-400/40 mb-1 block">02</span>
@@ -620,8 +508,6 @@ export default async function HomePage() {
                 </CardDescription>
               </CardHeader>
             </Card>
-
-            {/* Step 3 */}
             <Card className="border-border/80 hover:border-border transition-all">
               <CardHeader>
                 <span className="text-2xl font-black text-emerald-600/40 dark:text-emerald-400/40 mb-1 block">03</span>
@@ -634,88 +520,9 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* Pricing / Value Section */}
-      <section id="pricing" className="py-16 md:py-24 border-b border-border bg-muted/20 scroll-mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-2xl mx-auto mb-10 sm:mb-14">
-            <Badge variant="secondary" className="mb-2 uppercase tracking-wider text-[11px]">
-              เริ่มต้นกับ ScanSip
-            </Badge>
-            <p className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-normal">
-              เริ่มต้นสร้างระบบให้ร้านอาหารของคุณวันนี้
-            </p>
-            <p className="mt-3 text-sm text-muted-foreground">
-              เข้าสู่ระบบด้วย Google แล้วตั้งค่าร้าน เมนู และโต๊ะก่อนรับออเดอร์
-            </p>
-          </div>
-
-          <Card className="max-w-md mx-auto border-2 border-primary/20 shadow-lg shadow-black/5 dark:shadow-2xl dark:shadow-emerald-950/20 bg-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-4">
-              <div>
-                <CardTitle className="text-xl">พื้นที่ทำงานของร้าน</CardTitle>
-                <CardDescription className="text-xs">สำหรับจัดการร้านอาหารและคาเฟ่</CardDescription>
-              </div>
-              <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-500">
-                ฟีเจอร์ปัจจุบัน
-              </Badge>
-            </CardHeader>
-
-            <CardContent>
-              <div className="my-2 pb-6 border-b border-border/80">
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-2xl font-extrabold text-foreground">เริ่มจากร้านของคุณ</span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1.5">
-                  ตั้งค่าร้านและเพิ่มเมนู แล้วเปิดโต๊ะเพื่อเริ่มรับออเดอร์
-                </p>
-              </div>
-
-              <ul className="space-y-3 text-xs sm:text-sm text-foreground my-6">
-                <li className="flex items-center gap-2.5">
-                  <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span>ตั้งค่าได้ {MIN_TABLE_COUNT}–{MAX_TABLE_COUNT} โต๊ะ พร้อม QR แยกตามรอบ</span>
-                </li>
-                <li className="flex items-center gap-2.5">
-                  <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span>ติดตามออเดอร์ งานครัว และการเสิร์ฟ</span>
-                </li>
-                <li className="flex items-center gap-2.5">
-                  <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span>ระบบจัดการเมนูและหมวดหมู่อาหาร</span>
-                </li>
-                <li className="flex items-center gap-2.5">
-                  <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span>รายงานยอดขายและสถิติเมนูยอดนิยม</span>
-                </li>
-                <li className="flex items-center gap-2.5">
-                  <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span>บันทึกรับเงินสดหรือโอน/พร้อมเพย์โดยพนักงาน</span>
-                </li>
-              </ul>
-            </CardContent>
-
-            <CardFooter>
-              <Button
-                render={<Link href={primaryCtaHref} />}
-                size="lg"
-                className="w-full h-11 text-sm font-semibold shadow-md shadow-primary/10 hover:shadow-lg active:scale-[0.99] transition-all cursor-pointer"
-              >
-                <span>{primaryCtaText}</span>
-                <ArrowRight data-icon="inline-end" />
-              </Button>
-            </CardFooter>
-          </Card>
-        </div>
-      </section>
-
-      {/* FAQ Accordion Section using Shadcn Accordion */}
       <section id="faq" className="py-16 md:py-24 border-b border-border scroll-mt-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-10 sm:mb-14">
-            <Badge variant="outline" className="mb-2 uppercase tracking-wider text-[11px]">
-              FAQ
-            </Badge>
             <p className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-normal">
               คำถามที่พบบ่อย
             </p>
@@ -771,15 +578,13 @@ export default async function HomePage() {
           </Accordion>
         </div>
       </section>
-
-      {/* Final Call to Action */}
       <section className="py-16 md:py-20 bg-card border-b border-border">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <div className="size-12 rounded-xl bg-primary text-primary-foreground mx-auto flex items-center justify-center mb-6 shadow-xs">
             <Coffee className="size-6" />
           </div>
           <h2 className="text-2xl sm:text-4xl font-extrabold text-foreground tracking-normal">
-            พร้อมยกระดับประสบการณ์ให้ร้านของคุณแล้วหรือยัง?
+            เริ่มจากเพิ่มเมนูของร้านคุณ
           </h2>
           <p className="mt-4 text-sm sm:text-base text-muted-foreground max-w-xl mx-auto leading-relaxed">
             ตั้งค่าร้านและเมนูให้พร้อม แล้วให้ทีมงานจัดการออเดอร์ โต๊ะ และยอดขายผ่านเบราว์เซอร์ที่เชื่อมต่ออินเทอร์เน็ต
@@ -796,14 +601,12 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* Clean Footer with Separator */}
       <footer className="py-8 bg-background text-muted-foreground text-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
             <div className="flex items-center gap-2">
               <span className="font-bold text-foreground">ScanSip</span>
-              <span>© {new Date().getFullYear()} All rights reserved.</span>
+              <span>© {new Date().getFullYear()}</span>
             </div>
             <div className="flex flex-wrap justify-center sm:justify-end items-center gap-x-6 gap-y-2">
               <Link href="/owner/login" className="hover:text-foreground transition-colors">
@@ -815,11 +618,8 @@ export default async function HomePage() {
               <a href="#bento" className="hover:text-foreground transition-colors">
                 ความสามารถ
               </a>
-              <a href="#pricing" className="hover:text-foreground transition-colors">
-                การใช้งาน
-              </a>
               <a href="#faq" className="hover:text-foreground transition-colors">
-                FAQ
+                คำถามที่พบบ่อย
               </a>
             </div>
           </div>

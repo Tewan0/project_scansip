@@ -402,15 +402,15 @@ export default function SettingsPage() {
                 <span>URL Slug ของร้าน *</span>
               </Label>
               <div className="flex items-center gap-2">
-                <div className="flex items-center w-full rounded-lg border border-border bg-muted/40 px-3 h-9 text-xs">
-                  <span className="text-muted-foreground select-none">scansip.app/r/</span>
+                <div className="flex flex-wrap items-center gap-y-2 w-full min-w-0 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
+                  <span className="text-muted-foreground select-none">project-scansip.vercel.app/r/</span>
                   <input
                     id="store-slug"
                     type="text"
                     required
                     value={slug}
                     onChange={handleSlugChange}
-                    className="flex-1 bg-transparent font-mono text-foreground outline-none font-semibold pl-1"
+                    className="min-w-24 w-24 flex-1 bg-transparent font-mono text-foreground outline-none font-semibold pl-1"
                     placeholder="my-cafe"
                   />
                   {slugStatus === "checking" && (

@@ -3,11 +3,11 @@
 
 import { useState, useTransition, useEffect, useRef } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LogoutButton } from "@/components/logout-button";
 import { useRouter } from "next/navigation";
 import {
   createStoreOnboarding,
   checkSlugAvailability,
-  signOutOwner,
 } from "@/app/actions/owner-auth";
 import { createClient } from "@/utils/supabase/client";
 import {
@@ -222,9 +222,6 @@ export default function OwnerOnboardingPage() {
   return (
     <div className="relative min-h-screen bg-muted/20 flex flex-col items-center justify-center p-4 sm:p-8 overflow-hidden">
       {/* Ambient Radial Glow */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 -top-20 -z-10 flex justify-center overflow-hidden blur-3xl opacity-50 dark:opacity-20">
-        <div className="aspect-[1100/300] w-[60rem] flex-none bg-gradient-to-r from-emerald-500/20 via-teal-400/20 to-blue-500/15" />
-      </div>
 
       <div className="max-w-xl w-full">
         {/* Account Info & Sign Out Bar */}
@@ -237,17 +234,17 @@ export default function OwnerOnboardingPage() {
                 เข้าสู่ระบบด้วย: <strong className="text-foreground font-semibold">{currentUserEmail}</strong>
               </span>
             </div>
-            <form action={signOutOwner}>
-              <Button
-                type="submit"
-                variant="ghost"
-                size="xs"
-                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-              >
-                <LogOut className="w-3.5 h-3.5" data-icon="inline-start" />
-                เปลี่ยนบัญชี
-              </Button>
-            </form>
+            <LogoutButton
+              variant="ghost"
+              size="xs"
+              confirmTitle="ยืนยันการเปลี่ยนบัญชี"
+              confirmDescription="คุณต้องการออกจากระบบเพื่อเปลี่ยนบัญชีใช่หรือไม่?"
+              confirmLabel="เปลี่ยนบัญชี"
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            >
+              <LogOut className="w-3.5 h-3.5" data-icon="inline-start" />
+              เปลี่ยนบัญชี
+            </LogoutButton>
           </div>
         )}
 

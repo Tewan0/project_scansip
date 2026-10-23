@@ -40,10 +40,6 @@ export default function OwnerLoginPage({ searchParams }: LoginPageProps) {
 
   return (
     <div className="relative min-h-screen bg-muted/20 flex flex-col items-center justify-center p-4 overflow-hidden">
-      {/* Ambient Radial Glow */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 -top-16 -z-10 flex justify-center overflow-hidden blur-3xl opacity-50 dark:opacity-20">
-        <div className="aspect-[1100/300] w-[60rem] flex-none bg-gradient-to-r from-emerald-500/20 via-teal-400/20 to-blue-500/15" />
-      </div>
 
       {/* Back to Home Link */}
       <div className="w-full max-w-md mb-4 flex justify-between items-center">
@@ -58,7 +54,7 @@ export default function OwnerLoginPage({ searchParams }: LoginPageProps) {
       </div>
 
       {/* Main Login Card */}
-      <Card className="w-full max-w-md shadow-xs border-border animate-cardEnter">
+      <Card className="w-full max-w-md shadow-xs border-border">
         <CardHeader className="text-center pb-4 pt-6">
           <div className="flex justify-center mb-3">
             <div className="w-12 h-12 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-xs">
@@ -66,10 +62,10 @@ export default function OwnerLoginPage({ searchParams }: LoginPageProps) {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold tracking-normal">
-            ScanSip Portal
+            เข้าสู่ ScanSip
           </CardTitle>
           <CardDescription className="text-sm">
-            ระบบจัดการร้านอาหารและออเดอร์โต๊ะอาหารแบบครบวงจร
+            สำหรับเจ้าของร้าน พนักงานหน้าร้าน และครัว
           </CardDescription>
         </CardHeader>
 
@@ -87,7 +83,7 @@ export default function OwnerLoginPage({ searchParams }: LoginPageProps) {
 
           <div className="bg-muted/40 p-3.5 rounded-lg border border-border/60 text-xs text-muted-foreground flex items-center gap-2">
             <Store className="w-4 h-4 text-primary shrink-0" />
-            <span>เข้าถึงแดชบอร์ด รายการเมนู รายงานยอดขาย และ QR Code โต๊ะ</span>
+            <span>ใช้บัญชี Google ที่เจ้าของร้านเพิ่มไว้ หรือสร้างร้านใหม่หลังเข้าสู่ระบบ</span>
           </div>
 
           {/* Google OAuth Login Button */}

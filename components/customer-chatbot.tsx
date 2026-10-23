@@ -78,14 +78,14 @@ export function CustomerChatbot({ storeSlug, tableNumber, sessionToken, enabled,
           <MessageCircle className="size-6 transition-transform duration-200 group-hover:rotate-12" />
           <span className="sr-only">ถาม AI ช่วยเลือกเมนู</span>
         </span>
-        <span aria-hidden="true" className="absolute -top-1 -right-1 rounded-full border-2 border-background bg-emerald-700 px-1.5 py-0.5 text-[10px] font-bold text-white dark:bg-emerald-400 dark:text-emerald-950">AI</span>
+        <span aria-hidden="true" className="absolute -top-1 -right-1 rounded-full border-2 border-background bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">AI</span>
       </Button>
     </div>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="flex h-[min(46rem,calc(100dvh-2rem))] max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
-        <DialogHeader className="shrink-0 border-b bg-gradient-to-br from-emerald-500/10 via-background to-background px-4 py-5 pr-14">
+        <DialogHeader className="shrink-0 border-b bg-muted/30 px-4 py-5 pr-14">
           <div className="flex items-center gap-3">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"><Sparkles className="size-5" /></div>
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-border bg-muted text-foreground"><Sparkles className="size-5" /></div>
             <div><DialogTitle className="font-semibold">วันนี้ทานอะไรดี?</DialogTitle><DialogDescription className="mt-1 text-xs">ผู้ช่วยเลือกเมนู AI · โต๊ะ {tableNumber}</DialogDescription></div>
           </div>
         </DialogHeader>

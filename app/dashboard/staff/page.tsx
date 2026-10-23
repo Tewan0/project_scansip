@@ -169,8 +169,8 @@ export default function ManageStaffPage() {
         );
       case "manager":
         return (
-          <Badge variant="secondary" className="gap-1 text-[11px] text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 font-semibold">
-            <Shield className="size-3 text-purple-600" />
+          <Badge variant="secondary" className="gap-1 text-[11px] text-muted-foreground bg-muted border border-border font-semibold">
+            <Shield className="size-3 text-muted-foreground" />
             บทบาทเดิม (กรุณาเปลี่ยน)
           </Badge>
         );
@@ -310,7 +310,7 @@ export default function ManageStaffPage() {
             </CardTitle>
           </div>
           <span className="text-xs text-muted-foreground">
-            กำหนดสิทธิ์ตาม Security Role
+            แบ่งงานหน้าร้านและครัว
           </span>
         </CardHeader>
 
@@ -403,8 +403,8 @@ export default function ManageStaffPage() {
         </CardContent>
 
         <CardFooter className="p-3 border-t border-border flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span>สิทธิ์ Owner จะไม่สามารถถูกลบได้</span>
-          <span className="font-medium text-foreground">ระบบความปลอดภัยสิทธิ์การเข้าถึง</span>
+          <span>ไม่สามารถลบบัญชีเจ้าของร้านได้</span>
+          <span className="font-medium text-foreground">สิทธิ์แต่ละคนขึ้นอยู่กับบทบาท</span>
         </CardFooter>
       </Card>
     </div>

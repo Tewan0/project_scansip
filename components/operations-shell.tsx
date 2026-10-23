@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LogoutButton } from "@/components/logout-button";
 import { ROLE_LABELS, type StaffRole } from "@/lib/permissions";
 import { Armchair, ChefHat, LogOut, ReceiptText, Store } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,15 +34,12 @@ export function OperationsShell({ children, role, storeName }: { children: React
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <form action="/auth/signout" method="post">
-              <button
-                className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-                type="submit"
-              >
-                <LogOut className="size-3.5" />
-                <span>ออกจากระบบ</span>
-              </button>
-            </form>
+            <LogoutButton
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+            >
+              <LogOut className="size-3.5" />
+              <span>ออกจากระบบ</span>
+            </LogoutButton>
           </div>
           <nav aria-label="หน้าทำงาน" className="flex w-full flex-wrap gap-2 text-sm pt-1 border-t border-border/50">
             {links.map((link) => {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ShieldAlert, ArrowLeft, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LogoutButton } from "@/components/logout-button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -36,12 +37,17 @@ export default function AccessDeniedPage() {
             กลับหน้าทำงานของฉัน
           </Button>
 
-          <form action="/auth/signout" method="post" className="w-full">
-            <Button variant="ghost" className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 justify-center" type="submit">
-              <LogOut className="w-4 h-4" data-icon="inline-start" />
-              ออกจากระบบเพื่อเปลี่ยนบัญชี
-            </Button>
-          </form>
+          <LogoutButton
+            variant="ghost"
+            formClassName="w-full"
+            confirmTitle="ยืนยันการออกจากระบบ"
+            confirmDescription="คุณต้องการออกจากระบบเพื่อเปลี่ยนบัญชีใช่หรือไม่?"
+            confirmLabel="ออกจากระบบ"
+            className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 justify-center"
+          >
+            <LogOut className="w-4 h-4" data-icon="inline-start" />
+            ออกจากระบบเพื่อเปลี่ยนบัญชี
+          </LogoutButton>
         </CardContent>
       </Card>
     </div>

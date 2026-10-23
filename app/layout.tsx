@@ -23,7 +23,7 @@ const prompt = localFont({
 
 export const metadata: Metadata = {
   title: "ScanSip - แดชบอร์ดเจ้าของร้าน",
-  description: "ระบบจัดการร้านอาหารและคาเฟ่อัจฉริยะ สแกนสั่งอาหารผ่าน QR Code",
+  description: "สั่งอาหารผ่าน QR Code จัดการเมนู โต๊ะ ออเดอร์ และยอดขายของร้าน",
 };
 
 export default function RootLayout({

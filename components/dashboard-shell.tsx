@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LogoutButton } from "@/components/logout-button";
 
 const navItems = [
   { name: "แดชบอร์ด", href: "/dashboard", icon: LayoutDashboard },
@@ -204,16 +205,14 @@ export default function DashboardLayout({
                   </div>
                 </div>
 
-                <form action="/auth/signout" method="post" className="shrink-0">
-                  <button
-                    type="submit"
-                    title="ออกจากระบบ"
-                    aria-label="ออกจากระบบ"
-                    className="inline-flex size-11 items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors cursor-pointer group-data-[collapsible=icon]:size-8"
-                  >
-                    <LogOut className="size-4" />
-                  </button>
-                </form>
+                <LogoutButton
+                  title="ออกจากระบบ"
+                  aria-label="ออกจากระบบ"
+                  formClassName="shrink-0"
+                  className="inline-flex size-11 items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors cursor-pointer group-data-[collapsible=icon]:size-8"
+                >
+                  <LogOut className="size-4" />
+                </LogoutButton>
               </div>
             </SidebarMenuItem>
           </SidebarMenu>

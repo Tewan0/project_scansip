@@ -72,3 +72,59 @@ test("edit menu blocks closing and double submit while saving, preserves errors,
   assert.equal(sent, 2); assert.equal(saved, 1); assert.equal(closed, 1);
   r.dispose();
 });
+
+test("logout button prompts for confirmation before signing out and cancels cleanly", async () => {
+  let submitted = 0;
+  const r = runtime();
+  const LogoutButton = r.load("components/logout-button.tsx").LogoutButton;
+  const render = () => r.render(() => LogoutButton({
+    children: "ออกจากระบบ",
+    onConfirm() { submitted++; }
+  }));
+
+  let tree = render();
+  assert.equal(submitted, 0);
+  assert.equal(tree.props.children[1], null); // no dialog initially
+
+  // Find the button and click it
+  const btn = nodes(tree).find(node => node.type === "button");
+  assert.ok(btn);
+
+  let defaultPrevented = false;
+  const event = { preventDefault() { defaultPrevented = true; } };
+  const clickPromise = btn.props.onClick(event);
+  assert.equal(defaultPrevented, true);
+
+  // Dialog should now be open
+  tree = render();
+  const dialog = tree.props.children[1];
+  assert.ok(dialog);
+  assert.match(text(dialog), /ยืนยันการออกจากระบบ/);
+  assert.match(text(dialog), /คุณต้องการออกจากระบบใช่หรือไม่/);
+
+  // Cancel first
+  const cancelBtn = nodes(dialog).find(node => node.type === "Button" && text(node) === "ยกเลิก");
+  assert.ok(cancelBtn);
+  cancelBtn.props.onClick();
+  await clickPromise;
+
+  // Nothing submitted, dialog closed
+  assert.equal(submitted, 0);
+  tree = render();
+  assert.equal(tree.props.children[1], null);
+
+  // Click again, this time confirm
+  const btn2 = nodes(tree).find(node => node.type === "button");
+  const clickPromise2 = btn2.props.onClick({ preventDefault() {} });
+  tree = render();
+  const dialog2 = tree.props.children[1];
+  const confirmBtn = nodes(dialog2).find(node => node.type === "Button" && text(node) === "ออกจากระบบ");
+  assert.ok(confirmBtn);
+  confirmBtn.props.onClick();
+  await clickPromise2;
+
+  // Confirmed! Submitted count incremented
+  assert.equal(submitted, 1);
+  r.dispose();
+});
+

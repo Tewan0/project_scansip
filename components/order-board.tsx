@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/componen
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { COOKING_LABELS, type CookingStatus } from "@/lib/permissions";
-import { RotateCw, Volume2, VolumeX } from "lucide-react";
+import { RotateCw, Volume2, VolumeX, Clock, MessageSquare, StickyNote } from "lucide-react";
 
 type Order = {
   id: string; orderNumber: string; billNumber: string; tableNumber: number | null; status: string; createdAt: string;
@@ -174,9 +174,9 @@ function KitchenOrderBoard() {
             <div className="flex items-center gap-1 border-l border-border pl-1.5 pr-1">
               {(
                 [
-                  ["melody", "กระดิ่ง 4 จังหวะ 🔔"],
-                  ["dingdong", "ดิง-ดอง 🎶"],
-                  ["marimba", "มาริมบา 🎵"],
+                  ["melody", "กระดิ่ง 4 จังหวะ"],
+                  ["dingdong", "ดิง-ดอง"],
+                  ["marimba", "มาริมบา"],
                 ] as const
               ).map(([type, label]) => (
                 <button
@@ -235,7 +235,7 @@ function KitchenOrderBoard() {
             {isPending && (
               <div className={cn(
                 "absolute top-0 inset-x-0 h-1",
-                isLongWait ? "bg-gradient-to-r from-rose-500 to-amber-500" : "bg-gradient-to-r from-amber-400 to-orange-500"
+                isLongWait ? "bg-rose-500" : "bg-amber-500"
               )} />
             )}
             <CardHeader className="pt-4 space-y-1.5">
@@ -259,13 +259,13 @@ function KitchenOrderBoard() {
                   "font-medium",
                   isLongWait ? "text-rose-600 dark:text-rose-400 font-bold" : "text-muted-foreground"
                 )}>
-                  ⏱️ {elapsedMin < 1 ? "เมื่อสักครู่" : `รอแล้ว ${elapsedMin} นาที`}
+                  <Clock aria-hidden="true" className="mr-1 inline-block size-3.5" /> {elapsedMin < 1 ? "เมื่อสักครู่" : `รอแล้ว ${elapsedMin} นาที`}
                 </span>
               </div>
               <p className="break-words text-xs font-semibold text-muted-foreground/80">บิล {order.billNumber}</p>
               {order.customerNote && (
                 <div className="rounded-lg border border-amber-300/70 bg-amber-50/70 dark:border-amber-800/60 dark:bg-amber-950/40 p-2.5 text-xs text-amber-900 dark:text-amber-200">
-                  <span className="font-bold text-amber-700 dark:text-amber-300">⚠️ โน้ตจากลูกค้า: </span>
+                  <span className="font-bold text-amber-700 dark:text-amber-300"><MessageSquare aria-hidden="true" className="mr-1 inline-block size-3.5" />หมายเหตุจากลูกค้า: </span>
                   <span className="font-medium">{order.customerNote}</span>
                 </div>
               )}
@@ -275,7 +275,7 @@ function KitchenOrderBoard() {
                 <div className="flex items-start gap-2"><span className="shrink-0 font-bold">{item.quantity} ×</span><p className="min-w-0 break-words font-medium">{item.menuName}</p></div>
                 {item.specialInstruction && (
                   <p className="break-words text-xs font-medium text-amber-800 dark:text-amber-200 bg-amber-500/10 px-2 py-1 rounded-md">
-                    📌 {item.specialInstruction}
+                    <StickyNote aria-hidden="true" className="mr-1 inline-block size-3" /> {item.specialInstruction}
                   </p>
                 )}
                 <div className="flex flex-wrap items-center justify-between gap-2">
