@@ -45,6 +45,7 @@ export async function answerMenuQuestion(messages: ChatMessage[], menu: ChatMenu
       }),
     });
   } catch { throw new AccessError("AI ตอบไม่ทันหรือเชื่อมต่อไม่ได้ กรุณาลองอีกครั้งสักครู่", 503); }
+  if (response.status === 429) throw new AccessError("ผู้ช่วย AI ถึงขีดจำกัดการใช้งานชั่วคราว กรุณาลองภายหลัง คุณยังเลือกเมนูหรือเรียกพนักงานได้ตามปกติ", 429);
   if (!response.ok) throw new AccessError("ผู้ช่วย AI ไม่พร้อมชั่วคราว กรุณาลองใหม่หรือเรียกพนักงาน", 503);
   try {
     const result = await response.json();

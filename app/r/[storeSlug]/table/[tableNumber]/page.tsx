@@ -399,7 +399,7 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
 
       {/* Main Content Area */}
       <main className="max-w-md mx-auto px-4 pt-4">
-        <CustomerChatbot storeSlug={storeSlug} tableNumber={tableNumber} sessionToken={sessionToken}
+        <CustomerChatbot key={JSON.stringify([storeSlug, tableNumber, sessionToken])} storeSlug={storeSlug} tableNumber={tableNumber} sessionToken={sessionToken}
           enabled={!!canEditCart} onSessionExpired={validateSession}
           onAdd={(id) => { const item = menuList.find((menu) => menu.id === id); return item ? addToCart(item) : false; }} />
         {cartReady && !persistent && <p role="alert" className="mb-3 rounded-lg border border-amber-500/40 p-3 text-sm text-foreground">

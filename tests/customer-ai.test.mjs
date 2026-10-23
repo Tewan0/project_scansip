@@ -74,11 +74,20 @@ test("provider failures and invalid/refused responses do not expose upstream err
     async () => Response.json({ candidates: [{ finishReason: "MAX_TOKENS", content: { parts: [{ text: "{}" }] } }] }),
     async () => Response.json({ promptFeedback: { blockReason: "SAFETY" } }),
     async () => Response.json({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: "not json" }] } }] }),
-    async () => Response.json(geminiReply("answer", [123])),
-    async () => Response.json({ error: "secret quota details" }, { status: 429 })]) {
+    async () => Response.json(geminiReply("answer", [123]))]) {
     const f = setup({ provider }); const response = await f.ask(); assert.equal(response.status, 503);
     const result = await response.json(); assert.equal(result.success, false); assert.equal(JSON.stringify(result).includes("secret"), false);
   }
+});
+
+test("provider quota exhaustion reports a safe retry-later message without automatic retries", async () => {
+  const f = setup({ provider: async () => Response.json({ error: "secret quota details" }, { status: 429 }) });
+  const response = await f.ask();
+  assert.equal(response.status, 429);
+  const body = await response.json();
+  assert.match(body.error, /ขีดจำกัด/);
+  assert.equal(JSON.stringify(body).includes("secret"), false);
+  assert.equal(f.calls.length, 1);
 });
 
 test("an AI response finishing after a table closes is discarded", async () => {

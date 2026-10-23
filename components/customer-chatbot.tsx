@@ -1,7 +1,7 @@
 // @refresh reset
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { MessageCircle, Send } from "lucide-react";
+import { MessageCircle, Send, Sparkles, Plus, ShoppingBag, RotateCw, AlertCircle, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -17,19 +17,26 @@ export function CustomerChatbot({ storeSlug, tableNumber, sessionToken, enabled,
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [addFailed, setAddFailed] = useState(false);
+  const [pendingQuestion, setPendingQuestion] = useState("");
+  const [slow, setSlow] = useState(false);
+  const [expired, setExpired] = useState(false);
   const active = useRef<AbortController | null>(null);
   const generation = useRef(0);
   const bottom = useRef<HTMLDivElement | null>(null);
   useEffect(() => () => { generation.current++; active.current?.abort(); active.current = null; }, []);
-  useEffect(() => { bottom.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [messages, busy, open]);
+  useEffect(() => { bottom.current?.scrollIntoView({ block: "nearest", behavior: "auto" }); }, [messages, busy, open]);
 
   async function send(value = question) {
     const content = value.trim();
-    if (!enabled || active.current || !content || content.length > 1200) return;
+    if (!enabled || expired || active.current || !content || content.length > 1200) return;
     const controller = new AbortController(); active.current = controller;
     const version = generation.current;
     const history = [...messages, { role: "user" as const, content }].slice(-9);
-    setBusy(true); setError(""); setNotice("");
+    setBusy(true); setError(""); setNotice(""); setQuestion(content); setPendingQuestion(content); setSlow(false);
+    let timedOut = false;
+    const slowTimer = setTimeout(() => { if (active.current === controller) setSlow(true); }, 8000);
+    const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 25000);
     try {
       const response = await fetch("/api/customer/chat", { method: "POST", signal: controller.signal,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionToken}` },
@@ -37,13 +44,25 @@ export function CustomerChatbot({ storeSlug, tableNumber, sessionToken, enabled,
       });
       const result = await response.json();
       if (generation.current !== version) return;
-      if (result.sessionExpired) onSessionExpired();
-      if (!response.ok || !result.success) throw new Error(result.error || "AI ไม่พร้อม กรุณาลองใหม่");
+      if (controller.signal.aborted) throw new Error("Request aborted");
+      if (result.sessionExpired) {
+        setExpired(true); onSessionExpired();
+        setError("รอบโต๊ะนี้หมดอายุแล้ว กรุณาสแกน QR ของรอบใหม่"); return;
+      }
+      if (!response.ok || !result.success) {
+        setError(typeof result.error === "string" ? result.error : "ผู้ช่วย AI ไม่พร้อมชั่วคราว คุณยังเลือกเมนูเองได้ตามปกติ"); return;
+      }
+      if (typeof result.data?.answer !== "string" || !Array.isArray(result.data.recommendations)) throw new Error("Invalid response");
       setMessages((previous) => [...previous.slice(-18), { role: "user", content }, { role: "assistant", content: result.data.answer, recommendations: result.data.recommendations }]);
       setQuestion("");
-    } catch (error) {
-      if (generation.current === version && !controller.signal.aborted) setError(error instanceof Error ? error.message : "เชื่อมต่อไม่ได้ กรุณาลองใหม่");
-    } finally { if (active.current === controller) { active.current = null; setBusy(false); } }
+    } catch {
+      if (generation.current === version && (!controller.signal.aborted || timedOut)) setError(timedOut
+        ? "AI ใช้เวลาตอบนานเกินไป คำถามยังอยู่ ลองส่งใหม่หรือกลับไปเลือกเมนูได้เลย"
+        : "เชื่อมต่อ AI ไม่สำเร็จ คำถามยังอยู่ กรุณาลองใหม่เมื่อพร้อม");
+    } finally {
+      clearTimeout(slowTimer); clearTimeout(timeout);
+      if (active.current === controller) { active.current = null; setBusy(false); setSlow(false); }
+    }
   }
 
   return <>
@@ -51,7 +70,7 @@ export function CustomerChatbot({ storeSlug, tableNumber, sessionToken, enabled,
       <Button
         variant="default"
         className="group relative flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xl shadow-black/20 hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 border-2 border-background cursor-pointer p-0"
-        disabled={!enabled}
+        disabled={!enabled || expired}
         onClick={() => setOpen(true)}
         aria-label="ถาม AI ช่วยเลือกเมนู"
       >
@@ -59,43 +78,58 @@ export function CustomerChatbot({ storeSlug, tableNumber, sessionToken, enabled,
           <MessageCircle className="size-6 transition-transform duration-200 group-hover:rotate-12" />
           <span className="sr-only">ถาม AI ช่วยเลือกเมนู</span>
         </span>
-        <span className="absolute -top-1 -right-1 flex size-3">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full size-3 bg-emerald-500 border border-background"></span>
-        </span>
+        <span aria-hidden="true" className="absolute -top-1 -right-1 rounded-full border-2 border-background bg-emerald-700 px-1.5 py-0.5 text-[10px] font-bold text-white dark:bg-emerald-400 dark:text-emerald-950">AI</span>
       </Button>
     </div>
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="flex max-h-[85dvh] flex-col gap-3 sm:max-w-lg">
-        <DialogHeader><DialogTitle>ผู้ช่วยเลือกเมนู AI</DialogTitle><DialogDescription>ถามความชอบ งบประมาณ หรือรายละเอียดเมนูของร้านนี้</DialogDescription></DialogHeader>
-        <p className="text-xs text-muted-foreground">ข้อความและข้อมูลเมนูจะส่งให้บริการ AI เพื่อช่วยตอบ หลีกเลี่ยงข้อมูลส่วนตัว · เรื่องแพ้อาหารให้ยืนยันกับพนักงาน</p>
-        <div role="log" aria-label="บทสนทนากับ AI" aria-live="polite" className="min-h-32 flex-1 space-y-3 overflow-y-auto overscroll-contain pr-1">
-          {!messages.length && <div className="space-y-2"><p className="text-sm">อยากทานอะไรดีครับ? ลองเลือกคำถาม หรือพิมพ์ถามได้เลย</p><div className="flex flex-wrap gap-2">{["แนะนำเครื่องดื่มไม่หวาน", "มีเมนูไม่เกิน 100 บาทไหม", "สั่งอาหารอย่างไร"].map((prompt) => <Button key={prompt} variant="outline" className="min-h-11 whitespace-normal" disabled={busy} onClick={() => { setQuestion(prompt); void send(prompt); }}>{prompt}</Button>)}</div></div>}
-          {messages.map((message, index) => <div key={index} className={`rounded-xl p-3 text-sm animate-in fade-in-50 slide-in-from-bottom-2 duration-200 ${message.role === "user" ? "ml-6 bg-primary/10" : "mr-4 bg-muted"}`}>
+      <DialogContent className="flex h-[min(46rem,calc(100dvh-2rem))] max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+        <DialogHeader className="shrink-0 border-b bg-gradient-to-br from-emerald-500/10 via-background to-background px-4 py-5 pr-14">
+          <div className="flex items-center gap-3">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"><Sparkles className="size-5" /></div>
+            <div><DialogTitle className="font-semibold">วันนี้ทานอะไรดี?</DialogTitle><DialogDescription className="mt-1 text-xs">ผู้ช่วยเลือกเมนู AI · โต๊ะ {tableNumber}</DialogDescription></div>
+          </div>
+        </DialogHeader>
+        <div role="log" aria-label="บทสนทนากับ AI" aria-live="polite" aria-relevant="additions text" className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain bg-muted/20 p-4">
+          {!messages.length && !busy && <div className="rounded-2xl border bg-background p-4">
+            <p className="font-semibold">บอกความชอบ เดี๋ยวช่วยเลือกให้</p>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">ถามหาเมนูตามงบหรือรสชาติที่ชอบ โดยอ้างอิงรายการของร้านนี้</p>
+            <div className="mt-4 flex flex-col gap-2">{["แนะนำเครื่องดื่มไม่หวาน", "มีเมนูไม่เกิน 100 บาทไหม", "สั่งอาหารอย่างไร"].map((prompt) => <Button key={prompt} variant="outline" className="h-auto min-h-11 justify-between gap-3 whitespace-normal py-2 text-left font-normal" disabled={busy || !enabled || expired} onClick={() => void send(prompt)}>{prompt}<Send className="size-3.5 shrink-0 text-muted-foreground" /></Button>)}</div>
+          </div>}
+          {messages.map((message, index) => <div key={index} className={`rounded-2xl p-3.5 text-sm leading-relaxed ${message.role === "user" ? "ml-10 rounded-tr-sm bg-primary text-primary-foreground" : "mr-2 rounded-tl-sm border bg-background sm:mr-6"}`}>
             <p className="mb-1 text-xs font-semibold">{message.role === "user" ? "คุณ" : "ผู้ช่วย AI"}</p><p className="whitespace-pre-wrap break-words">{message.content}</p>
-            {message.recommendations?.map((item) => <div key={item.id} className="mt-2 rounded-lg border bg-background p-3"><p className="break-words font-medium">{item.name} · ฿{Number(item.price).toFixed(2)}</p><Button className="mt-2 min-h-11" disabled={!enabled} onClick={() => {
-              setNotice(onAdd(item.id) ? `เพิ่ม ${item.name} ในตะกร้าแล้ว ปิดแชตเพื่อดูและส่งออเดอร์` : "เพิ่มไม่ได้ เมนูอาจหมดหรือตะกร้าเต็ม กรุณาตรวจรายการเมนูอีกครั้ง");
-            }}>เพิ่มในตะกร้า</Button></div>)}
+            {message.recommendations?.map((item) => <div key={item.id} className="mt-3 rounded-xl border bg-muted/30 p-3 text-foreground">
+              <p className="break-words font-semibold">{item.name}</p>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><span className="font-semibold tabular-nums">฿{Number(item.price).toFixed(2)}</span>
+              <Button className="min-h-11 gap-1.5" disabled={!enabled || expired} aria-label={`เพิ่ม ${item.name} ในตะกร้า`} onClick={() => {
+                const added = onAdd(item.id); setAddFailed(!added);
+                setNotice(added ? `เพิ่ม ${item.name} แล้ว กลับไปตรวจตะกร้าและกดส่งออเดอร์ได้เลย` : "เพิ่มไม่ได้ เมนูอาจหมดหรือตะกร้าเต็ม กรุณากลับไปตรวจรายการ");
+              }}><Plus className="size-4" />เพิ่มในตะกร้า</Button></div>
+            </div>)}
           </div>)}
           {busy && (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-muted mr-4 w-fit animate-in fade-in duration-200">
-              <span className="text-xs text-muted-foreground font-medium">AI กำลังดูเมนูให้</span>
-              <span className="flex items-center gap-1">
-                <span className="size-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:-0.3s]"></span>
-                <span className="size-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:-0.15s]"></span>
-                <span className="size-1.5 rounded-full bg-primary/60 animate-bounce"></span>
-              </span>
-            </div>
+            <>
+              <div className="ml-10 whitespace-pre-wrap break-words rounded-2xl rounded-tr-sm bg-primary p-3.5 text-sm leading-relaxed text-primary-foreground"><p className="mb-1 text-xs font-semibold">คุณ</p>{pendingQuestion}</div>
+              <div role="status" className="mr-4 flex w-fit items-center gap-2 rounded-2xl rounded-tl-sm border bg-background p-3.5 text-sm text-muted-foreground">
+                <Loader2 className="size-4 shrink-0 animate-spin motion-reduce:animate-none" />
+                <span>{slow ? "กำลังรอคำตอบ… เลือกเมนูเองระหว่างรอได้เลย" : "กำลังดูเมนูที่เหมาะกับคุณ"}</span>
+              </div>
+            </>
           )}
           <div ref={bottom} />
         </div>
-        {notice && <p role="status" className="text-sm text-primary">{notice}</p>}
-        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-        <form className="flex items-end gap-2" onSubmit={(event) => { event.preventDefault(); void send(); }}>
-          <label className="min-w-0 flex-1"><span className="sr-only">คำถามถึง AI</span><textarea value={question} onChange={(event) => setQuestion(event.target.value)} maxLength={1200} rows={2} disabled={busy || !enabled} placeholder="อยากได้เครื่องดื่มแบบไหน…" className="w-full resize-none rounded-lg border bg-background p-3 text-sm" /></label>
-          <Button type="submit" className="min-h-11" disabled={busy || !enabled || !question.trim()} aria-label="ส่งคำถาม"><Send className="size-4" /></Button>
-        </form>
-        <p className="text-xs text-muted-foreground">เพิ่มตะกร้าแล้วต้องตรวจและกดส่งออเดอร์เอง · AI อาจตอบคลาดเคลื่อน</p>
+        <div className="max-h-[55%] shrink-0 space-y-3 overflow-y-auto border-t bg-background p-4">
+          {notice && <p role={addFailed ? "alert" : "status"} className={`flex items-start gap-2 rounded-xl border p-3 text-xs leading-relaxed ${addFailed ? "border-amber-500/30 bg-amber-500/10" : "border-emerald-500/30 bg-emerald-500/10"}`}>{addFailed ? <AlertCircle className="size-4 shrink-0" /> : <Check className="size-4 shrink-0" />}{notice}</p>}
+          {error && <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3">
+            <p role="alert" className="flex items-start gap-2 text-sm leading-relaxed"><AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" />{error}</p>
+            {!expired && <Button type="button" variant="outline" className="mt-3 min-h-11" disabled={busy || !enabled || !question.trim()} onClick={() => void send()}><RotateCw className="size-4" />ลองส่งอีกครั้ง</Button>}
+          </div>}
+          <form className="flex items-end gap-2" onSubmit={(event) => { event.preventDefault(); void send(); }}>
+            <label className="min-w-0 flex-1"><span className="sr-only">คำถามถึง AI</span><textarea value={question} onChange={(event) => setQuestion(event.target.value)} maxLength={1200} rows={2} disabled={busy || !enabled || expired} placeholder="เช่น อยากได้ชาที่ไม่หวาน…" className="block w-full resize-none rounded-xl border bg-muted/30 p-3 text-base leading-relaxed placeholder:text-muted-foreground disabled:opacity-60 sm:text-sm" /></label>
+            <Button type="submit" className="size-11 shrink-0 rounded-xl" disabled={busy || !enabled || expired || !question.trim()} aria-label="ส่งคำถาม">{busy ? <Loader2 className="size-4 animate-spin motion-reduce:animate-none" /> : <Send className="size-4" />}</Button>
+          </form>
+          <Button type="button" variant="ghost" className="min-h-11 w-full text-muted-foreground" onClick={() => setOpen(false)}><ShoppingBag className="size-4" />กลับไปเลือกเมนู / ดูตะกร้า</Button>
+          <p className="text-[11px] leading-relaxed text-muted-foreground">คำถามส่งให้บริการ AI · หลีกเลี่ยงข้อมูลส่วนตัว · เรื่องแพ้อาหารให้ยืนยันกับพนักงาน · เพิ่มตะกร้าแล้วต้องกดส่งออเดอร์เอง</p>
+        </div>
       </DialogContent>
     </Dialog>
   </>;
