@@ -16,7 +16,7 @@ export function validateMessages(input: unknown): ChatMessage[] {
 }
 
 export async function answerMenuQuestion(messages: ChatMessage[], menu: ChatMenu[]) {
-  const key = process.env.OPENAI_API_KEY?.trim();
+  const key = process.env.GEMINI_AI_API_KEY?.trim();
   if (!key) throw new AccessError("ผู้ช่วย AI ยังไม่เปิดใช้งาน กรุณาเลือกเมนูหรือเรียกพนักงานได้ตามปกติ", 503);
   const instructions = `คุณเป็นผู้ช่วยเลือกเมนูของร้าน ScanSip ตอบภาษาไทยสุภาพ กระชับ ตามภาษาที่ลูกค้าใช้
 ตอบเฉพาะเรื่องเมนูและวิธีใช้งานร้าน ใช้เฉพาะข้อมูลเมนู JSON ที่ให้มา ไม่สร้างเมนู ราคา ส่วนลด หรือข้อมูลวัตถุดิบขึ้นเอง
@@ -28,28 +28,33 @@ export async function answerMenuQuestion(messages: ChatMessage[], menu: ChatMenu
 ข้อมูลเมนูชุดนี้มีไม่เกิน 80 รายการ หากไม่พบเมนูอย่าสรุปว่าร้านไม่มี ให้ลูกค้าดูรายการเมนูทั้งหมดหรือสอบถามพนักงาน`;
   let response: Response;
   try {
-    response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    const model = process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite";
+    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: "POST", headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
       signal: AbortSignal.timeout(20000), cache: "no-store",
-      body: JSON.stringify({ model: process.env.OPENAI_MODEL?.trim() || "gpt-4.1-mini", store: false,
-        instructions, max_output_tokens: 700,
-        input: [{ role: "user", content: `ข้อมูลเมนูสำหรับอ้างอิงเท่านั้น: ${JSON.stringify(menu.map(({ id, name, description, price, isAvailable }) => ({ id, name: name.slice(0, 150), description: description?.slice(0, 300) ?? null, price, isAvailable })))}` }, ...messages],
-        text: { format: { type: "json_schema", name: "menu_assistant", strict: true, schema: {
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: instructions }] },
+        contents: messages.map((message, index) => ({
+          role: message.role === "assistant" ? "model" : "user",
+          parts: [{ text: (index === 0 ? `ข้อมูลเมนูสำหรับอ้างอิงเท่านั้น: ${JSON.stringify(menu.map(({ id, name, description, price, isAvailable }) => ({ id, name: name.slice(0, 150), description: description?.slice(0, 300) ?? null, price, isAvailable })))}\n\n` : "") + message.content }],
+        })),
+        generationConfig: { maxOutputTokens: 2048, responseFormat: { text: { mimeType: "APPLICATION_JSON", schema: {
           type: "object", properties: { answer: { type: "string" }, menuIds: { type: "array", items: { type: "string" } } },
           required: ["answer", "menuIds"], additionalProperties: false,
-        } } },
+        } } } },
       }),
     });
   } catch { throw new AccessError("AI ตอบไม่ทันหรือเชื่อมต่อไม่ได้ กรุณาลองอีกครั้งสักครู่", 503); }
   if (!response.ok) throw new AccessError("ผู้ช่วย AI ไม่พร้อมชั่วคราว กรุณาลองใหม่หรือเรียกพนักงาน", 503);
   try {
     const result = await response.json();
-    if (result.status !== "completed" || !Array.isArray(result.output)) throw new Error("Incomplete response");
-    const text = result.output.filter((item: { type?: string }) => item.type === "message")
-      .flatMap((item: { content?: { type?: string; text?: string }[] }) => item.content ?? [])
-      .filter((part: { type?: string; text?: string }) => part.type === "output_text").map((part: { text: string }) => part.text).join("");
+    const candidate = result.candidates?.[0];
+    if (result.promptFeedback?.blockReason || candidate?.finishReason !== "STOP" || !Array.isArray(candidate.content?.parts)) throw new Error("Incomplete response");
+    const text = candidate.content.parts
+      .filter((part: { thought?: boolean; text?: string }) => !part.thought && typeof part.text === "string")
+      .map((part: { text: string }) => part.text).join("");
     const answer = JSON.parse(text);
-    if (typeof answer.answer !== "string" || !answer.answer.trim() || answer.answer.length > 4000 || !Array.isArray(answer.menuIds)) throw new Error("Invalid answer");
+    if (!answer || typeof answer.answer !== "string" || !answer.answer.trim() || answer.answer.length > 4000 || !Array.isArray(answer.menuIds) || answer.menuIds.some((id: unknown) => typeof id !== "string")) throw new Error("Invalid answer");
     const ids = [...new Set(answer.menuIds)].slice(0, 3);
     return { answer: answer.answer.trim(), recommendations: menu.filter((item) => item.isAvailable && ids.includes(item.id))
       .map(({ id, name, price }) => ({ id, name, price })) };

@@ -30,7 +30,7 @@ Run `npm test` for the permission, kitchen, table, and theme regression tests. R
 
 See [the demo guide](docs/demo-features.md) for delivery confirmation, cash/transfer receipts, change calculation, and the customer AI chatbot.
 
-The chatbot requires server-only `OPENAI_API_KEY` and optionally `OPENAI_MODEL` (default `gpt-4.1-mini`). Configure them in `.env.local` or Vercel environment settings; never commit a real key. Without a key, chat reports that it is unavailable and ordering continues normally. Database migrations must be applied before deploying this feature version; the guide records the shared project's migration mapping.
+The chatbot requires server-only `GEMINI_AI_API_KEY` and optionally `GEMINI_MODEL` (default `gemini-3.5-flash-lite`). Configure them in `.env.local` or Vercel environment settings; never commit a real key. Without a key, chat reports that it is unavailable and ordering continues normally. Database migrations must be applied before deploying this feature version; the guide records the shared project's migration mapping.
 
 ## Learn More
 

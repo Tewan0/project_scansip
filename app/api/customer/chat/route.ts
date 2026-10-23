@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     const input = { storeSlug: body.storeSlug, tableNumber: body.tableNumber,
       sessionToken: req.headers.get("authorization")?.replace(/^Bearer /, "") };
     const menu = await withCustomerSession(input, async (tx, table) => {
-      if (!process.env.OPENAI_API_KEY?.trim()) throw new AccessError("ผู้ช่วย AI ยังไม่เปิดใช้งาน กรุณาเลือกเมนูหรือเรียกพนักงานได้ตามปกติ", 503);
+      if (!process.env.GEMINI_AI_API_KEY?.trim()) throw new AccessError("ผู้ช่วย AI ยังไม่เปิดใช้งาน กรุณาเลือกเมนูหรือเรียกพนักงานได้ตามปกติ", 503);
       const now = new Date();
       // Lock order is store -> table -> counters. No external requests inside the transaction.
       const limits = [
