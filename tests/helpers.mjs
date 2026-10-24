@@ -9,10 +9,10 @@ const root = path.resolve(import.meta.dirname, "..");
 export function fixture(role = "owner", overrides = {}, globals = {}) {
   const tableNames = ["stores", "staff", "tables", "orders", "orderItems", "menuItems", "categories", "serviceRequests", "billPayments", "chatRateLimits"];
   const schema = Object.fromEntries(tableNames.map((name) => [name, Object.fromEntries([
-    ...["id", "storeId", "ownerId", "userId", "email", "role", "orderId", "tableId", "tableNumber", "sessionToken", "currentSessionToken", "status", "kind", "paymentStatus", "totalAmount", "createdAt", "slug", "servingRequired", "deliveredAt", "billId", "name", "description", "price", "isAvailable", "requestKey"].map((key) => [key, { key }]), ["tableName", name],
+    ...["id", "storeId", "ownerId", "userId", "email", "role", "orderId", "tableId", "tableNumber", "sessionToken", "currentSessionToken", "currentQrToken", "qrExpiresAt", "sessionStartedAt", "status", "kind", "paymentStatus", "totalAmount", "createdAt", "slug", "servingRequired", "deliveredAt", "billId", "name", "description", "price", "isAvailable", "requestKey"].map((key) => [key, { key }]), ["tableName", name],
   ])]));
   const state = { stores: [{ id: "shop-a", ownerId: "owner", slug: "cafe-a" }, { id: "shop-b", ownerId: "owner-b", slug: "cafe-b" }],
-    staff: ["cashier", "kitchen"].includes(role) ? [{ id: "member-a", storeId: "shop-a", role, userId: null, email: "staff@example.com" }] : [],
+    staff: ["cashier", "kitchen"].includes(role) ? [{ id: "member-a", storeId: "shop-a", role, userId: role, email: "staff@example.com" }] : [],
     tables: [], orders: [], orderItems: [], menuItems: [], categories: [], serviceRequests: [], billPayments: [], chatRateLimits: [],
   };
   const context = { user: role === "anonymous" ? null : { id: role, email: "STAFF@example.com", email_confirmed_at: "2026-01-01", is_anonymous: false }, state, writes: [] };
@@ -26,7 +26,8 @@ export function fixture(role = "owner", overrides = {}, globals = {}) {
     and: (...predicates) => row => predicates.filter(Boolean).every(fn => fn(row)),
     or: (...predicates) => row => predicates.filter(Boolean).some(fn => fn(row)),
     asc: c => c, desc: c => c,
-    sql: (_strings, column, value) => row => row[column.key]?.trim().toLowerCase() === value,
+    sql: (strings, column, value) => strings.join("").includes("pg_advisory_xact_lock")
+      ? { accountLock: column } : row => row[column.key]?.trim().toLowerCase() === value,
   };
   let nextId = 1;
   function database(data) {
@@ -34,6 +35,10 @@ export function fixture(role = "owner", overrides = {}, globals = {}) {
       return data[name].filter(predicate).map(row => structuredClone(withItems ? { ...row, items: data.orderItems.filter(item => item.orderId === row.id) } : row));
     }
     return {
+      async execute(statement) {
+        if (!statement.accountLock) throw new Error("Unexpected SQL in fixture");
+        context.writes.push(["account-lock", statement.accountLock]);
+      },
       query: Object.fromEntries(tableNames.map(name => [name, {
         findFirst: async ({ where, with: related } = {}) => rows(name, where, related?.items)[0],
         findMany: async ({ where, limit, with: related } = {}) => rows(name, where, related?.items).slice(0, limit ?? Infinity),
@@ -85,7 +90,7 @@ export function fixture(role = "owner", overrides = {}, globals = {}) {
       if (name.startsWith("@/")) return load(name.slice(2) + ".ts");
       if (name.startsWith(".")) return load(path.posix.join(path.posix.dirname(file), name + ".ts"));
       return require(name);
-    }, console, Request, Response, URL, URLSearchParams, File, FormData, crypto: globalThis.crypto, process, setTimeout, clearTimeout, setInterval, clearInterval, ...globals }, { filename: file });
+    }, console, Date, Request, Response, URL, URLSearchParams, File, FormData, crypto: globalThis.crypto, process, setTimeout, clearTimeout, setInterval, clearInterval, ...globals }, { filename: file });
     return exports;
   }
   return { ...context, context, db, load, orm, schema };

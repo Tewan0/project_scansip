@@ -7,7 +7,7 @@ const product="11111111-1111-1111-1111-111111111111";
 const payload={storeSlug:"cafe-a",tableNumber:1,sessionToken:"round-a",requestId,items:[{menuItemId:product,quantity:2,specialInstruction:"no ice"}],customerNote:"share"};
 function setup(){
   const f=fixture("anonymous");
-  f.state.tables.push({id:"table-a",storeId:"shop-a",tableNumber:1,status:"occupied",currentSessionToken:"round-a"});
+  f.state.tables.push({id:"table-a",storeId:"shop-a",tableNumber:1,status:"occupied",currentSessionToken: "round-a", sessionStartedAt: new Date()});
   f.state.menuItems.push({id:product,storeId:"shop-a",name:"Coffee",price:"50.00",isAvailable:true});
   return {...f,post:f.load("app/api/orders/route.ts").POST};
 }
@@ -44,7 +44,7 @@ test("replay still requires the current QR; keys are scoped to store, table and 
   f.state.tables[0].currentSessionToken="round-b";
   assert.equal((await f.post(request(payload))).status,403);
   assert.equal((await f.post(request({...payload,sessionToken:"round-b"}))).status,201);
-  f.state.tables.push({id:"table-b",storeId:"shop-a",tableNumber:2,status:"occupied",currentSessionToken:"round-c"});
+  f.state.tables.push({id:"table-b",storeId:"shop-a",tableNumber:2,status:"occupied",currentSessionToken: "round-c", sessionStartedAt: new Date()});
   assert.equal((await f.post(request({...payload,tableNumber:2,sessionToken:"round-c"}))).status,201);
   assert.equal((await f.post(request({...payload,storeSlug:"cafe-b"}))).status,403);
   assert.equal(f.state.orders.length,3);

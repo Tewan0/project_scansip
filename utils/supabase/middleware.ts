@@ -38,7 +38,7 @@ export async function updateSession(request: NextRequest) {
   if (!user || user.is_anonymous) return login ? response : redirectTo("/owner/login");
   try {
     const access = await getAccessForUser(user);
-    if (!access) return pathname === "/owner/onboarding" ? response : redirectTo("/owner/onboarding");
+    if (!access) return ["/workspace", "/owner/onboarding"].includes(pathname) ? response : redirectTo("/workspace");
     if (login || pathname === "/owner/onboarding" || pathname === "/onboarding" || pathname === "/workspace" || !canAccessPath(access.role, pathname)) {
       return redirectTo(homeForRole(access.role));
     }

@@ -93,7 +93,10 @@ export const tables = pgTable("tables", {
     .notNull(),
   tableNumber: integer("table_number").notNull(),
   status: tableStatusEnum("status").default("available").notNull(),
+  // Stable bill round ID, independent of the renewable customer QR credential.
   currentSessionToken: text("current_session_token"),
+  currentQrToken: text("current_qr_token"),
+  qrExpiresAt: timestamp("qr_expires_at", { withTimezone: true }),
   sessionStartedAt: timestamp("session_started_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [unique("tables_store_number_unique").on(table.storeId, table.tableNumber)]).enableRLS();

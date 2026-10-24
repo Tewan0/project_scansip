@@ -101,13 +101,13 @@ export default async function HomePage() {
   const primaryCtaHref = user
     ? userStore
       ? "/owner/dashboard"
-      : "/owner/onboarding"
+      : "/workspace"
     : "/owner/login";
 
   const primaryCtaText = user
     ? userStore
       ? "เข้าสู่แดชบอร์ดร้าน"
-      : "ดำเนินการตั้งค่าร้านต่อ"
+      : "เข้าใช้งาน"
     : "เริ่มต้นใช้งาน";
 
   return (

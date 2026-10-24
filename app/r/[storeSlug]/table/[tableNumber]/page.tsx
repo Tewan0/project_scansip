@@ -314,7 +314,7 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
               <UtensilsCrossed className="w-6 h-6" />
             </div>
             <CardTitle className="text-xl font-bold">
-              โต๊ะ {tableNumber.padStart(2, "0")} ยังไม่พร้อมสั่งอาหาร
+              {sessionValidation.reason === "qr_expired" ? "QR หมดอายุ" : `โต๊ะ ${tableNumber.padStart(2, "0")} ยังไม่พร้อมสั่งอาหาร`}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 pb-6">
@@ -326,7 +326,7 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
             <div className="p-3 bg-muted/50 rounded-lg text-xs border border-border">
               <p className="font-semibold text-foreground">วิธีใช้งาน:</p>
               <p className="text-muted-foreground mt-0.5">
-                แจ้งพนักงานที่หน้าร้านเพื่อเปิดโต๊ะและขอรับ QR Code รอบบิลของคุณ
+                ติดต่อพนักงานเพื่อตรวจสอบโต๊ะ ออเดอร์ที่ส่งแล้วและบิลเดิมยังอยู่ครบ
               </p>
             </div>
 

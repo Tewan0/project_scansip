@@ -26,7 +26,7 @@ export async function POST(req: Request) {
       await tx.select({ id: stores.id }).from(stores).where(eq(stores.id, store.id)).for("update");
       const existing = await tx.query.staff.findFirst({ where: and(eq(staff.storeId, store.id), sql`lower(trim(${staff.email})) = ${email}`) });
       if (existing) throw new AccessError("อีเมลนี้อยู่ในรายชื่อร้านแล้ว", 409);
-      const [created] = await tx.insert(staff).values({ storeId: store.id, email, name, role: body.role }).returning();
+      const [created] = await tx.insert(staff).values({ storeId: store.id, email, name, role: body.role, userId: null }).returning();
       return created;
     });
     return NextResponse.json({ success: true, data }, { status: 201 });

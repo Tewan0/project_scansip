@@ -15,7 +15,7 @@ test("roles resolve from verified identity and current DB membership, never user
 test("email invitation needs verified email and cannot override another bound user", async () => {
   for (const scenario of ["unverified", "bound", "anonymous", "duplicates"]) {
     const f = fixture("cashier");
-    if (scenario === "unverified") f.context.user.email_confirmed_at = null;
+    if (scenario === "unverified") { f.context.user.email_confirmed_at = null; f.state.staff[0].userId = null; }
     if (scenario === "bound") f.state.staff[0].userId = "someone-else";
     if (scenario === "anonymous") f.context.user.is_anonymous = true;
     if (scenario === "duplicates") f.state.staff.push({ ...f.state.staff[0], storeId: "shop-b" });
