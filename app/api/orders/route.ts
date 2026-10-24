@@ -6,6 +6,9 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { requireStoreAccess, apiError, AccessError } from "@/lib/auth";
 import { getStoreBySlugOrId } from "@/utils/store";
 import { billIdentity } from "@/lib/bills-server";
+import { assertCustomerQr } from "@/lib/customer-session";
+import { readLimitedJson, ORDER_BODY_BYTES } from "@/lib/request-body";
+import { consumeWriteQuota, ORDER_LIMITS, writeErrorResponse } from "@/lib/write-rate-limit";
 
 export async function GET() {
   try {
@@ -32,7 +35,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const body = await readLimitedJson(req, ORDER_BODY_BYTES);
     if (!body || typeof body !== "object") throw new AccessError("ข้อมูลคำขอไม่ถูกต้อง", 400);
     const { tableNumber, sessionToken, items } = body;
     const requestKey = body.requestId;
@@ -57,11 +60,12 @@ export async function POST(req: Request) {
       // Same lock order as opening/closing tables: store, then table.
       await tx.select({ id: stores.id }).from(stores).where(eq(stores.id, store.id)).for("update");
       const [table] = await tx.select().from(tables).where(and(eq(tables.storeId, store.id), eq(tables.tableNumber, tableNumber))).for("update");
-      if (!table || table.status !== "occupied" || table.currentSessionToken !== sessionToken) throw new AccessError("รอบโต๊ะหมดอายุแล้ว กรุณาสแกน QR ใหม่", 403);
+      assertCustomerQr(table, sessionToken);
+      const roundToken = table.currentSessionToken!;
       // The table lock serializes concurrent retries. Replay before checking today's menu:
       // a committed order is still valid if its food subsequently sells out or changes price.
       if (requestKey) {
-        const existing = await tx.query.orders.findFirst({ where: and(eq(orders.storeId, store.id), eq(orders.tableNumber, tableNumber), eq(orders.sessionToken, sessionToken), eq(orders.requestKey, requestKey)), with: { items: true } });
+        const existing = await tx.query.orders.findFirst({ where: and(eq(orders.storeId, store.id), eq(orders.tableNumber, tableNumber), eq(orders.sessionToken, roundToken), eq(orders.requestKey, requestKey)), with: { items: true } });
         if (existing) {
           if (existing.requestHash !== requestHash) throw new AccessError("ข้อมูลการส่งครั้งนี้ไม่ตรงกับออเดอร์เดิม กรุณาตรวจสอบกับพนักงาน", 409);
           return { ...existing, sessionToken: undefined, requestKey: undefined, requestHash: undefined };
@@ -75,8 +79,9 @@ export async function POST(req: Request) {
       });
       const cents = lines.reduce((sum, line) => sum + Math.round(Number(line.unitPrice) * 100) * line.quantity, 0);
       if (cents > 9999999999) throw new AccessError("ยอดสั่งอาหารสูงเกินกำหนด", 400);
+      await consumeWriteQuota(tx, "orders:table:" + table.id, ORDER_LIMITS);
       const [order] = await tx.insert(orders).values({
-        storeId: store.id, tableId: table.id, tableNumber, sessionToken, servingRequired: true, orderNumber: "#" + randomUUID().slice(0, 8).toUpperCase(),
+        storeId: store.id, tableId: table.id, tableNumber, sessionToken: roundToken, servingRequired: true, orderNumber: "#" + randomUUID().slice(0, 8).toUpperCase(),
         requestKey: requestKey ?? null, requestHash,
         totalAmount: (cents / 100).toFixed(2), customerNote: body.customerNote?.trim() || null,
       }).returning();
@@ -86,6 +91,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, data }, { status: 201 });
   } catch (error) {
     if (error instanceof AccessError && error.status === 403) return NextResponse.json({ success: false, error: error.message, sessionExpired: true }, { status: 403 });
-    return apiError(error);
+    return writeErrorResponse(error);
   }
 }

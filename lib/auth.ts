@@ -2,7 +2,7 @@ import "server-only";
 import type { User } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { redirect } from "next/navigation";
-import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { staff, stores } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
@@ -22,16 +22,13 @@ export async function requireUser() {
 }
 
 // Resolve against current DB records on every request. Never trust a requested role,
-// user_metadata, a fallback owner, or an invitation already bound to a different user.
-export async function getAccessForUser(user: User): Promise<StoreAccess | null> {
+// user_metadata or email invitations. Only explicitly accepted membership grants access.
+export async function getAccessForUser(user: User, database: Pick<typeof db, "query"> = db): Promise<StoreAccess | null> {
   if (user.is_anonymous) throw new AccessError("กรุณาเข้าสู่ระบบด้วยบัญชี Google", 401);
-  const owned = await db.query.stores.findFirst({ where: eq(stores.ownerId, user.id) });
+  const owned = await database.query.stores.findFirst({ where: eq(stores.ownerId, user.id) });
   if (owned) return { user, store: owned, role: "owner" };
-  const members = await db.query.staff.findMany({
-    where: or(eq(staff.userId, user.id),
-      user.email && user.email_confirmed_at
-        ? and(isNull(staff.userId), sql`lower(trim(${staff.email})) = ${user.email.trim().toLowerCase()}`)
-        : undefined),
+  const members = await database.query.staff.findMany({
+    where: eq(staff.userId, user.id),
     limit: 2,
   });
   if (!members.length) return null;
@@ -40,7 +37,7 @@ export async function getAccessForUser(user: User): Promise<StoreAccess | null> 
   if (member.role !== "cashier" && member.role !== "kitchen") {
     throw new AccessError("กรุณาให้เจ้าของร้านกำหนดบทบาทเป็นหน้าร้านหรือครัวใหม่");
   }
-  const store = await db.query.stores.findFirst({ where: eq(stores.id, member.storeId) });
+  const store = await database.query.stores.findFirst({ where: eq(stores.id, member.storeId) });
   if (!store) throw new AccessError("ไม่พบร้านค้าที่คุณมีสิทธิ์เข้าใช้งาน");
   return { user, store, role: member.role };
 }
@@ -59,7 +56,7 @@ export async function requirePageAccess(allowed: readonly StaffRole[]) {
     if (error instanceof AccessError) redirect(error.status === 401 ? "/owner/login" : "/access-denied");
     throw error;
   }
-  if (!access) redirect("/owner/onboarding");
+  if (!access) redirect("/workspace");
   if (!allowed.includes(access.role)) redirect(homeForRole(access.role));
   return access;
 }

@@ -6,6 +6,7 @@ import { needsServing } from "@/lib/payments";
 import { requireStoreAccess, apiError } from "@/lib/auth";
 import { isValidTableCount, MAX_TABLE_COUNT } from "@/lib/table-settings";
 import { randomBytes } from "node:crypto";
+import { CUSTOMER_QR_LIFETIME_MS, customerQrToken } from "@/lib/customer-qr";
 
 class TableError extends Error {
   constructor(message: string, public status: number) { super(message); }
@@ -42,7 +43,7 @@ export async function GET() {
     return NextResponse.json({
       success: true, data, canManageTables,
       store: { id: store.id, name: store.name, slug: store.slug },
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error); }
 }
 
@@ -56,7 +57,7 @@ export async function POST(req: Request) {
     }
     const { action, tableNumber, count, storeSlug } = body;
     if (storeSlug && storeSlug !== store.slug) throw new TableError("คุณไม่มีสิทธิ์จัดการโต๊ะของร้านนี้", 403);
-    if (!["sync_tables", "open_session", "close_session"].includes(action)) {
+    if (!["sync_tables", "open_session", "close_session", "renew_qr"].includes(action)) {
       throw new TableError("ไม่พบคำสั่งที่ต้องการ", 400);
     }
     if (action === "sync_tables") {
@@ -108,12 +109,26 @@ export async function POST(req: Request) {
 
       const table = currentTables.find((item) => item.tableNumber === tableNumber);
       if (!table) throw new TableError("ไม่พบโต๊ะนี้ กรุณาโหลดผังโต๊ะใหม่", 404);
+      if (action === "renew_qr") {
+        if (table.status !== "occupied" || !table.currentSessionToken) throw new TableError("ต้องเปิดโต๊ะก่อนออก QR ใหม่", 409);
+        // Reject stale screens/repeated requests instead of invalidating a QR just issued.
+        if (typeof body.expectedQrToken !== "string" || body.expectedQrToken !== customerQrToken(table)) {
+          throw new TableError("QR ของโต๊ะเปลี่ยนแล้ว กรุณาโหลดผังโต๊ะใหม่", 409);
+        }
+        const [renewed] = await tx.update(tables).set({
+          currentQrToken: "qr_" + randomBytes(32).toString("hex"),
+          qrExpiresAt: new Date(Date.now() + CUSTOMER_QR_LIFETIME_MS),
+        }).where(eq(tables.id, table.id)).returning();
+        return renewed;
+      }
       if (action === "open_session") {
         // Repeated clicks must not replace the QR of an existing session.
         if (table.status === "occupied" && table.currentSessionToken) return table;
         const [opened] = await tx.update(tables).set({
           status: "occupied", currentSessionToken: "tk_" + randomBytes(16).toString("hex"),
           sessionStartedAt: new Date(),
+          currentQrToken: "qr_" + randomBytes(32).toString("hex"),
+          qrExpiresAt: new Date(Date.now() + CUSTOMER_QR_LIFETIME_MS),
         }).where(eq(tables.id, table.id)).returning();
         return opened;
       }
@@ -137,10 +152,10 @@ export async function POST(req: Request) {
         eq(serviceRequests.sessionToken, table.currentSessionToken ?? ""), eq(serviceRequests.status, "pending"),
       ));
       const [closed] = await tx.update(tables).set({
-        status: "available", currentSessionToken: null, sessionStartedAt: null,
+        status: "available", currentSessionToken: null, sessionStartedAt: null, currentQrToken: null, qrExpiresAt: null,
       }).where(eq(tables.id, table.id)).returning();
       return closed;
     });
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({ success: true, data }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error); }
 }

@@ -5,6 +5,12 @@ import { db } from "@/db";
 import { stores, tables } from "@/db/schema";
 import { AccessError, apiError } from "@/lib/auth";
 import { getStoreBySlugOrId } from "@/utils/store";
+import { customerQrProblem, QR_PROBLEM_MESSAGES } from "@/lib/customer-qr";
+
+export function assertCustomerQr(table: typeof tables.$inferSelect | undefined, token: unknown): asserts table is typeof tables.$inferSelect {
+  const problem = customerQrProblem(table, token);
+  if (problem) throw new AccessError(QR_PROBLEM_MESSAGES[problem], 403);
+}
 
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type SessionInput = { storeSlug: unknown; tableNumber: unknown; sessionToken: unknown };
@@ -23,9 +29,7 @@ export async function withCustomerSession<T>(input: SessionInput,
     // Writes use the same lock order as table close/open and order creation.
     if (write) await tx.select({ id: stores.id }).from(stores).where(eq(stores.id, store.id)).for("update");
     const [table] = await tx.select().from(tables).where(and(eq(tables.storeId, store.id), eq(tables.tableNumber, tableNumber))).for(write ? "update" : "share");
-    if (!table || table.status !== "occupied" || table.currentSessionToken !== sessionToken) {
-      throw new AccessError("รอบโต๊ะสิ้นสุดแล้ว กรุณาสแกน QR ใหม่", 403);
-    }
+    assertCustomerQr(table, sessionToken);
     return work(tx, table);
   });
 }

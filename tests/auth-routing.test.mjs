@@ -53,3 +53,27 @@ test("proxy rejects wrong roles and follows role revocation on the next request"
     if (previous.key === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY; else process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = previous.key;
   }
 });
+
+
+test("pending invitations go to workspace without an access-denied loop", async () => {
+  const f = authFixture("new-user");
+  f.state.staff.push({ id: "invite-a", storeId: "shop-a", userId: null, email: "staff@example.com", role: "cashier" },
+    { id: "invite-b", storeId: "shop-b", userId: null, email: "staff@example.com", role: "kitchen" });
+  const callback = await f.load("app/auth/callback/route.ts").GET(new NextRequest("http://localhost/auth/callback?code=test"));
+  assert.equal(callback.headers.get("location"), "http://localhost/workspace");
+  const previous = { url: process.env.NEXT_PUBLIC_SUPABASE_URL, key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY };
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "test-only";
+  try {
+    const { updateSession } = f.load("utils/supabase/middleware.ts");
+    for (const path of ["/workspace", "/owner/onboarding"]) {
+      const response = await updateSession(new NextRequest("http://localhost" + path));
+      assert.equal(response.headers.get("location"), null);
+    }
+    const response = await updateSession(new NextRequest("http://localhost/frontdesk"));
+    assert.equal(response.headers.get("location"), "http://localhost/workspace");
+  } finally {
+    if (previous.url === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL; else process.env.NEXT_PUBLIC_SUPABASE_URL = previous.url;
+    if (previous.key === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY; else process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = previous.key;
+  }
+});

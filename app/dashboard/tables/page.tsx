@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isValidTableCount, MAX_TABLE_COUNT, MIN_TABLE_COUNT, TABLE_STATUS_LABELS } from "@/lib/table-settings";
+import { customerQrToken, customerQrExpiresAt } from "@/lib/customer-qr";
 import { QRCodeSVG } from "qrcode.react";
 import { Armchair, Check, Clock, Copy, ExternalLink, LogOut, Minus, Plus, QrCode, RotateCw } from "lucide-react";
 
@@ -20,6 +21,8 @@ interface TableItem {
   tableNumber: number;
   status: keyof typeof TABLE_STATUS_LABELS;
   currentSessionToken: string | null;
+  currentQrToken: string | null;
+  qrExpiresAt: string | null;
   sessionStartedAt: string | null;
 }
 
@@ -39,6 +42,7 @@ export default function TablesManagementPage() {
   const [draftCount, setDraftCount] = useState<string | null>(null);
   const [activeQrTable, setActiveQrTable] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const busy = useRef(false);
@@ -60,6 +64,7 @@ export default function TablesManagementPage() {
         throw new Error(json.error || "โหลดผังโต๊ะไม่สำเร็จ");
       }
       setTables(uniqueTables(json.data || []));
+      setNow(Date.now());
       setStoreSlug(json.store?.slug || json.store?.id || "");
       setStoreName(json.store?.name || "");
       setCanManageTables(json.canManageTables === true);
@@ -73,7 +78,7 @@ export default function TablesManagementPage() {
   useEffect(() => {
     const requestState = requests.current;
     const initialLoad = setTimeout(() => void fetchTables(), 0);
-    const interval = setInterval(() => void fetchTables(), 10000);
+    const interval = setInterval(() => { setNow(Date.now()); void fetchTables(); }, 10000);
     return () => {
       clearTimeout(initialLoad);
       clearInterval(interval);
@@ -92,6 +97,12 @@ export default function TablesManagementPage() {
   const availableCount = tables.filter((table) => table.status === "available").length;
   const reservedCount = tables.filter((table) => table.status === "reserved").length;
   const qrTable = tables.find((table) => table.tableNumber === activeQrTable && table.currentSessionToken);
+
+  const qrExpired = qrTable ? (customerQrExpiresAt(qrTable) ?? 0) <= now : false;
+  const expiryLabel = (table: TableItem) => {
+    const expiry = customerQrExpiresAt(table);
+    return expiry === null || expiry <= now ? "QR หมดอายุ" : "QR ใช้ได้ถึง " + new Date(expiry).toLocaleString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" }) + " น.";
+  };
 
   async function performAction(action: string, fields: { count?: number; tableNumber?: number }) {
     if (busy.current) return;
@@ -142,7 +153,7 @@ export default function TablesManagementPage() {
 
   function getOrderingUrl(table: TableItem) {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    return `${origin}/r/${encodeURIComponent(storeSlug)}/table/${table.tableNumber}?token=${encodeURIComponent(table.currentSessionToken || "")}`;
+    return `${origin}/r/${encodeURIComponent(storeSlug)}/table/${table.tableNumber}?token=${encodeURIComponent(customerQrToken(table) || "")}`;
   }
 
   async function copyOrderingUrl(table: TableItem) {
@@ -294,7 +305,7 @@ export default function TablesManagementPage() {
                 </div>
                 <div className="flex-1 px-4 pb-4 text-sm text-muted-foreground">
                   {occupied ? (
-                    <p className="flex items-center gap-2"><Clock className="size-4 shrink-0 text-amber-500" /> เปิดเมื่อ {table.sessionStartedAt ? new Date(table.sessionStartedAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "สักครู่"}</p>
+                    <div className="space-y-1"><p className="flex items-center gap-2"><Clock className="size-4 shrink-0 text-amber-500" /> เปิดเมื่อ {table.sessionStartedAt ? new Date(table.sessionStartedAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "สักครู่"}</p><p className="text-xs">{expiryLabel(table)}</p></div>
                   ) : <p>{reserved ? "โต๊ะนี้จองไว้ สามารถเปิดเมื่อมีลูกค้ามาถึง" : "พร้อมรับลูกค้าและเปิดรอบใหม่"}</p>}
                 </div>
                 <div className="flex flex-wrap gap-2 border-t border-border bg-muted/30 p-3">
@@ -327,8 +338,11 @@ export default function TablesManagementPage() {
           {qrTable && <>
             <DialogHeader>
               <DialogTitle className="text-lg">QR สั่งอาหาร · โต๊ะ {String(qrTable.tableNumber).padStart(2, "0")}</DialogTitle>
-              <DialogDescription className="break-words">{storeName} · ใช้ได้เฉพาะรอบนี้และหมดอายุเมื่อปิดโต๊ะ</DialogDescription>
+              <DialogDescription className="break-words">{storeName} · QR ใช้ได้ 24 ชั่วโมง หรือจนกว่าจะปิดโต๊ะ</DialogDescription>
             </DialogHeader>
+            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+            <p role="status" className="text-sm text-muted-foreground">{expiryLabel(qrTable)}</p>
+            {qrExpired ? <p className="rounded-lg border border-border bg-muted/40 p-4 text-sm">QR หมดอายุแล้ว ออเดอร์และบิลเดิมยังอยู่ครบ กรุณาจัดการรายการค้างและรับเงินให้เรียบร้อย แล้วปิดโต๊ะก่อนเปิดรอบใหม่</p> : <>
             <div className="mx-auto rounded-xl bg-white p-4">
               <QRCodeSVG value={getOrderingUrl(qrTable)} size={192} level="M" fgColor="#18181b" bgColor="#ffffff" title={"สแกนสั่งอาหาร โต๊ะ " + qrTable.tableNumber} />
             </div>
@@ -343,8 +357,9 @@ export default function TablesManagementPage() {
               <Button variant="outline" className="min-h-11 flex-1" render={<a href={getOrderingUrl(qrTable)} target="_blank" rel="noopener noreferrer" />}>
                 <ExternalLink /> เปิดหน้าสั่งอาหาร
               </Button>
-              <Button className="min-h-11 flex-1" onClick={() => setActiveQrTable(null)}>ปิดหน้าต่าง</Button>
             </div>
+            </>}
+            <Button className="min-h-11 w-full" onClick={() => setActiveQrTable(null)}>ปิดหน้าต่าง</Button>
           </>}
         </DialogContent>
       </Dialog>

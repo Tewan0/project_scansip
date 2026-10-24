@@ -12,7 +12,7 @@ function setup({ key = "test-key-never-used-on-network", provider, model } = {})
       if (provider) return provider(url, options);
       return Response.json(geminiReply());
     } });
-  f.state.tables.push({ id: "table-a", storeId: "shop-a", tableNumber: 1, status: "occupied", currentSessionToken: "round-a" });
+  f.state.tables.push({ id: "table-a", storeId: "shop-a", tableNumber: 1, status: "occupied", currentSessionToken: "round-a", sessionStartedAt: new Date() });
   f.state.menuItems.push({ id: "tea-a", storeId: "shop-a", name: "ชา", description: "ชาไม่หวาน", price: "35.00", isAvailable: true },
     { id: "foreign", storeId: "shop-b", name: "secret other shop", price: "10.00", isAvailable: true },
     { id: "soldout", storeId: "shop-a", name: "หมด", price: "5.00", isAvailable: false });

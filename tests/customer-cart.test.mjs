@@ -52,7 +52,7 @@ test("blocked browser storage still supports editing in memory and reports no pe
 });
 
 // Execute the actual page handlers with mocked browser/network APIs, without a DOM.
-function customerPage(storage, { checkoutStatus = 201, valid = true, menuAvailable = true, loseResponse = false } = {}) {
+function customerPage(storage, { checkoutStatus = 201, valid = true, menuAvailable = true, loseResponse = false, invalidReason = "session_expired" } = {}) {
   const slots = [], effects = [];
   let cursor = 0;
   const requests = [];
@@ -92,7 +92,7 @@ function customerPage(storage, { checkoutStatus = 201, valid = true, menuAvailab
   }, {
     window: browser, setInterval: () => 1, clearInterval() {},
     fetch: async (url, options) => {
-      if (url.startsWith("/api/tables/validate")) return Response.json({ success: true, valid, reason: valid ? undefined : "session_expired" });
+      if (url.startsWith("/api/tables/validate")) return Response.json({ success: true, valid, reason: valid ? undefined : invalidReason });
       if (url.startsWith("/api/store")) return Response.json({ success: true, data: { id: "shop-a", name: "Cafe", openingTime: "08:00", closingTime: "18:00" } });
       if (url.startsWith("/api/categories")) return Response.json({ success: true, data: [] });
       if (url.startsWith("/api/menu")) return Response.json({ success: true, data: menuAvailable ? [{ id: "coffee", name: "กาแฟใหม่", price: "75.00", isAvailable: true }] : [] });
@@ -239,8 +239,35 @@ test("a definitive rejected checkout unlocks the retained draft for corrections"
   }finally{page.dispose();}
 });
 
+test("rate-limited checkout preserves cart and allows a later manual retry",async()=>{
+  const storage=storageFixture();lib.createCartStore(storage,key).update(()=>draft);
+  const page=customerPage(storage,{checkoutStatus:429});
+  try {
+    const tree=await page.ready();
+    await nodes(tree).find(n=>n.type==="Button"&&textContent(n).includes("ยืนยันส่งคำสั่งซื้อ")).props.onClick();
+    const saved=lib.createCartStore(storage,key).getSnapshot().draft;
+    assert.deepEqual(structuredClone(saved.items),draft.items);assert.equal(saved.customerNote,draft.customerNote);
+    assert.equal(saved.requestId,page.requests[0].requestId);
+    const retry=nodes(page.render()).find(n=>n.type==="Button"&&textContent(n).includes("ตรวจสอบการส่งอีกครั้ง"));
+    assert.equal(retry.props.disabled,false);
+    await retry.props.onClick();
+    assert.equal(page.requests.length,2);assert.equal(page.requests[1].requestId,saved.requestId);
+  } finally {page.dispose();}
+});
+
 test("blocked storage still reuses an in-memory request key",()=>{
   const cart=lib.createCartStore(null,key);cart.update(()=>draft);
   const attempt=cart.beginCheckout();assert.equal(cart.beginCheckout().requestId,attempt.requestId);
   assert.equal(cart.getSnapshot().persistent,false);
+});
+
+test("24-hour QR expiry shows a blocked screen and retains the unsent cart", async () => {
+  const storage = storageFixture(); lib.createCartStore(storage, key).update(() => draft);
+  const page = customerPage(storage, { valid: false, invalidReason: "qr_expired" });
+  try {
+    const tree = await page.ready(); assert.match(textContent(tree), /QR หมดอายุ/);
+    assert.equal(nodes(tree).some(node => node.type === "Button" && textContent(node).includes("ยืนยันส่งคำสั่งซื้อ")), false);
+    assert.equal(lib.createCartStore(storage, key).getSnapshot().draft.items.length, 1);
+    assert.equal(page.requests.length, 0);
+  } finally { page.dispose(); }
 });

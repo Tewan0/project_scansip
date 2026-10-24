@@ -6,7 +6,7 @@ function orderFixture(role = "kitchen") {
   const f = fixture(role);
   f.state.orders.push({ id: "order-a", storeId: "shop-a", tableNumber: 1, sessionToken: "token-a", status: "pending", paymentStatus: "unpaid", totalAmount: "120.00" });
   f.state.orderItems.push({ id: "line-a", orderId: "order-a", menuName: "Coffee", quantity: 2, unitPrice: "50", status: "pending" }, { id: "line-b", orderId: "order-a", menuName: "Cake", quantity: 1, unitPrice: "20", status: "pending" });
-  f.state.tables.push({ id: "table-a", storeId: "shop-a", tableNumber: 1, status: "occupied", currentSessionToken: "token-a" });
+  f.state.tables.push({ id: "table-a", storeId: "shop-a", tableNumber: 1, status: "occupied", currentSessionToken: "token-a", sessionStartedAt: new Date() });
   return f;
 }
 
@@ -70,7 +70,7 @@ test("kitchen feed excludes money and session tokens; private orders reject anon
 test("customer order status requires matching token and a still-open table session", async () => {
   const f = orderFixture("anonymous"), route = f.load("app/api/orders/[id]/route.ts");
   assert.equal((await route.GET(new Request("http://localhost/api/orders/order-a"), params("order-a"))).status, 401);
-  assert.equal((await route.GET(new Request("http://localhost/api/orders/order-a?token=wrong"), params("order-a"))).status, 404);
+  assert.equal((await route.GET(new Request("http://localhost/api/orders/order-a?token=wrong"), params("order-a"))).status, 403);
   assert.equal((await route.GET(new Request("http://localhost/api/orders/order-a?token=token-a"), params("order-a"))).status, 200);
   f.state.tables[0].currentSessionToken = "replacement";
   assert.equal((await route.GET(new Request("http://localhost/api/orders/order-a?token=token-a"), params("order-a"))).status, 403);

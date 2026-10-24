@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   if (error || !data.user) return finish("/owner/login?error=ไม่สามารถเข้าสู่ระบบได้");
   try {
     const access = await getAccessForUser(data.user);
-    return finish(access ? homeForRole(access.role) : "/owner/onboarding");
+    return finish(access ? homeForRole(access.role) : "/workspace");
   } catch (error) {
     if (!(error instanceof AccessError)) console.error("Login routing failed:", error);
     return finish("/access-denied");

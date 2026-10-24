@@ -49,7 +49,7 @@ export default async function OwnerDashboardPage() {
   }
 
   if (!store) {
-    redirect("/owner/onboarding");
+    redirect("/workspace");
   }
 
   const storeSlug = store.slug || "scansip";

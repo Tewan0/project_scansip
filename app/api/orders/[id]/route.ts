@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { orders, orderItems, tables } from "@/db/schema";
+import { orders, orderItems } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { requireStoreAccess, apiError, AccessError } from "@/lib/auth";
 import { canAdvanceItem, aggregateCookingStatus, type CookingStatus } from "@/lib/permissions";
 import { needsServing } from "@/lib/payments";
+import { withCustomerSession, customerError } from "@/lib/customer-session";
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(req: Request, { params }: Params) {
@@ -13,15 +14,19 @@ export async function GET(req: Request, { params }: Params) {
     const token = new URL(req.url).searchParams.get("token");
     const access = token ? null : await requireStoreAccess(["owner", "cashier"]);
     const order = await db.query.orders.findFirst({
-      where: and(eq(orders.id, id), access ? eq(orders.storeId, access.store.id) : eq(orders.sessionToken, token!)), with: { items: true },
+      where: and(eq(orders.id, id), access ? eq(orders.storeId, access.store.id) : undefined), with: { items: true },
     });
     if (!order) throw new AccessError("ไม่พบออเดอร์", 404);
     if (token) {
-      const table = await db.query.tables.findFirst({ where: and(eq(tables.storeId, order.storeId), eq(tables.tableNumber, order.tableNumber!), eq(tables.currentSessionToken, token), eq(tables.status, "occupied")) });
-      if (!table) throw new AccessError("รอบโต๊ะนี้สิ้นสุดแล้ว", 403);
+      return await withCustomerSession({ storeSlug: order.storeId, tableNumber: order.tableNumber, sessionToken: token }, async (tx, table) => {
+        if (order.sessionToken !== table.currentSessionToken) throw new AccessError("ไม่พบออเดอร์ในรอบโต๊ะนี้", 404);
+        const current = await tx.query.orders.findFirst({ where: and(eq(orders.id, id), eq(orders.storeId, table.storeId), eq(orders.sessionToken, table.currentSessionToken!)), with: { items: true } });
+        if (!current) throw new AccessError("ไม่พบออเดอร์", 404);
+        return NextResponse.json({ success: true, data: { ...current, sessionToken: undefined, requestKey: undefined, requestHash: undefined } }, { headers: { "Cache-Control": "private, no-store" } });
+      });
     }
-    return NextResponse.json({ success: true, data: { ...order, sessionToken: undefined } });
-  } catch (error) { return apiError(error); }
+    return NextResponse.json({ success: true, data: { ...order, sessionToken: undefined, requestKey: undefined, requestHash: undefined } }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) { return customerError(error); }
 }
 
 export async function PATCH(req: Request, { params }: Params) {

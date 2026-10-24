@@ -9,6 +9,7 @@ import { eq } from "drizzle-orm";
 import { requireUser, getAccessForUser, AccessError } from "@/lib/auth";
 import { DEFAULT_STORE_CATEGORIES } from "@/utils/store";
 import { validateImageUrl } from "@/utils/supabase/storage";
+import { lockAccount } from "@/lib/account-lock";
 
 export interface CreateStoreInput {
   name: string;
@@ -205,6 +206,9 @@ export async function createStoreOnboarding(data: FormData | CreateStoreInput) {
 
     logoUrl = validateImageUrl(logoUrl, "restaurant-logos", user.id);
     const newStore = await db.transaction(async (tx) => {
+    // Serialize store creation with accepting a staff invitation for this account.
+    await lockAccount(tx, user.id);
+    if (await getAccessForUser(user, tx)) throw new AccessError("บัญชีนี้มีร้านหรือสิทธิ์พนักงานแล้ว กรุณาโหลดหน้าใหม่", 409);
     const [newStore] = await tx
       .insert(stores)
       .values({

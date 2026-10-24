@@ -5,9 +5,9 @@ import { fixture, request, params } from "./helpers.mjs";
 const requestId = "11111111-1111-4111-8111-111111111111";
 function setup(role = "anonymous") {
   const f = fixture(role);
-  f.state.tables.push({ id: "table-a", storeId: "shop-a", tableNumber: 1, status: "occupied", currentSessionToken: "round-a" },
-    { id: "table-b", storeId: "shop-a", tableNumber: 2, status: "occupied", currentSessionToken: "round-b" },
-    { id: "table-other", storeId: "shop-b", tableNumber: 1, status: "occupied", currentSessionToken: "round-other" });
+  f.state.tables.push({ id: "table-a", storeId: "shop-a", tableNumber: 1, status: "occupied", currentSessionToken: "round-a", sessionStartedAt: new Date() },
+    { id: "table-b", storeId: "shop-a", tableNumber: 2, status: "occupied", currentSessionToken: "round-b", sessionStartedAt: new Date() },
+    { id: "table-other", storeId: "shop-b", tableNumber: 1, status: "occupied", currentSessionToken: "round-other", sessionStartedAt: new Date() });
   f.state.orders.push(...[
     ["current", "shop-a", "table-a", "round-a"], ["old", "shop-a", "table-a", "round-old"],
     ["other-table", "shop-a", "table-b", "round-b"], ["other-shop", "shop-b", "table-other", "round-other"],
@@ -101,7 +101,7 @@ test("closing a table resolves only requests for that round; reopening cannot ex
   const history = f.load("app/api/customer/session/route.ts");
   assert.equal((await history.GET(getRequest())).status, 403);
   await tables.POST(request({ action: "open_session", tableNumber: 1 }));
-  const nextToken = f.state.tables[0].currentSessionToken;
+  const nextToken = f.state.tables[0].currentQrToken;
   assert.notEqual(nextToken, "round-a");
   assert.equal((await history.GET(getRequest())).status, 403);
   const fresh = await (await history.GET(getRequest(nextToken))).json();

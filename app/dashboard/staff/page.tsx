@@ -37,6 +37,7 @@ import {
 interface StaffMember {
   id: string;
   storeId: string;
+  userId: string | null;
   name: string;
   email: string;
   role: "owner" | "manager" | "cashier" | "kitchen";
@@ -94,7 +95,7 @@ export default function ManageStaffPage() {
 
       const json = await res.json();
       if (json.success) {
-        setStatusMessage({ text: `เพิ่มพนักงาน ${json.data.name} เรียบร้อยแล้ว`, type: "success" });
+        setStatusMessage({ text: `เพิ่มคำเชิญสำหรับ ${json.data.name} แล้ว ให้พนักงานเข้าสู่ระบบเพื่อยืนยันร้าน`, type: "success" });
         setEmailInput("");
         setNameInput("");
         setStaffList((prev) => [json.data, ...prev]);
@@ -205,7 +206,7 @@ export default function ManageStaffPage() {
           </Badge>
         </div>
         <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-          เพิ่มอีเมล Google แล้วให้พนักงานใช้หน้าเข้าสู่ระบบเดียวกัน ระบบจะพาไปยังหน้าร้านหรือครัวตามบทบาท
+          เพิ่มอีเมล Google แล้วให้พนักงานเข้าสู่ระบบและยืนยันเข้าร้านก่อนเริ่มงาน คำเชิญจะแสดงในเว็บ ไม่มีการส่งอีเมลอัตโนมัติ
         </p>
       </div>
 
@@ -236,7 +237,7 @@ export default function ManageStaffPage() {
             <CardTitle className="text-base font-bold">เพิ่มอีเมลพนักงาน</CardTitle>
           </div>
           <CardDescription className="text-xs">
-            ระบุอีเมล Google ของพนักงานและกำหนดบทบาทเพื่ออนุญาตการเข้าใช้งานระบบร้านค้า
+            ระบุอีเมล Google และบทบาท พนักงานจะได้สิทธิ์เมื่อยืนยันเข้าร้านด้วยบัญชีของตัวเอง
           </CardDescription>
         </CardHeader>
 
@@ -363,6 +364,7 @@ export default function ManageStaffPage() {
                             {staff.name}
                           </p>
                           {getRoleBadge(staff.role)}
+                          {!isOwner && <Badge variant="outline" className="text-[11px] text-muted-foreground">{staff.userId ? "ยืนยันแล้ว" : "รอยืนยันเข้าร้าน"}</Badge>}
                         </div>
                         <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
                           <Mail className="size-3 text-muted-foreground shrink-0" />

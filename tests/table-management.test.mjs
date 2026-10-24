@@ -32,7 +32,7 @@ function fixture({ role = "owner", tableCount = 8 } = {}) {
     stores: [{ id: "shop-a", ownerId: "owner", slug: "cafe-a" }, { id: "shop-b", ownerId: "other-owner", slug: "cafe-b" }],
     tables: Array.from({ length: tableCount }, (_, i) => ({ id: "table-" + (i + 1), storeId: "shop-a", tableNumber: i + 1, status: "available", currentSessionToken: null })),
     orders: [], serviceRequests: [],
-    staff: role === "cashier" ? [{ storeId: "shop-a", userId: null, email: "staff@example.com", role: "cashier" }] : [],
+    staff: role === "cashier" ? [{ storeId: "shop-a", userId: "cashier", email: "staff@example.com", role: "cashier" }] : [],
   };
   const user = role === "anonymous" ? null : { id: role, email: "STAFF@example.com", email_confirmed_at: "2026-01-01" };
   const operations = [];
@@ -100,6 +100,7 @@ function fixture({ role = "owner", tableCount = 8 } = {}) {
     "@/db": { db: database(state) }, "@/db/schema": schema, "drizzle-orm": orm,
     "@/utils/supabase/server": { createClient: async () => ({ auth: { getUser: async () => ({ data: { user }, error: null }) } }) },
     "@/lib/table-settings": loadTs("lib/table-settings.ts"),
+    "@/lib/customer-qr": loadTs("lib/customer-qr.ts"),
     "@/lib/payments": loadTs("lib/payments.ts"),
   };
   dependencies["@/lib/auth"] = loadTs("lib/auth.ts", {
