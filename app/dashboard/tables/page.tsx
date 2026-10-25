@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
+import { TableCardsSkeleton } from "@/components/loading-skeletons";
 import { isValidTableCount, MAX_TABLE_COUNT, MIN_TABLE_COUNT, TABLE_STATUS_LABELS } from "@/lib/table-settings";
 import { customerQrToken, customerQrExpiresAt } from "@/lib/customer-qr";
 import { QRCodeSVG } from "qrcode.react";
@@ -239,9 +239,7 @@ export default function TablesManagementPage() {
       )}
 
       {isLoading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" aria-label="กำลังโหลดผังโต๊ะ">
-          {[1, 2, 3, 4].map((number) => <Skeleton key={number} className="h-48 rounded-xl" />)}
-        </div>
+        <TableCardsSkeleton />
       ) : tables.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground">
           <Armchair className="mx-auto mb-3 size-8" />

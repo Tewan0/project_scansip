@@ -78,7 +78,7 @@ test("logout button prompts for confirmation before signing out and cancels clea
   const r = runtime();
   const LogoutButton = r.load("components/logout-button.tsx").LogoutButton;
   const render = () => r.render(() => LogoutButton({
-    children: "ออกจากระบบ",
+    children: "ออกจากระบบ", type: "submit",
     onConfirm() { submitted++; }
   }));
 
@@ -89,6 +89,7 @@ test("logout button prompts for confirmation before signing out and cancels clea
   // Find the button and click it
   const btn = nodes(tree).find(node => node.type === "button");
   assert.ok(btn);
+  assert.equal(btn.props.type, "button");
 
   let defaultPrevented = false;
   const event = { preventDefault() { defaultPrevented = true; } };

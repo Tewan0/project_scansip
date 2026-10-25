@@ -9,6 +9,9 @@ import { requireStoreAccess, AccessError } from "@/lib/auth";
 import { validateCategory, validateName, validatePrice } from "@/lib/menu-validation";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { deleteStorageFile } from "@/utils/supabase/storage";
+import { reserveUploadQuota, validateImageUpload } from "@/lib/upload-policy";
+import { checkFormSize } from "@/lib/request-body";
+import { WriteRateLimitError } from "@/lib/write-rate-limit";
 
 export async function deleteMenuItem(menuItemId: string) {
   try {
@@ -28,17 +31,19 @@ export async function updateMenuItem(menuItemId: string, form: FormData) {
     const { store, user } = await requireStoreAccess(["owner"]);
     const item = await db.query.menuItems.findFirst({ where: and(eq(menuItems.id, menuItemId), eq(menuItems.storeId, store.id)) });
     if (!item) throw new AccessError("ไม่พบเมนูในร้านนี้", 404);
+    checkFormSize(form);
     const name = validateName(form.get("name"));
     const price = validatePrice(form.get("unitPrice") ?? form.get("price"));
     const categoryId = await validateCategory(form.get("categoryId") === "none" ? null : form.get("categoryId"), store.id);
     let imageUrl = form.get("removeImage") === "true" ? null : item.imageUrl;
     const file = form.get("image") || form.get("file") || form.get("photo");
-    if (file instanceof File && file.size) {
-      const types: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
-      if (!types[file.type] || file.size > 5 * 1024 * 1024) throw new AccessError("กรุณาใช้รูป JPG, PNG, WebP หรือ GIF ขนาดไม่เกิน 5 MB", 400);
-      const path = `${user.id}/${randomUUID()}.${types[file.type]}`;
+    // An empty unnamed file is the browser's unselected file input.
+    if (file !== null && !(file instanceof File && !file.size && !file.name)) {
+      await reserveUploadQuota(user.id);
+      const validated = validateImageUpload(file);
+      const path = `${user.id}/${randomUUID()}.${validated.extension}`;
       const client = createAdminClient();
-      const { error } = await client.storage.from("menu-photos").upload(path, new Uint8Array(await file.arrayBuffer()), { contentType: file.type, upsert: false });
+      const { error } = await client.storage.from("menu-photos").upload(path, new Uint8Array(await validated.file.arrayBuffer()), { contentType: validated.file.type, upsert: false });
       if (error) throw error;
       imageUrl = client.storage.from("menu-photos").getPublicUrl(path).data.publicUrl;
     }
@@ -48,8 +53,11 @@ export async function updateMenuItem(menuItemId: string, form: FormData) {
     }).where(and(eq(menuItems.id, item.id), eq(menuItems.storeId, store.id))).returning();
     if (imageUrl !== item.imageUrl) await deleteStorageFile(item.imageUrl, "menu-photos", user.id).catch(console.error);
     revalidatePath("/dashboard/menu");
-    return { success: true, data: updated };
+    return { success: true as const, data: updated };
   } catch (error) {
-    return { success: false, error: error instanceof AccessError ? error.message : "ไม่สามารถแก้ไขเมนูได้" };
+    return { success: false as const, error: error instanceof AccessError ? error.message : "ไม่สามารถแก้ไขเมนูได้",
+      status: error instanceof AccessError ? error.status : 500,
+      ...(error instanceof WriteRateLimitError ? { retryAfter: error.retryAfter } : {}),
+    };
   }
 }

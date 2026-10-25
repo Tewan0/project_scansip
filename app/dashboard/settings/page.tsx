@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -50,8 +49,12 @@ export default function SettingsPage() {
   // Slug states
   const [slug, setSlug] = useState("");
   const [originalSlug, setOriginalSlug] = useState("");
-  const [slugStatus, setSlugStatus] = useState<"idle" | "checking" | "available" | "unavailable">("idle");
-  const [slugError, setSlugError] = useState<string | null>(null);
+  const [slugCheck, setSlugCheck] = useState<{
+    slug: string; status: "idle" | "available" | "unavailable"; error: string | null;
+  } | null>(null);
+  const slugChanged = Boolean(slug && slug !== originalSlug);
+  const slugStatus = !slugChanged ? "idle" : slugCheck?.slug === slug ? slugCheck.status : "checking";
+  const slugError = slugChanged && slugCheck?.slug === slug ? slugCheck.error : null;
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -99,38 +102,26 @@ export default function SettingsPage() {
   }, [loadAttempt]);
 
   useEffect(() => {
-    if (!slug || slug === originalSlug) {
-      setSlugStatus("idle");
-      setSlugError(null);
-      return;
-    }
-
+    if (!slug || slug === originalSlug) return;
+    let cancelled = false;
     const timeoutId = setTimeout(async () => {
-      setSlugStatus("checking");
       try {
         const res = await checkSlugAvailability(slug);
-        if (res.available) {
-          setSlugStatus("available");
-          setSlugError(null);
-        } else {
-          setSlugStatus("unavailable");
-          setSlugError(res.error || "URL Slug นี้มีผู้อื่นใช้งานแล้ว");
-        }
+        if (cancelled) return;
+        setSlugCheck({ slug, status: res.available ? "available" : "unavailable",
+          error: res.available ? null : res.error || "URL Slug นี้มีผู้อื่นใช้งานแล้ว" });
       } catch {
-        setSlugStatus("idle");
+        if (!cancelled) setSlugCheck({ slug, status: "idle", error: null });
       }
     }, 450);
-
-    return () => clearTimeout(timeoutId);
+    return () => { cancelled = true; clearTimeout(timeoutId); };
   }, [slug, originalSlug]);
 
   const handleSlugChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const nextSlug = formatSlug(e.target.value);
+    if (nextSlug === slug) return;
     setSlug(nextSlug);
-    if (!nextSlug) {
-      setSlugStatus("idle");
-      setSlugError(null);
-    }
+    setSlugCheck(null);
   };
 
   const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -216,7 +207,7 @@ export default function SettingsPage() {
         if (json.data?.slug) {
           setOriginalSlug(json.data.slug);
           setSlug(json.data.slug);
-          setSlugStatus("idle");
+          setSlugCheck(null);
         }
         setTimeout(() => setSaved(false), 3500);
       } else {
@@ -233,7 +224,8 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-4xl mx-auto font-sans">
+      <div role="status" className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-4xl mx-auto font-sans">
+        <span className="sr-only">กำลังโหลดการตั้งค่าร้าน</span>
         <Skeleton className="h-8 w-44 rounded-lg" />
         <Card className="p-6 space-y-6">
           <Skeleton className="h-24 w-full rounded-xl" />

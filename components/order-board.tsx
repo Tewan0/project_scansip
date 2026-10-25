@@ -1,4 +1,8 @@
 "use client";
+import { RefreshStatus } from "@/components/refresh-status";
+import { startVisiblePolling } from "@/lib/visible-polling";
+import { BOOLEAN_PREFERENCES, useStoredPreference } from "@/hooks/use-stored-preference";
+import { OrderCardsSkeleton } from "@/components/loading-skeletons";
 import { BillBoard } from "@/components/bill-board";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -16,7 +20,8 @@ type Order = {
 };
 const labels: Record<string, string> = { pending: "รอทำ", preparing: "กำลังทำ", served: "ทำเสร็จแล้ว", completed: "ปิดออเดอร์แล้ว", cancelled: "ยกเลิกแล้ว" };
 
-export type SoundType = "melody" | "dingdong" | "marimba";
+const SOUND_TYPES = ["melody", "dingdong", "marimba"] as const;
+export type SoundType = typeof SOUND_TYPES[number];
 
 export function playOrderSound(soundType: SoundType = "melody") {
   try {
@@ -69,30 +74,23 @@ export function OrderBoard({ mode }: { mode: "kitchen" | "frontdesk" }) {
 
 function KitchenOrderBoard() {
   const router = useRouter();
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [filter, setFilter] = useState("active");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string[]>([]);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [selectedSound, setSelectedSound] = useState<SoundType>("melody");
+  const [soundPreference, setSoundPreference] = useStoredPreference("kitchen_sound_enabled", "true", BOOLEAN_PREFERENCES);
+  const soundEnabled = soundPreference === "true";
+  const [selectedSound, setSelectedSound] = useStoredPreference("kitchen_sound_type", "melody", SOUND_TYPES);
+  const [now, setNow] = useState(() => Date.now());
   const previousOrdersRef = useRef<Set<string> | null>(null);
   const working = useRef(new Set<string>());
   const version = useRef(0);
   const mounted = useRef(false);
 
-  useEffect(() => {
-    try {
-      const savedSound = localStorage.getItem("kitchen_sound_type") as SoundType;
-      if (savedSound) setSelectedSound(savedSound);
-      const savedEnabled = localStorage.getItem("kitchen_sound_enabled");
-      if (savedEnabled !== null) setSoundEnabled(savedEnabled === "true");
-    } catch {}
-  }, []);
-
   const handleSoundChange = (type: SoundType) => {
     setSelectedSound(type);
-    try { localStorage.setItem("kitchen_sound_type", type); } catch {}
     playOrderSound(type);
   };
 
@@ -113,6 +111,8 @@ function KitchenOrderBoard() {
         }
       }
       previousOrdersRef.current = new Set((result.data as Order[]).map((o) => o.id));
+      setNow(Date.now());
+      setUpdatedAt(Date.now());
       setOrders(result.data); setError("");
     } catch (error) {
       if (mounted.current && request === version.current) setError(error instanceof Error ? error.message : "เชื่อมต่อไม่สำเร็จ");
@@ -121,8 +121,8 @@ function KitchenOrderBoard() {
   useEffect(() => {
     mounted.current = true;
     const initial = setTimeout(() => void load(), 0);
-    const timer = setInterval(() => { if (!working.current.size) void load(); }, 8000);
-    return () => { mounted.current = false; clearTimeout(initial); clearInterval(timer); };
+    const stopPolling = startVisiblePolling(() => { setNow(Date.now()); if (!working.current.size) void load(); }, 8000);
+    return () => { mounted.current = false; clearTimeout(initial); stopPolling(); };
   }, [load]);
 
   async function update(id: string, body: Record<string, unknown>) {
@@ -154,8 +154,7 @@ function KitchenOrderBoard() {
             size="sm"
             onClick={() => {
               const next = !soundEnabled;
-              setSoundEnabled(next);
-              try { localStorage.setItem("kitchen_sound_enabled", String(next)); } catch {}
+              setSoundPreference(next ? "true" : "false");
               if (next) playOrderSound(selectedSound);
             }}
             className={cn(
@@ -216,12 +215,13 @@ function KitchenOrderBoard() {
       {[["active", "กำลังรอ/กำลังทำ"], ["served", "ทำเสร็จแล้ว"]].map(([value, label]) =>
         <Button key={value} variant={filter === value ? "default" : "outline"} onClick={() => setFilter(value)}>{label}</Button>)}
     </div>
+    <RefreshStatus updatedAt={updatedAt} failed={Boolean(error)} />
     {error && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
-    {loading ? <p role="status">กำลังโหลดออเดอร์…</p> : visible.length === 0 ? <Card><CardContent className="py-8 text-center text-muted-foreground">ไม่มีออเดอร์ในสถานะนี้</CardContent></Card> :
+    {loading ? <OrderCardsSkeleton /> : visible.length === 0 ? <Card><CardContent className="py-8 text-center text-muted-foreground">ไม่มีออเดอร์ในสถานะนี้</CardContent></Card> :
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
       {visible.map((order) => {
         const isPending = order.status === "pending";
-        const elapsedMin = Math.max(0, Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000));
+        const elapsedMin = Math.max(0, Math.floor((now - new Date(order.createdAt).getTime()) / 60000));
         const isLongWait = isPending && elapsedMin >= 15;
         return (
           <Card

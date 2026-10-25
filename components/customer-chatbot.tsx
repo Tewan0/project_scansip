@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type Recommendation = { id: string; name: string; price: string };
-type Message = { role: "user" | "assistant"; content: string; recommendations?: Recommendation[] };
+type Message = { id: number; role: "user" | "assistant"; content: string; recommendations?: Recommendation[] };
 export function CustomerChatbot({ storeSlug, tableNumber, sessionToken, enabled, onSessionExpired, onAdd }: {
   storeSlug: string; tableNumber: string; sessionToken: string; enabled: boolean;
   onSessionExpired: () => void; onAdd: (id: string) => boolean;
@@ -23,6 +23,7 @@ export function CustomerChatbot({ storeSlug, tableNumber, sessionToken, enabled,
   const [expired, setExpired] = useState(false);
   const active = useRef<AbortController | null>(null);
   const generation = useRef(0);
+  const nextMessageId = useRef(0);
   const bottom = useRef<HTMLDivElement | null>(null);
   useEffect(() => () => { generation.current++; active.current?.abort(); active.current = null; }, []);
   useEffect(() => { bottom.current?.scrollIntoView({ block: "nearest", behavior: "auto" }); }, [messages, busy, open]);
@@ -53,7 +54,9 @@ export function CustomerChatbot({ storeSlug, tableNumber, sessionToken, enabled,
         setError(typeof result.error === "string" ? result.error : "ผู้ช่วย AI ไม่พร้อมชั่วคราว คุณยังเลือกเมนูเองได้ตามปกติ"); return;
       }
       if (typeof result.data?.answer !== "string" || !Array.isArray(result.data.recommendations)) throw new Error("Invalid response");
-      setMessages((previous) => [...previous.slice(-18), { role: "user", content }, { role: "assistant", content: result.data.answer, recommendations: result.data.recommendations }]);
+      const userId = nextMessageId.current++;
+      const assistantId = nextMessageId.current++;
+      setMessages((previous) => [...previous.slice(-18), { id: userId, role: "user", content }, { id: assistantId, role: "assistant", content: result.data.answer, recommendations: result.data.recommendations }]);
       setQuestion("");
     } catch {
       if (generation.current === version && (!controller.signal.aborted || timedOut)) setError(timedOut
@@ -69,20 +72,20 @@ export function CustomerChatbot({ storeSlug, tableNumber, sessionToken, enabled,
     <div className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] right-4 z-40">
       <Button
         variant="default"
-        className="group relative flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xl shadow-black/20 hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 border-2 border-background cursor-pointer p-0"
+        className="group relative flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-black/15 motion-safe:hover:scale-[1.02] motion-safe:active:scale-[0.98] transition-transform duration-200 motion-reduce:transition-none border-2 border-background cursor-pointer p-0"
         disabled={!enabled || expired}
         onClick={() => setOpen(true)}
         aria-label="ถาม AI ช่วยเลือกเมนู"
       >
         <span className="relative flex items-center justify-center">
-          <MessageCircle className="size-6 transition-transform duration-200 group-hover:rotate-12" />
+          <MessageCircle className="size-6" />
           <span className="sr-only">ถาม AI ช่วยเลือกเมนู</span>
         </span>
         <span aria-hidden="true" className="absolute -top-1 -right-1 rounded-full border-2 border-background bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">AI</span>
       </Button>
     </div>
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="flex h-[min(46rem,calc(100dvh-2rem))] max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+      <DialogContent className="duration-200 motion-reduce:animate-none flex h-[min(46rem,calc(100dvh-2rem))] max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
         <DialogHeader className="shrink-0 border-b bg-muted/30 px-4 py-5 pr-14">
           <div className="flex items-center gap-3">
             <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-border bg-muted text-foreground"><Sparkles className="size-5" /></div>
@@ -95,7 +98,7 @@ export function CustomerChatbot({ storeSlug, tableNumber, sessionToken, enabled,
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">ถามหาเมนูตามงบหรือรสชาติที่ชอบ โดยอ้างอิงรายการของร้านนี้</p>
             <div className="mt-4 flex flex-col gap-2">{["แนะนำเครื่องดื่มไม่หวาน", "มีเมนูไม่เกิน 100 บาทไหม", "สั่งอาหารอย่างไร"].map((prompt) => <Button key={prompt} variant="outline" className="h-auto min-h-11 justify-between gap-3 whitespace-normal py-2 text-left font-normal" disabled={busy || !enabled || expired} onClick={() => void send(prompt)}>{prompt}<Send className="size-3.5 shrink-0 text-muted-foreground" /></Button>)}</div>
           </div>}
-          {messages.map((message, index) => <div key={index} className={`rounded-2xl p-3.5 text-sm leading-relaxed ${message.role === "user" ? "ml-10 rounded-tr-sm bg-primary text-primary-foreground" : "mr-2 rounded-tl-sm border bg-background sm:mr-6"}`}>
+          {messages.map((message, index) => <div key={message.id} className={`${message.role === "assistant" && index === messages.length - 1 ? "chat-message-enter " : ""}rounded-2xl p-3.5 text-sm leading-relaxed ${message.role === "user" ? "ml-10 rounded-tr-sm bg-primary text-primary-foreground" : "mr-2 rounded-tl-sm border bg-background sm:mr-6"}`}>
             <p className="mb-1 text-xs font-semibold">{message.role === "user" ? "คุณ" : "ผู้ช่วย AI"}</p><p className="whitespace-pre-wrap break-words">{message.content}</p>
             {message.recommendations?.map((item) => <div key={item.id} className="mt-3 rounded-xl border bg-muted/30 p-3 text-foreground">
               <p className="break-words font-semibold">{item.name}</p>
@@ -108,9 +111,13 @@ export function CustomerChatbot({ storeSlug, tableNumber, sessionToken, enabled,
           </div>)}
           {busy && (
             <>
-              <div className="ml-10 whitespace-pre-wrap break-words rounded-2xl rounded-tr-sm bg-primary p-3.5 text-sm leading-relaxed text-primary-foreground"><p className="mb-1 text-xs font-semibold">คุณ</p>{pendingQuestion}</div>
-              <div role="status" className="mr-4 flex w-fit items-center gap-2 rounded-2xl rounded-tl-sm border bg-background p-3.5 text-sm text-muted-foreground">
-                <Loader2 className="size-4 shrink-0 animate-spin motion-reduce:animate-none" />
+              <div className="chat-message-enter ml-10 whitespace-pre-wrap break-words rounded-2xl rounded-tr-sm bg-primary p-3.5 text-sm leading-relaxed text-primary-foreground"><p className="mb-1 text-xs font-semibold">คุณ</p>{pendingQuestion}</div>
+              <div role="status" className="chat-message-enter mr-4 flex w-fit items-center gap-2 rounded-2xl rounded-tl-sm border bg-background p-3.5 text-sm text-muted-foreground">
+                <span aria-hidden="true" className="chat-waiting-dots flex shrink-0 items-center gap-1">
+                  <span className="size-1 rounded-full bg-current" />
+                  <span className="size-1 rounded-full bg-current" />
+                  <span className="size-1 rounded-full bg-current" />
+                </span>
                 <span>{slow ? "กำลังรอคำตอบ… เลือกเมนูเองระหว่างรอได้เลย" : "กำลังดูเมนูที่เหมาะกับคุณ"}</span>
               </div>
             </>
@@ -118,7 +125,7 @@ export function CustomerChatbot({ storeSlug, tableNumber, sessionToken, enabled,
           <div ref={bottom} />
         </div>
         <div className="max-h-[55%] shrink-0 space-y-3 overflow-y-auto border-t bg-background p-4">
-          {notice && <p role={addFailed ? "alert" : "status"} className={`flex items-start gap-2 rounded-xl border p-3 text-xs leading-relaxed ${addFailed ? "border-amber-500/30 bg-amber-500/10" : "border-emerald-500/30 bg-emerald-500/10"}`}>{addFailed ? <AlertCircle className="size-4 shrink-0" /> : <Check className="size-4 shrink-0" />}{notice}</p>}
+          {notice && <p role={addFailed ? "alert" : "status"} className={`chat-message-enter flex items-start gap-2 rounded-xl border p-3 text-xs leading-relaxed ${addFailed ? "border-amber-500/30 bg-amber-500/10" : "border-emerald-500/30 bg-emerald-500/10"}`}>{addFailed ? <AlertCircle className="size-4 shrink-0" /> : <Check className="size-4 shrink-0" />}{notice}</p>}
           {error && <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3">
             <p role="alert" className="flex items-start gap-2 text-sm leading-relaxed"><AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" />{error}</p>
             {!expired && <Button type="button" variant="outline" className="mt-3 min-h-11" disabled={busy || !enabled || !question.trim()} onClick={() => void send()}><RotateCw className="size-4" />ลองส่งอีกครั้ง</Button>}

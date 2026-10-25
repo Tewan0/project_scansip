@@ -1,5 +1,6 @@
 "use client";
 
+import { RefreshStatus } from "@/components/refresh-status";
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // Shadcn UI Components
@@ -20,6 +21,8 @@ import {
   TableRow,
   TableCell,
 } from "@/components/ui/table";
+import { ReceiptSummary } from "@/components/receipt-summary";
+import type { ReceiptReport } from "@/lib/receipt-report";
 import { reportCsv } from "@/lib/report-export";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -51,6 +54,7 @@ interface TopItem {
 }
 
 interface ReportData {
+  receipts: ReceiptReport;
   range: string;
   totalRevenue: number;
   totalOrdersCount: number;
@@ -59,6 +63,7 @@ interface ReportData {
 }
 
 export default function SalesReportsPage() {
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [dateRange, setDateRange] = useState("7d");
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -67,18 +72,15 @@ export default function SalesReportsPage() {
   const [error, setError] = useState<string | null>(null);
   const activeRequest = useRef<AbortController | null>(null);
 
-  const fetchReports = useCallback(async (rangeKey: string, isManual = false) => {
+  const fetchReports = useCallback(async (rangeKey: string) => {
     activeRequest.current?.abort();
     const controller = new AbortController();
     activeRequest.current = controller;
-    setError(null);
-    setIsRefreshing(isManual);
-    setIsLoading(!isManual);
     try {
       const res = await fetch(`/api/reports?range=${rangeKey}`, { signal: controller.signal, cache: "no-store" });
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error("โหลดรายงานไม่สำเร็จ กรุณาลองอีกครั้ง");
-      if (!controller.signal.aborted) setReportData(json.data);
+      if (!controller.signal.aborted) { setUpdatedAt(Date.now()); setReportData(json.data); }
     } catch {
       if (!controller.signal.aborted) setError("โหลดรายงานไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง");
     } finally {
@@ -90,9 +92,24 @@ export default function SalesReportsPage() {
   }, []);
 
   useEffect(() => {
-    void fetchReports(dateRange);
-    return () => activeRequest.current?.abort();
+    const initial = setTimeout(() => void fetchReports(dateRange), 0);
+    return () => { clearTimeout(initial); activeRequest.current?.abort(); };
   }, [dateRange, fetchReports]);
+
+  const changeRange = (rangeKey: string) => {
+    if (rangeKey === dateRange) return;
+    activeRequest.current?.abort();
+    setError(null);
+    setIsLoading(true);
+    setIsRefreshing(false);
+    setDateRange(rangeKey);
+  };
+
+  const refreshReports = () => {
+    setError(null);
+    setIsRefreshing(true);
+    return fetchReports(dateRange);
+  };
 
   const handleExport = () => {
     if (!reportData || reportData.range !== dateRange || error) return;
@@ -132,8 +149,8 @@ export default function SalesReportsPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto font-sans">
       <div>
-        <h1 className="text-2xl font-bold">รายงานยอดขาย</h1>
-        <p className="mt-1 text-sm text-muted-foreground">ยอดสั่งซื้อที่ไม่ถูกยกเลิก ตามวันที่สั่งอาหาร รวมออเดอร์ที่ยังไม่ได้ชำระเงิน · เวลาไทย</p>
+        <h1 className="text-2xl font-bold">รายงานยอดขายและรับเงิน</h1>
+        <p className="mt-1 text-sm text-muted-foreground">แยกยอดขายตามวันที่สั่ง และยอดรับเงินจริงตามวันที่ชำระ · เวลาไทย</p>
       </div>
       {/* Controls & Filter Bar */}
       <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
@@ -145,7 +162,7 @@ export default function SalesReportsPage() {
               className="bg-card border-none text-xs text-card-foreground cursor-pointer outline-none w-full min-h-9"
               aria-label="ช่วงเวลาของรายงาน"
               value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
+              onChange={(e) => changeRange(e.target.value)}
             >
               <option value="7d">7 วันล่าสุด</option>
               <option value="month">เดือนนี้</option>
@@ -158,7 +175,7 @@ export default function SalesReportsPage() {
 
           <Button
             type="button"
-            onClick={() => fetchReports(dateRange, true)}
+            onClick={() => refreshReports()}
             disabled={isRefreshing || isLoading}
             variant="outline"
             size="sm"
@@ -181,9 +198,16 @@ export default function SalesReportsPage() {
         </Button>
       </div>
 
+    <RefreshStatus updatedAt={updatedAt} failed={Boolean(error)} />
       {error && <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{error}</div>}
       {isLoading ? (
-        <div className="space-y-6">
+        <div role="status" className="space-y-6">
+        <span className="sr-only">กำลังโหลดรายงานยอดขายและรับเงิน</span>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {[0, 1, 2].map(item => <Card key={item} className="h-28 justify-between p-4">
+              <Skeleton className="h-4 w-24" /><Skeleton className="h-8 w-36" />
+            </Card>)}
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Card className="p-5 h-28 justify-between">
               <Skeleton className="h-4 w-32" />
@@ -211,6 +235,11 @@ export default function SalesReportsPage() {
         </div>
       ) : reportData?.range === dateRange ? (
         <>
+          {reportData.receipts && <ReceiptSummary receipts={reportData.receipts} monthly={dateRange === "3m"} />}
+          <div>
+            <h2 className="text-lg font-semibold">ยอดขายตามวันที่สั่ง</h2>
+            <p className="mt-1 text-sm text-muted-foreground">รวมออเดอร์ที่ยังไม่ชำระเงิน ไม่นับออเดอร์ที่ยกเลิก</p>
+          </div>
           {/* Top Quick KPI summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Card className="border-border">

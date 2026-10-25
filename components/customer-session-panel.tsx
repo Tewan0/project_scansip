@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 // @refresh reset
 "use client";
+import { CustomerOrdersSkeleton } from "@/components/loading-skeletons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BellRing, ReceiptText, QrCode, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -72,9 +73,9 @@ export function CustomerSessionPanel({ storeSlug, tableNumber, sessionToken, ena
           <Badge variant="secondary" className="text-[10px] py-0 px-1.5 h-4.5 font-normal">
             {orders.length} บิล
           </Badge>
-        ) : (
+        ) : !loading && !error ? (
           <span className="text-[11px] text-muted-foreground">(ยังไม่มีออเดอร์)</span>
-        )}
+        ) : null}
       </div>
       <Button
         type="button"
@@ -118,7 +119,7 @@ export function CustomerSessionPanel({ storeSlug, tableNumber, sessionToken, ena
       })}
     </div>}
     {error && <p role="alert" className="text-sm text-destructive">{error} · กดอัปเดตสถานะเพื่อลองใหม่</p>}
-    {loading ? <p role="status" className="text-xs text-muted-foreground py-1">กำลังโหลดประวัติออเดอร์…</p> : null}
+    {loading ? <CustomerOrdersSkeleton /> : null}
     {orders.map((order) => <details key={order.id} open={!["completed", "cancelled"].includes(order.status)} className="rounded-lg border p-3">
       <summary className="min-h-11 cursor-pointer text-sm">
         <span className="font-semibold">{order.orderNumber}</span> · {order.deliveredAt ? "เสิร์ฟแล้ว" : ORDER_LABELS[order.status] || order.status}

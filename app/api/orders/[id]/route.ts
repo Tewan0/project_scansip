@@ -22,7 +22,7 @@ export async function GET(req: Request, { params }: Params) {
         if (order.sessionToken !== table.currentSessionToken) throw new AccessError("ไม่พบออเดอร์ในรอบโต๊ะนี้", 404);
         const current = await tx.query.orders.findFirst({ where: and(eq(orders.id, id), eq(orders.storeId, table.storeId), eq(orders.sessionToken, table.currentSessionToken!)), with: { items: true } });
         if (!current) throw new AccessError("ไม่พบออเดอร์", 404);
-        return NextResponse.json({ success: true, data: { ...current, sessionToken: undefined, requestKey: undefined, requestHash: undefined } }, { headers: { "Cache-Control": "private, no-store" } });
+        return NextResponse.json({ success: true, data: { ...current, cancelledBy: undefined, cancelledByLabel: undefined, cancellationReason: undefined, cancelledAt: undefined, sessionToken: undefined, requestKey: undefined, requestHash: undefined } }, { headers: { "Cache-Control": "private, no-store" } });
       });
     }
     return NextResponse.json({ success: true, data: { ...order, sessionToken: undefined, requestKey: undefined, requestHash: undefined } }, { headers: { "Cache-Control": "private, no-store" } });
@@ -31,7 +31,7 @@ export async function GET(req: Request, { params }: Params) {
 
 export async function PATCH(req: Request, { params }: Params) {
   try {
-    const { store, role } = await requireStoreAccess();
+    const { store, role, user } = await requireStoreAccess();
     const { id } = await params;
     const body = await req.json();
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new AccessError("ข้อมูลคำขอไม่ถูกต้อง", 400);
@@ -72,6 +72,10 @@ export async function PATCH(req: Request, { params }: Params) {
       if (body.paymentStatus !== undefined && body.paymentStatus !== "paid") throw new AccessError("สถานะการชำระเงินไม่ถูกต้อง", 400);
       if (body.status && !["preparing", "served", "completed", "cancelled"].includes(body.status)) throw new AccessError("สถานะออเดอร์ไม่ถูกต้อง", 400);
       if (body.status === "cancelled" && (order.paymentStatus === "paid" || body.paymentStatus || order.deliveredAt)) throw new AccessError("ยกเลิกออเดอร์ที่รับเงินหรือเสิร์ฟแล้วไม่ได้", 409);
+      if (body.status === "cancelled" && (typeof body.cancellationReason !== "string" ||
+        !body.cancellationReason.trim() || body.cancellationReason.length > 300)) {
+        throw new AccessError("กรุณาระบุเหตุผลการยกเลิก 1–300 ตัวอักษร", 400);
+      }
       if (body.paymentStatus && order.servingRequired) throw new AccessError("กรุณารับเงินจากหน้าบิลเพื่อบันทึกช่องทางและเงินทอน", 400);
       if (body.status === "completed" && (order.status !== "served" || needsServing(order) || (order.paymentStatus !== "paid" && body.paymentStatus !== "paid"))) throw new AccessError("ต้องทำอาหารเสร็จ เสิร์ฟ และรับเงินก่อนปิดออเดอร์", 409);
       if (body.status === "preparing" && !["pending", "preparing"].includes(order.status)) throw new AccessError("ไม่สามารถย้อนสถานะได้", 409);
@@ -83,6 +87,8 @@ export async function PATCH(req: Request, { params }: Params) {
         }
       }
       const [updated] = await tx.update(orders).set({
+        ...(body.status === "cancelled" ? { cancelledBy: user.id, cancelledByLabel: user.email || user.id,
+          cancelledAt: new Date(), cancellationReason: body.cancellationReason.trim() } : {}),
         ...(body.status ? { status: body.status } : {}), ...(body.paymentStatus ? { paymentStatus: body.paymentStatus } : {}), updatedAt: new Date(),
       }).where(and(eq(orders.id, order.id), eq(orders.storeId, store.id))).returning();
       return { id: updated.id, status: updated.status };

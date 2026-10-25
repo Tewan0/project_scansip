@@ -93,3 +93,22 @@ test("unmount aborts the outstanding request and discards a late response", asyn
   resolve(reply()); await tick(); assert.equal(page.timers.size, 0);
   assert.ok(!text(page.render()).includes("ลองชานี้ครับ"));
 });
+
+
+test("chat keeps message identity when trimming history and sends only conversation fields", async () => {
+  let payload;
+  const page = chatbot(async (_url, options) => { payload = JSON.parse(options.body); return reply(); });
+  const messages = () => nodes(page.render()).filter(node => node.type === "div" && node.key !== null && node.props.className?.includes("rounded-2xl p-3.5"));
+  for (let i = 0; i < 10; i++) { ask(page, "question " + i); await tick(); }
+  const before = messages();
+  assert.equal(before.length, 20);
+  ask(page, "question 10"); await tick();
+  const after = messages();
+  assert.equal(after.length, 20);
+  assert.deepEqual(after.slice(0, 18).map(node => node.key), before.slice(2).map(node => node.key));
+  assert.ok(after.slice(-2).every(node => !before.some(old => old.key === node.key)));
+  assert.equal(new Set(after.map(node => node.key)).size, 20);
+  assert.equal(payload.messages.length, 9);
+  assert.ok(payload.messages.every(message => Object.keys(message).sort().join(",") === "content,role"));
+  page.dispose();
+});

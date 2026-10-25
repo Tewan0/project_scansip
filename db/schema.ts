@@ -141,6 +141,10 @@ export const orders = pgTable("orders", {
   status: orderStatusEnum("status").default("pending").notNull(),
   paymentStatus: paymentStatusEnum("payment_status").default("unpaid").notNull(),
   paymentId: uuid("payment_id").references(() => billPayments.id),
+  cancelledBy: uuid("cancelled_by"),
+  cancelledByLabel: text("cancelled_by_label"),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  cancellationReason: text("cancellation_reason"),
   // New API opts in explicitly so an older deployment remains compatible during rollout.
   servingRequired: boolean("serving_required").default(false).notNull(),
   deliveredAt: timestamp("delivered_at", { withTimezone: true }),

@@ -53,8 +53,6 @@ export function LogoutButton({
   const { confirm, confirmationDialog } = useConfirmation();
   const [submitting, setSubmitting] = useState(false);
 
-  const { type: _ignoredType, ...buttonRestProps } = props;
-
   const handleTrigger = async (e: React.MouseEvent<HTMLButtonElement>) => {
     onClick?.(e);
     if (e.defaultPrevented || submitting) return;
@@ -99,23 +97,23 @@ export function LogoutButton({
       >
         {variant ? (
           <Button
-            type="button"
             variant={variant}
             size={size}
             onClick={handleTrigger}
             disabled={disabled || submitting}
             className={className}
-            {...buttonRestProps}
+            {...props}
+            type="button"
           >
             {children}
           </Button>
         ) : (
           <button
-            type="button"
             onClick={handleTrigger}
             disabled={disabled || submitting}
             className={className}
-            {...buttonRestProps}
+            {...props}
+            type="button"
           >
             {children}
           </button>

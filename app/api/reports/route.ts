@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { orders } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { billPayments, orders } from "@/db/schema";
+import { and, eq, desc, gte, lt } from "drizzle-orm";
 import { requireStoreAccess, apiError } from "@/lib/auth";
+import { summarizeReceipts } from "@/lib/receipt-report";
 
 export async function GET(req: Request) {
   try {
@@ -11,15 +12,6 @@ export async function GET(req: Request) {
     const range = ["7d", "month", "month-1", "month-2", "month-3", "3m"].includes(requestedRange) ? requestedRange : "7d";
 
     const { store } = await requireStoreAccess(["owner"]);
-
-    // ดึงออเดอร์ทั้งหมด
-    const allOrders = await db.query.orders.findMany({
-      where: eq(orders.storeId, store.id),
-      with: {
-        items: true,
-      },
-      orderBy: [desc(orders.createdAt)],
-    });
 
     // Shift to Bangkok calendar time; use UTC accessors so server timezone cannot change the day.
     const now = new Date(Date.now() + 7 * 60 * 60 * 1000);
@@ -115,6 +107,25 @@ export async function GET(req: Request) {
       }
     }
 
+    // Range dates above represent Bangkok wall-clock time. Convert to actual UTC
+    // instants and use an exclusive end so sub-millisecond timestamps are included.
+    const offset = 7 * 60 * 60 * 1000;
+    const payments = await db.query.billPayments.findMany({
+      columns: { method: true, amountCents: true, createdAt: true },
+      where: and(eq(billPayments.storeId, store.id),
+        gte(billPayments.createdAt, new Date(startDate.getTime() - offset)),
+        lt(billPayments.createdAt, new Date(endDate.getTime() + 1 - offset))),
+    });
+    const receipts = summarizeReceipts(payments,
+      Array.from(mapBuckets, ([key, bucket]) => ({ key, dateStr: bucket.dateStr })), range === "3m");
+
+    const allOrders = await db.query.orders.findMany({
+      where: and(eq(orders.storeId, store.id),
+        gte(orders.createdAt, new Date(startDate.getTime() - offset)),
+        lt(orders.createdAt, new Date(endDate.getTime() + 1 - offset))),
+      with: { items: true }, orderBy: [desc(orders.createdAt)],
+    });
+
     const itemAgg: Record<string, { name: string; qty: number; revenue: number }> = Object.create(null);
     let totalRevenue = 0;
     let totalOrdersCount = 0;
@@ -188,7 +199,8 @@ export async function GET(req: Request) {
         totalOrdersCount,
         dailySales: salesFormatted,
         topItems,
+        receipts,
       },
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return apiError(error); }
 }

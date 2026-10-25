@@ -8,7 +8,7 @@ function storageFixture() {
   const data = new Map();
   return { data, getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value), removeItem: key => data.delete(key) };
 }
-const draft = { items: [{ menuItemId: "coffee", name: "กาแฟ", quantity: 2, note: "หวานน้อย" }], customerNote: "ขอจานแบ่ง" };
+const draft = { items: [{ lineId: "coffee-line", menuItemId: "coffee", name: "กาแฟ", quantity: 2, note: "หวานน้อย" }], customerNote: "ขอจานแบ่ง" };
 
 test("cart quantities and notes survive reload, remain separate across shops/tables/QR rounds", () => {
   const storage = storageFixture();
@@ -36,7 +36,7 @@ test("corrupt storage cannot crash the menu or inject saved prices", () => {
     { menuItemId: "bad", quantity: -1 }, { menuItemId: "fraction", quantity: 0.5 },
     { menuItemId: "coffee", name: "กาแฟ", quantity: 1000, price: 0.01, note: "a".repeat(400) },
     { menuItemId: "coffee", quantity: 1 }], customerNote: "b".repeat(600) }));
-  assert.equal(result.items.length, 1);
+  assert.equal(result.items.length, 2);
   assert.equal(result.items[0].quantity, 99);
   assert.equal(result.items[0].note.length, 300);
   assert.equal(result.customerNote.length, 500);
@@ -270,4 +270,178 @@ test("24-hour QR expiry shows a blocked screen and retains the unsent cart", asy
     assert.equal(lib.createCartStore(storage, key).getSnapshot().draft.items.length, 1);
     assert.equal(page.requests.length, 0);
   } finally { page.dispose(); }
+});
+
+
+test("adding the same menu merges only matching notes, including quick-add without a note", () => {
+  const coffee = { menuItemId: "coffee", name: "กาแฟ", quantity: 1, note: "หวานน้อย" };
+  let current = lib.addCartLine({ items: [], customerNote: "" }, coffee);
+  const firstId = current.items[0].lineId;
+  current = lib.addCartLine(current, { ...coffee, note: " หวานน้อย ", quantity: 2 });
+  assert.equal(current.items.length, 1);
+  assert.equal(current.items[0].quantity, 3);
+  assert.equal(current.items[0].lineId, firstId);
+  current = lib.addCartLine(current, { ...coffee, note: "หวานปกติ" });
+  current = lib.addCartLine(current, { ...coffee, note: "" });
+  current = lib.addCartLine(current, { ...coffee, note: "  " });
+  assert.deepEqual(structuredClone(current.items.map(({ note, quantity }) => ({ note, quantity }))), [
+    { note: "หวานน้อย", quantity: 3 }, { note: "หวานปกติ", quantity: 1 }, { note: "", quantity: 2 },
+  ]);
+  assert.equal(new Set(current.items.map(line => line.lineId)).size, 3);
+});
+
+test("distinct notes count toward the 50-line limit and quantities remain capped per line", () => {
+  const coffee = { menuItemId: "coffee", name: "กาแฟ", quantity: 1, note: "" };
+  let current = { items: [], customerNote: "" };
+  for (let i = 0; i < lib.MAX_CART_LINES; i++) current = lib.addCartLine(current, { ...coffee, note: String(i) });
+  assert.equal(current.items.length, 50);
+  assert.equal(lib.addCartLine(current, { ...coffee, note: "one more" }), null);
+  current = lib.addCartLine(current, { ...coffee, note: "0", quantity: 98 });
+  assert.equal(current.items[0].quantity, 99);
+  assert.equal(lib.addCartLine(current, { ...coffee, note: "0" }), null);
+  assert.equal(current.items[1].quantity, 1);
+  for (const quantity of [0, -1, 0.5, 100, NaN]) assert.equal(lib.addCartLine(current, { ...coffee, quantity }), null);
+  assert.equal(lib.addCartLine({ ...current, requestId: "pending" }, coffee), null);
+});
+
+test("legacy drafts acquire stable line identities without changing pending checkout selections", () => {
+  const legacy = { version: 1, items: [
+    { menuItemId: "coffee", name: "กาแฟ", quantity: 2, note: " หวานน้อย " },
+    { menuItemId: "coffee", name: "กาแฟ", quantity: 1, note: "หวานปกติ" },
+    { menuItemId: "coffee", name: "กาแฟ", quantity: 3, note: "หวานปกติ" },
+  ], customerNote: " ขอช้อน ", requestId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" };
+  const storage = storageFixture();
+  storage.setItem(key, JSON.stringify(legacy));
+  const first = lib.createCartStore(storage, key);
+  const attempt = first.beginCheckout();
+  assert.equal(attempt.requestId, legacy.requestId);
+  assert.equal(attempt.customerNote, legacy.customerNote);
+  assert.deepEqual(structuredClone(attempt.items.map(({ lineId, ...line }) => { assert.ok(lineId); return line; })), legacy.items);
+  assert.deepEqual(structuredClone(lib.createCartStore(storage, key).beginCheckout()), structuredClone(attempt));
+  first.releaseCheckout();
+  const saved = lib.createCartStore(storage, key).getSnapshot().draft;
+  assert.deepEqual(structuredClone(saved.items), structuredClone(attempt.items));
+  assert.equal(saved.requestId, undefined);
+});
+
+test("missing or duplicate stored line identities are repaired without dropping selections", () => {
+  const result = lib.parseCartDraft(JSON.stringify({ version: 1, items: [
+    { ...draft.items[0], lineId: "restored-1" },
+    { ...draft.items[0], lineId: null, note: "normal" },
+    { ...draft.items[0], lineId: "restored-1", note: "no ice" },
+  ] }));
+  assert.equal(result.items.length, 3);
+  assert.equal(new Set(result.items.map(line => line.lineId)).size, 3);
+  assert.deepEqual(structuredClone(lib.parseCartDraft(JSON.stringify({ version: 1, ...result }))), structuredClone(result));
+});
+
+const savedCart = storage => lib.createCartStore(storage, key).getSnapshot().draft;
+const byLabel = (tree, label) => nodes(tree).filter(node => node.props?.["aria-label"] === label);
+function detailAdd(page, note) {
+  nodes(page.render()).find(node => node.type === "Card" && node.props.onClick).props.onClick();
+  let tree = page.render();
+  nodes(tree).find(node => node.props?.id === "item-detail-note").props.onChange({ target: { value: note } });
+  tree = page.render();
+  nodes(tree).find(node => node.type === "Button" && textContent(node).startsWith("เพิ่มลงตะกร้า")).props.onClick();
+}
+
+test("detail dialog, quick-add and chatbot all keep note variants separate and survive reload", async () => {
+  const storage = storageFixture(), page = customerPage(storage);
+  try {
+    await page.ready();
+    detailAdd(page, "หวานน้อย");
+    detailAdd(page, "หวานปกติ");
+    detailAdd(page, " หวานน้อย ");
+    byLabel(page.render(), "เพิ่ม กาแฟใหม่ ลงตะกร้า")[0].props.onClick();
+    assert.equal(nodes(page.render()).find(node => node.type === "CustomerChatbot").props.onAdd("coffee"), true);
+    const saved = savedCart(storage);
+    assert.deepEqual(structuredClone(saved.items.map(line => [line.note, line.quantity])), [["หวานน้อย", 2], ["หวานปกติ", 1], ["", 2]]);
+    assert.equal(new Set(saved.items.map(line => line.lineId)).size, 3);
+    assert.match(textContent(page.render()), /375\.00/);
+  } finally { page.dispose(); }
+  const refreshed = customerPage(storage);
+  try {
+    const tree = await refreshed.ready();
+    assert.deepEqual(byLabel(tree, "หมายเหตุสำหรับ กาแฟใหม่").map(node => node.props.value), ["หวานน้อย", "หวานปกติ", ""]);
+    assert.match(textContent(tree), /375\.00/);
+  } finally { refreshed.dispose(); }
+});
+
+test("quantity, note edits and removal affect only the selected row, even after notes become equal", async () => {
+  const storage = storageFixture();
+  lib.createCartStore(storage, key).update(() => ({ ...draft, items: [
+    draft.items[0], { ...draft.items[0], lineId: "second", quantity: 1, note: "หวานปกติ" },
+  ] }));
+  const page = customerPage(storage);
+  try {
+    let tree = await page.ready();
+    const keysBefore = nodes(tree).filter(node => node.props?.role === "group").map(node => node.key);
+    byLabel(tree, "เพิ่มจำนวน กาแฟใหม่")[1].props.onClick();
+    assert.deepEqual(structuredClone(savedCart(storage).items.map(line => line.quantity)), [2, 2]);
+    tree = page.render();
+    byLabel(tree, "หมายเหตุสำหรับ กาแฟใหม่")[1].props.onChange({ target: { value: "หวานน้อย" } });
+    tree = page.render();
+    assert.deepEqual(nodes(tree).filter(node => node.props?.role === "group").map(node => node.key), keysBefore, "typing must not remount or merge rows");
+    assert.deepEqual(structuredClone(savedCart(storage).items.map(line => line.note)), ["หวานน้อย", "หวานน้อย"]);
+    byLabel(tree, "ลดจำนวน กาแฟใหม่")[1].props.onClick();
+    tree = page.render();
+    byLabel(tree, "นำ กาแฟใหม่ ออกจากตะกร้า")[0].props.onClick();
+    assert.deepEqual(structuredClone(savedCart(storage).items.map(line => [line.lineId, line.quantity])), [["second", 1]]);
+    byLabel(page.render(), "ลดจำนวน กาแฟใหม่")[0].props.onClick();
+    assert.equal(savedCart(storage).items.length, 0);
+  } finally { page.dispose(); }
+});
+
+test("repeated add callbacks before a rerender use the latest cart and respect quantity limits", async () => {
+  const storage = storageFixture(), page = customerPage(storage);
+  try {
+    const tree = await page.ready();
+    const add = byLabel(tree, "เพิ่ม กาแฟใหม่ ลงตะกร้า")[0].props.onClick;
+    for (let i = 0; i < 101; i++) add();
+    assert.equal(savedCart(storage).items.length, 1);
+    assert.equal(savedCart(storage).items[0].quantity, 99);
+    assert.ok(nodes(page.render()).some(node => node.props?.role === "alert" && textContent(node).includes("เพิ่มรายการไม่ได้")));
+  } finally { page.dispose(); }
+});
+
+test("a rejected detail addition keeps the dialog and its note instead of silently closing", async () => {
+  const storage = storageFixture();
+  lib.createCartStore(storage, key).update(() => ({ items: [{ ...draft.items[0], quantity: 99 }], customerNote: "" }));
+  const page = customerPage(storage);
+  try {
+    await page.ready();
+    detailAdd(page, "หวานน้อย");
+    const tree = page.render();
+    const dialog = nodes(tree).find(node => node.type === "Dialog" && nodes(node).some(child => child.props?.id === "item-detail-note"));
+    assert.equal(dialog.props.open, true);
+    assert.equal(nodes(dialog).find(node => node.props?.id === "item-detail-note").props.value, "หวานน้อย");
+    assert.ok(nodes(dialog).some(node => node.props?.role === "alert"));
+    assert.equal(savedCart(storage).items[0].quantity, 99);
+  } finally { page.dispose(); }
+});
+
+test("multi-line checkout retries identical ordered selections and the same request key after a lost response", async () => {
+  const storage = storageFixture();
+  lib.createCartStore(storage, key).update(() => ({ ...draft, items: [
+    draft.items[0], { ...draft.items[0], lineId: "second", quantity: 1, note: "หวานปกติ" },
+  ] }));
+  const first = customerPage(storage, { loseResponse: true });
+  let original;
+  try {
+    const tree = await first.ready();
+    await nodes(tree).find(node => node.type === "Button" && textContent(node).includes("ยืนยันส่งคำสั่งซื้อ")).props.onClick();
+    original = first.requests[0];
+    assert.equal(original.items.length, 2);
+    assert.equal(original.items.some(line => "lineId" in line), false);
+    for (const label of ["เพิ่มจำนวน กาแฟใหม่", "ลดจำนวน กาแฟใหม่", "หมายเหตุสำหรับ กาแฟใหม่", "นำ กาแฟใหม่ ออกจากตะกร้า"]) {
+      assert.ok(byLabel(first.render(), label).every(node => node.props.disabled));
+    }
+  } finally { first.dispose(); }
+  const refreshed = customerPage(storage);
+  try {
+    const tree = await refreshed.ready();
+    await nodes(tree).find(node => node.type === "Button" && textContent(node).includes("ตรวจสอบการส่งอีกครั้ง")).props.onClick();
+    assert.deepEqual(refreshed.requests[0], original);
+    assert.equal(storage.getItem(key), null);
+  } finally { refreshed.dispose(); }
 });

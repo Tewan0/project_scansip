@@ -68,7 +68,7 @@ export async function POST(req: Request) {
         const existing = await tx.query.orders.findFirst({ where: and(eq(orders.storeId, store.id), eq(orders.tableNumber, tableNumber), eq(orders.sessionToken, roundToken), eq(orders.requestKey, requestKey)), with: { items: true } });
         if (existing) {
           if (existing.requestHash !== requestHash) throw new AccessError("ข้อมูลการส่งครั้งนี้ไม่ตรงกับออเดอร์เดิม กรุณาตรวจสอบกับพนักงาน", 409);
-          return { ...existing, sessionToken: undefined, requestKey: undefined, requestHash: undefined };
+          return { ...existing, cancelledBy: undefined, cancelledByLabel: undefined, cancelledAt: undefined, cancellationReason: undefined, sessionToken: undefined, requestKey: undefined, requestHash: undefined };
         }
       }
       const menu = await tx.select().from(menuItems).where(and(eq(menuItems.storeId, store.id), inArray(menuItems.id, items.map((item) => item.menuItemId))));
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
         totalAmount: (cents / 100).toFixed(2), customerNote: body.customerNote?.trim() || null,
       }).returning();
       const saved = await tx.insert(orderItems).values(lines.map((line) => ({ ...line, orderId: order.id }))).returning();
-      return { ...order, items: saved, sessionToken: undefined, requestKey: undefined, requestHash: undefined };
+      return { ...order, cancelledBy: undefined, cancelledByLabel: undefined, cancelledAt: undefined, cancellationReason: undefined, items: saved, sessionToken: undefined, requestKey: undefined, requestHash: undefined };
     });
     return NextResponse.json({ success: true, data }, { status: 201 });
   } catch (error) {

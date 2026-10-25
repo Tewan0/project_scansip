@@ -1,5 +1,8 @@
 // @refresh reset
 "use client";
+import { RefreshStatus } from "@/components/refresh-status";
+import { startVisiblePolling } from "@/lib/visible-polling";
+import { OrderCardsSkeleton } from "@/components/loading-skeletons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -12,13 +15,14 @@ import { COOKING_LABELS } from "@/lib/permissions";
 import { RotateCw } from "lucide-react";
 import { type Bill, ORDER_STATUS_LABELS, formatBaht } from "@/lib/billing";
 import { parseBaht, type PaymentMethod } from "@/lib/payments";
-import { useConfirmation } from "@/hooks/use-confirmation";
 
 const time = (value: string | null) => value ? new Date(value).toLocaleString("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "short", timeStyle: "short" }) : "ไม่ทราบเวลา";
 
 export function BillBoard() {
-  const { confirm, confirmationDialog } = useConfirmation();
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; number: string; billNumber: string } | null>(null);
+  const [cancellationReason, setCancellationReason] = useState("");
   const router = useRouter();
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [bills, setBills] = useState<Bill[]>([]);
   const [view, setView] = useState("current");
   const [table, setTable] = useState("");
@@ -46,6 +50,7 @@ export function BillBoard() {
       if (!state.mounted || version !== state.version) return;
       if (response.status === 401 || response.status === 403) { setBills([]); router.replace("/workspace"); return; }
       if (!response.ok || !result.success) throw new Error(result.error || "โหลดบิลไม่สำเร็จ");
+      setUpdatedAt(Date.now());
       setBills(result.data); setStale(false); setError(""); setCounts({ current: result.currentCount, history: result.historyCount, pages: result.pageCount });
       if (page !== result.page) setPage(result.page);
     } catch (error) { if (state.mounted && version === state.version) { setStale(true); setError(error instanceof Error ? error.message : "เชื่อมต่อไม่ได้ กรุณาลองใหม่"); } }
@@ -54,8 +59,8 @@ export function BillBoard() {
   useEffect(() => {
     const state = requestState.current; state.mounted = true;
     const initial = setTimeout(() => { setLoading(true); setError(""); setNotice(""); setBills([]); void load(); }, 0);
-    const timer = setInterval(() => { if (!state.working) void load(); }, 8000);
-    return () => { state.mounted = false; ++state.version; clearTimeout(initial); clearInterval(timer); };
+    const stopPolling = startVisiblePolling(() => { if (!state.working) void load(); }, 8000);
+    return () => { state.mounted = false; ++state.version; clearTimeout(initial); stopPolling(); };
   }, [load]);
 
   async function pay() {
@@ -89,21 +94,41 @@ export function BillBoard() {
     } catch (error) { if (state.mounted) setError(error instanceof Error ? error.message : "เชื่อมต่อไม่ได้ กรุณาอัปเดตสถานะก่อนลองใหม่"); }
     finally { state.working = false; if (state.mounted) setBusy(false); }
   }
-  async function cancelOrder(bill: Bill, id: string, number: string) {
-    if (requestState.current.working || !await confirm({ title: "ยกเลิกออเดอร์", description: `ยกเลิกออเดอร์ ${number} ในบิล ${bill.number} โต๊ะ ${bill.tableNumber ?? "—"} ใช่ไหม?`, confirmLabel: "ยืนยันยกเลิกออเดอร์" })) return;
-    if (requestState.current.working) return;
+  async function cancelOrder() {
+    if (!cancelTarget || !cancellationReason.trim() || cancellationReason.length > 300 || requestState.current.working) return;
+    const id = cancelTarget.id;
     const state = requestState.current; state.working = true; ++state.version; setBusy(true); setError(""); setNotice("");
     try {
-      const response = await fetch(`/api/orders/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "cancelled" }) });
+      const response = await fetch(`/api/orders/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "cancelled", cancellationReason }) });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || "ยกเลิกไม่สำเร็จ");
-      if (state.mounted) await load();
+      if (state.mounted) { setCancelTarget(null); setCancellationReason(""); await load(); }
     } catch (error) { if (state.mounted) setError(error instanceof Error ? error.message : "ยกเลิกไม่สำเร็จ"); }
     finally { state.working = false; if (state.mounted) setBusy(false); }
   }
 
   return <section className="space-y-5 p-4 sm:p-6">
-    {confirmationDialog}
+    {cancelTarget && <Dialog open onOpenChange={open => { if (!open && !busy) setCancelTarget(null); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>ยกเลิกออเดอร์ {cancelTarget.number}</DialogTitle>
+          <DialogDescription>บิล {cancelTarget.billNumber} · กรุณาระบุเหตุผลก่อนยืนยัน ระบบจะบันทึกผู้ดำเนินการและเวลายกเลิก</DialogDescription>
+        </DialogHeader>
+        <label className="space-y-2 text-sm">
+          <span>เหตุผลการยกเลิก</span>
+          <textarea aria-label="เหตุผลการยกเลิก" maxLength={300} rows={3} value={cancellationReason}
+            disabled={busy} onChange={event => setCancellationReason(event.target.value)}
+            className="w-full rounded-md border bg-background p-3" placeholder="เช่น ลูกค้าเปลี่ยนใจ หรือวัตถุดิบหมด" />
+        </label>
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" disabled={busy} onClick={() => setCancelTarget(null)}>กลับ</Button>
+          <Button variant="destructive" disabled={busy || !cancellationReason.trim()} onClick={() => void cancelOrder()}>
+            {busy ? "กำลังยกเลิก…" : "ยืนยันยกเลิกออเดอร์"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>}
     <ServiceRequestBoard />
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -141,9 +166,10 @@ export function BillBoard() {
       </label>
       {(table || date) && <Button variant="ghost" size="sm" disabled={busy} onClick={() => { setTable(""); setDate(""); setPage(1); }}>ล้างตัวกรอง</Button>}
     </div>
+    <RefreshStatus updatedAt={updatedAt} failed={Boolean(error)} />
     {error && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm">{error}</p>}
     {notice && <p role="status" className="rounded-lg bg-primary/10 p-3 text-sm">{notice}</p>}
-    {loading ? <p role="status">กำลังโหลดบิล…</p> : !bills.length ? <p className="rounded-xl border p-6 text-center text-muted-foreground">{view === "current" ? "ไม่มีรอบโต๊ะปัจจุบันที่ตรงกับตัวกรอง" : "ไม่มีประวัติบิลที่ตรงกับตัวกรอง"}</p> :
+    {loading ? <OrderCardsSkeleton billing /> : !bills.length ? <p className="rounded-xl border p-6 text-center text-muted-foreground">{view === "current" ? "ไม่มีรอบโต๊ะปัจจุบันที่ตรงกับตัวกรอง" : "ไม่มีประวัติบิลที่ตรงกับตัวกรอง"}</p> :
       <div className="grid items-start gap-4 lg:grid-cols-2">{bills.map((bill) => <Card key={bill.id}>
         <CardHeader className="gap-2">
           <div className="flex flex-wrap items-center justify-between gap-2"><CardTitle>โต๊ะ {bill.tableNumber ?? "—"}</CardTitle><Badge variant={bill.current ? "default" : "secondary"}>{bill.current ? "รอบปัจจุบัน" : "รอบก่อนหน้า"}</Badge></div>
@@ -173,8 +199,13 @@ export function BillBoard() {
               {bill.current && order.servingRequired && !order.deliveredAt && order.status === "served" && <Button className="min-h-11" disabled={busy || stale} onClick={() => void deliver(order.id)}>เสิร์ฟแล้ว · ครบออเดอร์นี้</Button>}
               <p className="text-xs text-muted-foreground">{time(order.createdAt)} · {order.status === "cancelled" ? "ยกเลิก / ไม่นับยอด" : order.paymentStatus === "paid" ? "รับเงินแล้ว" : order.paymentStatus === "refunded" ? "คืนเงินแล้ว" : "ยังไม่รับเงิน"} · ฿{order.totalAmount}</p>
               {order.items.map((item) => <div key={item.id} className="text-sm"><p className="break-words">{item.quantity} × {item.menuName} <span className="text-xs text-muted-foreground">({order.status === "cancelled" ? "ยกเลิก" : COOKING_LABELS[item.status]})</span></p>{item.specialInstruction && <p className="break-words text-xs text-muted-foreground">{item.specialInstruction}</p>}</div>)}
+              {order.status === "cancelled" && <div className="rounded-md border p-2 text-xs text-muted-foreground">
+                {order.cancellationReason ? <><p className="break-words">เหตุผล: {order.cancellationReason}</p>
+                  <p className="break-words">ยกเลิกโดย {order.cancelledByLabel || "ไม่ทราบบัญชี"} · {time(order.cancelledAt)}</p></>
+                  : <p>ไม่มีรายละเอียดการยกเลิกย้อนหลัง</p>}
+              </div>}
               {order.customerNote && <p className="break-words rounded-md bg-muted p-2 text-xs">ข้อความถึงครัว: {order.customerNote}</p>}
-              {!["completed", "cancelled"].includes(order.status) && !order.deliveredAt && order.paymentStatus === "unpaid" && <Button variant="destructive" className="min-h-11" disabled={busy} onClick={() => void cancelOrder(bill, order.id, order.orderNumber)}>ยกเลิกครั้งที่ {index + 1}</Button>}
+              {!["completed", "cancelled"].includes(order.status) && !order.deliveredAt && order.paymentStatus === "unpaid" && <Button variant="destructive" className="min-h-11" disabled={busy} onClick={() => { setError(""); setCancellationReason(""); setCancelTarget({ id: order.id, number: order.orderNumber, billNumber: bill.number }); }}>ยกเลิกครั้งที่ {index + 1}</Button>}
             </div>)}</div>
           </details>}
         </CardContent>

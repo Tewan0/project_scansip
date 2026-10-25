@@ -1,6 +1,6 @@
 # การจำกัดออเดอร์และอัปโหลด
 
-เพิ่มเมื่อ 24 ตุลาคม 2026 สำหรับ POST /api/orders และ POST /api/upload
+เพิ่มเมื่อ 24 ตุลาคม 2026 สำหรับ POST /api/orders และ POST /api/upload; ขยายโควตาอัปโหลดเดียวกันไปยัง POST /api/menu และ updateMenuItem ใน app/actions/menu.ts แล้ว
 
 | รายการ | ขอบเขต | เพดาน |
 | --- | --- | --- |
@@ -16,7 +16,9 @@
 - ใช้ transaction advisory lock ต่อขอบเขตก่อนอ่าน/สร้างตัวนับ รวมถึงกรณียังไม่มีแถว เพื่อให้คำขอจากหลาย instance ใช้เพดานเดียวกัน มีเพียงสองแถวต่อบัญชีหรือโต๊ะ ไม่เพิ่มแถวใหม่ทุกช่วงเวลา
 - ออเดอร์ตรวจ QR และเมนูก่อนตัดโควตา ตัวนับและออเดอร์อยู่ใน transaction เดียวกัน หากบันทึกไม่สำเร็จจะ rollback ทั้งคู่ การคืนออเดอร์เดิมด้วย requestId เดิมเกิดก่อนตรวจโควตาและไม่เพิ่มตัวนับ
 - การเปลี่ยน QR หรือปลอม IP ไม่รีเซ็ตโควตาของโต๊ะ โต๊ะอื่นและร้านอื่นใช้โควตาแยกกัน
-- อัปโหลดตรวจบัญชีและสิทธิ์ก่อนอ่านไฟล์ จากนั้นจองโควตาให้สำเร็จก่อนอ่าน multipart และเรียก Storage คำขอผิดรูปแบบหรือ Storage ล้มเหลวยังคงนับ เพื่อไม่ให้ส่งซ้ำได้ไม่จำกัด
+- POST /api/upload ตรวจบัญชีและสิทธิ์ก่อนอ่านไฟล์ จากนั้นจองโควตาให้สำเร็จก่อนอ่าน multipart และเรียก Storage คำขอผิดรูปแบบหรือ Storage ล้มเหลวยังคงนับ เพื่อไม่ให้ส่งซ้ำได้ไม่จำกัด
+- หน้าเพิ่มเมนูตรวจสิทธิ์และอ่าน multipart แบบจำกัดขนาดก่อนตรวจข้อมูลเมนู เมื่อมีรูปจึงจองโควตาผ่าน lib/upload-policy.ts ก่อนตรวจไฟล์และเรียก Storage; การแก้เมนูตรวจสิทธิ์และร้านของเมนูก่อนใช้ helper เดียวกัน การทำรายการที่ไม่แนบรูปไม่ใช้โควตา
+- การตรวจข้อมูลเมนูไม่ผ่าน หรือข้อมูลรวมเกินเพดานก่อนถึงขั้นอัปโหลด จะไม่ตัดโควตา เมื่อจองโควตาแล้ว ไฟล์ชนิด/ขนาดไม่ถูกต้อง การอัปโหลดล้มเหลว หรือบันทึกเมนูล้มเหลวจะไม่คืนจำนวนครั้ง
 - บัญชีที่สร้างร้านแล้วใช้ตัวนับเดิม แต่ได้เพดานของเจ้าของร้าน การเปลี่ยน bucket ไม่รีเซ็ตโควตา หากฐานข้อมูลโควตาขัดข้องจะไม่เริ่มอัปโหลด
 - เมื่อครบเพดาน API ตอบ 429 พร้อม Retry-After และ retryAfter หน่วยวินาที รวมถึงข้อความภาษาไทย หน้าลูกค้าเก็บตะกร้าและ requestId เดิมไว้ให้กดลองใหม่เอง ไม่ส่งซ้ำอัตโนมัติและไม่ถือว่า QR หมดอายุ
 
@@ -25,6 +27,8 @@
 lib/request-body.ts ตรวจทั้ง Content-Type, Content-Length และจำนวนไบต์จริงระหว่างอ่าน stream จึงป้องกันการละหรือปลอม Content-Length ได้
 
 - JSON ออเดอร์ไม่เกิน 80 KiB รองรับ 50 รายการและหมายเหตุภาษาไทยตามขีดจำกัดเดิม
+- JSON เพิ่มเมนูไม่เกิน 64 KiB; multipart เพิ่มเมนูใช้เพดานเดียวกับ API อัปโหลด
+- Server Action ตรวจผลรวม byte ของชื่อ field ข้อความ UTF-8 และไฟล์หลัง Next.js parse แล้ว ไม่ได้แทนที่ขีดจำกัด transport ของ Next.js ที่ยังคงค่าเดิม (1 MB) และแพลตฟอร์มโฮสต์
 - multipart อัปโหลดรวมทุก field ไม่เกิน 5 MiB + 64 KiB โดยไฟล์ยังไม่เกิน 5 MiB ตามเดิม
 - เกินขนาดตอบ 413 ก่อน parse ข้อมูลทั้งหมดหรือเรียก Storage ส่วนไฟล์ที่เกิน 5 MiB แต่ multipart ยังอยู่ในเพดานตอบ 400 ตามการตรวจไฟล์เดิม
 - แพลตฟอร์มโฮสต์อาจมีขีดจำกัดต่ำกว่าและปฏิเสธคำขอก่อนถึงแอป
@@ -42,3 +46,12 @@ lib/request-body.ts ตรวจทั้ง Content-Type, Content-Length แล
 อ้างอิง: [PostgreSQL transaction locks](https://www.postgresql.org/docs/current/explicit-locking.html), [Supabase Storage access control](https://supabase.com/docs/guides/storage/security/access-control)
 
 ผลตรวจรอบนี้: ชุดทดสอบ 177/177 ผ่าน, TypeScript ผ่าน, lint ของไฟล์ที่แก้ผ่าน และ SQL smoke check ผ่านบนตารางชั่วคราวของ Supabase ส่วน production build คอมไพล์และตรวจ TypeScript ผ่าน แต่จบไม่สำเร็จเนื่องจาก EPERM ตอนสร้างโฟลเดอร์ผลลัพธ์บน Windows; การลอง webpack ด้วย worker เดียวและโฟลเดอร์ใหม่ยังติด EPERM จึงยังไม่อ้างว่า build ผ่าน คืนค่า next.config.ts, tsconfig.json และ next-env.d.ts หลังตรวจแล้ว ยังไม่มีการ push หรือ deploy
+
+## ผลตรวจหลังรวมช่องทางอัปโหลด
+
+- tests/menu-upload-quota.test.mjs เพิ่ม 10 กรณี ครอบคลุมโควตาข้ามช่องทาง คำขอพร้อมกันใน fixture ที่จำลอง transaction แบบเรียงลำดับ โควตารายวัน การไม่หักโควตาเมื่อแก้ข้อความ การแยกบัญชี การปฏิเสธต่างร้าน/บทบาท และความล้มเหลวของโควตาหรือ Storage
+- รวม 200 tests ผ่าน, TypeScript ผ่าน และ lint เฉพาะไฟล์ที่แก้ในงานนี้ผ่าน
+- รัน SQL จาก tests/write-rate-limit.sql.mjs บนตารางชั่วคราวใน Supabase แล้วผ่านและ rollback ไม่ใช่การทดสอบโหลดพร้อมกันบนฐานข้อมูลจริง
+- Server Action คืน status: 429 และ retryAfter ในข้อมูลผลลัพธ์ ไม่ได้อ้างว่า HTTP ของ Server Action เปลี่ยนเป็น 429
+- คำเตือน Advisor เดิมยังอยู่: [สิทธิ์ฟังก์ชัน anon](https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable), [สิทธิ์ฟังก์ชัน authenticated](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable), [การป้องกันรหัสผ่านรั่ว](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)
+- ยังไม่ได้ทดสอบอัปโหลดจริงผ่านเบราว์เซอร์/Vercel และไม่ได้รัน production build ใหม่ในรอบนี้

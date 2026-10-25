@@ -2,7 +2,10 @@ import "server-only";
 import { Buffer } from "node:buffer";
 import { AccessError } from "@/lib/auth";
 
+// Keep the existing chat limit in bytes, including JSON and conversation history.
+export const CHAT_BODY_BYTES = 24_000;
 export const ORDER_BODY_BYTES = 80 * 1024;
+export const MENU_BODY_BYTES = 64 * 1024;
 export const UPLOAD_FILE_BYTES = 5 * 1024 * 1024;
 export const UPLOAD_BODY_BYTES = UPLOAD_FILE_BYTES + 64 * 1024;
 
@@ -53,4 +56,13 @@ export async function readLimitedForm(req: Request) {
   const bytes = await readBoundedBody(req, UPLOAD_BODY_BYTES);
   try { return await new Response(bytes, { headers: { "Content-Type": req.headers.get("content-type")! } }).formData(); }
   catch { throw new AccessError("ข้อมูลไฟล์ไม่ถูกต้อง", 400); }
+}
+
+// Server Actions receive parsed FormData; Next.js also enforces its transport limit.
+export function checkFormSize(form: FormData, maxBytes = UPLOAD_BODY_BYTES) {
+  let size = 0;
+  for (const [name, value] of form.entries()) {
+    size += Buffer.byteLength(name, "utf8") + (typeof value === "string" ? Buffer.byteLength(value, "utf8") : value.size);
+    if (size > maxBytes) throw new AccessError("ข้อมูลที่ส่งมีขนาดใหญ่เกินไป", 413);
+  }
 }
