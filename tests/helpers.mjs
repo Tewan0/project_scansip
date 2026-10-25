@@ -20,8 +20,9 @@ export function fixture(role = "owner", overrides = {}, globals = {}) {
     eq: (column, value) => row => row[column.key] === value,
     ne: (column, value) => row => row[column.key] !== value,
     isNull: column => row => row[column.key] == null,
+    lt: (column, value) => row => (typeof value?.getTime === "function" ? new Date(row[column.key]).getTime() : row[column.key]) < value,
     gt: (column, value) => row => row[column.key] > value,
-    gte: (column, value) => row => row[column.key] >= value,
+    gte: (column, value) => row => (typeof value?.getTime === "function" ? new Date(row[column.key]).getTime() : row[column.key]) >= value,
     inArray: (column, values) => row => values.includes(row[column.key]),
     and: (...predicates) => row => predicates.filter(Boolean).every(fn => fn(row)),
     or: (...predicates) => row => predicates.filter(Boolean).some(fn => fn(row)),
@@ -35,6 +36,7 @@ export function fixture(role = "owner", overrides = {}, globals = {}) {
       return data[name].filter(predicate).map(row => structuredClone(withItems ? { ...row, items: data.orderItems.filter(item => item.orderId === row.id) } : row));
     }
     return {
+      async $count(table, predicate) { return data[table.tableName].filter(predicate).length; },
       async execute(statement) {
         if (!statement.accountLock) throw new Error("Unexpected SQL in fixture");
         context.writes.push(["account-lock", statement.accountLock]);

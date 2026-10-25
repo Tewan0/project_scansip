@@ -117,3 +117,16 @@ test("kitchen tickets remain separate but carry the same bill number as the fron
   assert.ok(kitchen.data.every(order => order.billNumber === round.number));
   assert.equal("sessionToken" in kitchen.data[0], false); assert.equal("paymentStatus" in kitchen.data[0], false);
 });
+
+
+test("bill index reads only grouping metadata and loads full orders only for the displayed page", async () => {
+  const f = setup(), calls = [], find = f.db.query.orders.findMany;
+  for (let n = 10; n < 40; n++) f.add(n, "round-" + n, "1");
+  f.db.query.orders.findMany = async options => { const rows = await find(options); calls.push({ options, rows }); return rows; };
+  const data = (await (await f.get("?view=history&page=2")).json()).data;
+  assert.deepEqual(Object.keys(calls[0].options.columns).sort(), ["createdAt", "id", "sessionToken", "storeId", "tableNumber"]);
+  assert.equal(calls.length, 2);
+  const shown = data.flatMap(bill => bill.orders.map(order => order.id)).sort();
+  assert.deepEqual(calls[1].rows.map(row => row.id).sort(), shown);
+  assert.ok(calls[1].rows.length < calls[0].rows.length);
+});

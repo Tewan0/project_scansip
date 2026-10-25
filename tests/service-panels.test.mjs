@@ -9,6 +9,7 @@ function panel(file, name, props, fetch, globals = {}) {
     useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = typeof initial === "function" ? initial() : initial;
       return [slots[i], next => { slots[i] = typeof next === "function" ? next(slots[i]) : next; }]; },
     useRef(value) { return react.useState(() => ({ current: value }))[0]; },
+    useSyncExternalStore(_subscribe, getSnapshot) { return getSnapshot(); },
     useCallback(fn, deps) { const i = cursor++, old = slots[i]; if (!old || deps.some((dep, n) => dep !== old.deps[n])) slots[i] = { fn, deps }; return slots[i].fn; },
     useEffect(fn, deps) { const i = cursor++, old = slots[i]; if (!old || deps.some((dep, n) => dep !== old.deps[n])) {
       old?.cleanup?.(); slots[i] = { deps }; effects.push(() => { slots[i].cleanup = fn(); });
@@ -22,10 +23,14 @@ function panel(file, name, props, fetch, globals = {}) {
     "@/components/ui/skeleton": { Skeleton: "Skeleton" },
     "@/components/ui/dialog": Object.fromEntries(["Dialog", "DialogContent", "DialogHeader", "DialogTitle", "DialogDescription", "DialogFooter"].map(name => [name, name])),
     "@/components/ui/button": { Button: "Button" }, "@/components/ui/badge": { Badge: "Badge" } }, {
-    fetch, setInterval: () => 1, clearInterval() {}, ...globals,
+    fetch, AbortController, setInterval: () => 1, clearInterval() {}, ...globals,
   });
   const Component = f.load(file)[name];
-  const render = () => { cursor = 0; return Component(props); };
+  const render = () => {
+    cursor = 0;
+    const tree = Component(props);
+    return name === "OrderBoard" && props.mode === "kitchen" ? tree.type(tree.props) : tree;
+  };
   return { render, async ready() { render(); effects.splice(0).forEach(fn => fn()); await new Promise(resolve => setTimeout(resolve, 10)); return render(); },
     dispose() { slots.forEach(slot => slot?.cleanup?.()); } };
 }
@@ -223,5 +228,84 @@ test("switching report ranges ignores late responses even when transport ignores
     tree = page.render();
     assert.match(text(tree), /222/);
     assert.equal(text(tree).includes("111"), false);
+  } finally { page.dispose(); }
+});
+
+
+test("kitchen waiting time advances on the polling clock even when a refresh fails, and its timer is cleaned up", async () => {
+  let now = Date.parse("2026-10-25T10:00:00Z"), tick, cleared = false, fail = false;
+  class Clock extends Date { static now() { return now; } }
+  const pending = { ...order, status: "pending", tableNumber: 1, billNumber: "B01",
+    createdAt: new Date(now - 14 * 60000 - 59000).toISOString() };
+  const page = panel("components/order-board.tsx", "OrderBoard", { mode: "kitchen" }, async () => {
+    if (fail) throw Error("offline");
+    return Response.json({ success: true, data: [pending] });
+  }, { Date: Clock, setInterval(fn) { tick = fn; return 11; }, clearInterval(id) { assert.equal(id, 11); cleared = true; } });
+  try {
+    let tree = await page.ready();
+    assert.match(text(tree), /รอแล้ว 14 นาที/);
+    assert.equal(nodes(tree).some(node => node.type === "Card" && node.props.className.includes("ring-rose-500")), false);
+    now += 2000; fail = true; tick();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    tree = page.render();
+    assert.match(text(tree), /รอแล้ว 15 นาที/);
+    assert.match(text(tree), /เชื่อมต่อไม่สำเร็จ/);
+    assert.ok(nodes(tree).some(node => node.type === "Card" && node.props.className.includes("ring-rose-500")));
+  } finally { page.dispose(); }
+  assert.equal(cleared, true);
+});
+
+test("manual report refresh keeps the selected range and existing data while disabling repeated refresh", async () => {
+  let finish, count = 0;
+  const report = { range: "7d", totalRevenue: 75, totalOrdersCount: 1, dailySales: [], topItems: [] };
+  const page = panel("app/dashboard/reports/page.tsx", "default", {}, async url => {
+    assert.equal(url, "/api/reports?range=7d");
+    if (++count === 1) return Response.json({ success: true, data: report });
+    return new Promise(resolve => { finish = resolve; });
+  });
+  try {
+    let tree = await page.ready();
+    const refresh = nodes(tree).find(node => node.type === "Button" && text(node).includes("รีเฟรช"));
+    assert.ok(refresh);
+    const pending = refresh.props.onClick();
+    tree = page.render();
+    assert.equal(nodes(tree).find(node => node.type === "Button" && text(node).includes("รีเฟรช")).props.disabled, true);
+    assert.equal(nodes(tree).find(node => node.type === "select").props.value, "7d");
+    assert.ok(text(tree).includes("75"));
+    finish(Response.json({ success: true, data: { ...report, totalRevenue: 90 } }));
+    await pending;
+    tree = page.render();
+    assert.ok(text(tree).includes("90"));
+    assert.equal(nodes(tree).find(node => node.type === "Button" && text(node).includes("รีเฟรช")).props.disabled, false);
+  } finally { page.dispose(); }
+});
+
+
+test("cancellation dialog requires a reason, blocks duplicate sends and preserves the reason on failure", async () => {
+  const sent = []; let finish;
+  const page = panel("components/bill-board.tsx", "BillBoard", {}, async (url, options) => {
+    if (options.method === "PATCH") { sent.push(JSON.parse(options.body)); return new Promise(resolve => { finish = resolve; }); }
+    return Response.json({ success: true, data: [sampleBill], currentCount: 1, historyCount: 0, page: 1, pageCount: 1 });
+  });
+  try {
+    let tree = await page.ready();
+    button(tree, "ยกเลิกครั้งที่ 1").props.onClick();
+    tree = page.render();
+    assert.equal(button(tree, "ยืนยันยกเลิกออเดอร์").props.disabled, true);
+    assert.equal(sent.length, 0);
+    nodes(tree).find(node => node.props["aria-label"] === "เหตุผลการยกเลิก").props.onChange({ target: { value: "ลูกค้าเปลี่ยนใจ" } });
+    tree = page.render();
+    const send = button(tree, "ยืนยันยกเลิกออเดอร์").props.onClick;
+    send(); send();
+    assert.equal(sent.length, 1);
+    assert.deepEqual(sent[0], { status: "cancelled", cancellationReason: "ลูกค้าเปลี่ยนใจ" });
+    finish(Response.json({ success: false, error: "ลองใหม่" }, { status: 500 }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    tree = page.render();
+    assert.equal(nodes(tree).find(node => node.props["aria-label"] === "เหตุผลการยกเลิก").props.value, "ลูกค้าเปลี่ยนใจ");
+    button(tree, "ยืนยันยกเลิกออเดอร์").props.onClick();
+    finish(Response.json({ success: true }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(nodes(page.render()).some(node => node.props["aria-label"] === "เหตุผลการยกเลิก"), false);
   } finally { page.dispose(); }
 });

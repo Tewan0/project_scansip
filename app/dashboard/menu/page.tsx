@@ -79,36 +79,36 @@ export default function MenuManagementPage() {
     return () => { if (newItemImagePreview) URL.revokeObjectURL(newItemImagePreview); };
   }, [newItemImagePreview]);
 
-  // Fetch menu and categories from database
-  const fetchData = async () => {
-    try {
-      setIsLoading(true);
-      const [menuRes, catRes] = await Promise.all([
-        fetch("/api/menu"),
-        fetch("/api/categories"),
-      ]);
-
-      const [menuData, catData] = await Promise.all([
-        menuRes.json(),
-        catRes.json(),
-      ]);
-
-      if (menuData.success) setItems(menuData.data || []);
-      if (catData.success) {
-        setCategoriesList(catData.data || []);
-        if (catData.data?.length > 0 && !newItemCategoryId) {
-          setNewItemCategoryId(catData.data[0].id);
-        }
-      }
-    } catch (err) {
-      console.error("Failed to load menu data:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchData();
+    let cancelled = false;
+    const fetchData = async () => {
+      try {
+        const [menuRes, catRes] = await Promise.all([
+          fetch("/api/menu"),
+          fetch("/api/categories"),
+        ]);
+
+        const [menuData, catData] = await Promise.all([
+          menuRes.json(),
+          catRes.json(),
+        ]);
+
+        if (cancelled) return;
+        if (menuData.success) setItems(menuData.data || []);
+        if (catData.success) {
+          setCategoriesList(catData.data || []);
+          if (catData.data?.length > 0) {
+            setNewItemCategoryId(current => current || catData.data[0].id);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load menu data:", err);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+    void fetchData();
+    return () => { cancelled = true; };
   }, []);
 
   const filteredItems = items.filter((item) => {
@@ -298,7 +298,8 @@ export default function MenuManagementPage() {
 
       {/* Menu Items Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+        <div role="status" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+          <span className="sr-only">กำลังโหลดรายการเมนู</span>
           {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
             <Card key={i} className="overflow-hidden p-0">
               <Skeleton className="h-44 w-full rounded-t-xl rounded-b-none" />

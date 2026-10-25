@@ -317,7 +317,8 @@ export default function ManageStaffPage() {
 
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-6 space-y-4">
+            <div role="status" className="p-6 space-y-4">
+        <span className="sr-only">กำลังโหลดรายชื่อพนักงาน</span>
               {[1, 2, 3].map((i) => (
                 <div key={i} className="flex items-center justify-between gap-4 py-2 border-b border-border last:border-0">
                   <div className="flex items-center gap-3">

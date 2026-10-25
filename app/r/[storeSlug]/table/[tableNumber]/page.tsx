@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useRef, use } from "react";
 import { CustomerSessionPanel } from "@/components/customer-session-panel";
 import { CustomerChatbot } from "@/components/customer-chatbot";
 import { useCustomerCart } from "@/hooks/use-customer-cart";
-import { cartStorageKey, MAX_CART_LINES, MAX_CART_QUANTITY } from "@/lib/customer-cart";
+import { addCartLine, cartStorageKey, MAX_CART_LINES, MAX_CART_QUANTITY } from "@/lib/customer-cart";
 import {
   Coffee,
   ShoppingBag,
@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonRegion } from "@/components/loading-skeletons";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
 import { useSearchParams } from "next/navigation";
@@ -45,6 +46,7 @@ interface MenuItem {
 }
 
 interface CartItem {
+  lineId: string;
   menuItem: MenuItem;
   quantity: number;
   note: string;
@@ -105,6 +107,7 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
   const { draft, ready: cartReady, persistent, updateDraft, beginCheckout, releaseCheckout } = useCustomerCart(cartKey);
   const customerNote = draft.customerNote;
   const cart: CartItem[] = draft.items.map((line) => ({
+    lineId: line.lineId,
     menuItem: menuList.find((item) => item.id === line.menuItemId) ?? {
       id: line.menuItemId, name: line.name, description: null, price: 0,
       imageUrl: null, isAvailable: false, categoryId: null,
@@ -114,6 +117,7 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const checkoutInFlight = useRef(false);
   const [checkoutError, setCheckoutError] = useState("");
+  const [cartError, setCartError] = useState("");
 
   const [historyRevision, setHistoryRevision] = useState(0);
 
@@ -209,29 +213,35 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
 
   // Cart operations
   const addToCart = (item: MenuItem, qty = 1, note = "") => {
-    if (!item.isAvailable || !canEditCart) return false;
-    const existing = draft.items.find((line) => line.menuItemId === item.id);
-    if (existing && existing.quantity + qty > MAX_CART_QUANTITY) return false;
-    if (!existing && draft.items.length >= MAX_CART_LINES) return false;
-    updateDraft((previous) => ({ ...previous, items: existing
-      ? previous.items.map((line) => line.menuItemId === item.id
-          ? { ...line, quantity: Math.min(MAX_CART_QUANTITY, line.quantity + qty), note: note ? `${line.note ? line.note + " · " : ""}${note}`.slice(0, 300) : line.note }
-          : line)
-      : [...previous.items, { menuItemId: item.id, name: item.name, quantity: qty, note: note.slice(0, 300) }],
-    }));
-    return true;
+    if (!item.isAvailable || !canEditCart || checkoutInFlight.current) return false;
+    let added = false;
+    updateDraft((previous) => {
+      const next = addCartLine(previous, { menuItemId: item.id, name: item.name, quantity: qty, note });
+      added = next !== null;
+      return next ?? previous;
+    });
+    setCartError(added ? "" : `เพิ่มรายการไม่ได้ ตะกร้ารองรับสูงสุด ${MAX_CART_LINES} รายการ และรายการละ ${MAX_CART_QUANTITY} ชิ้น กรุณาตรวจสอบจำนวนในตะกร้า`);
+    return added;
   };
 
-  const updateQuantity = (itemId: string, delta: number) => {
+  const updateQuantity = (lineId: string, delta: number) => {
     if (!cartReady || checkoutInFlight.current || draft.requestId) return;
-    updateDraft((previous) => ({ ...previous, items: previous.items
-      .map((line) => line.menuItemId === itemId ? { ...line, quantity: Math.min(MAX_CART_QUANTITY, line.quantity + delta) } : line)
+    updateDraft((previous) => previous.requestId ? previous : ({ ...previous, items: previous.items
+      .map((line) => line.lineId === lineId ? { ...line, quantity: Math.min(MAX_CART_QUANTITY, line.quantity + delta) } : line)
       .filter((line) => line.quantity > 0) }));
+    setCartError("");
   };
 
-  const updateItemNote = (itemId: string, note: string) => {
+  const updateItemNote = (lineId: string, note: string) => {
     if (checkoutInFlight.current || draft.requestId) return;
-    updateDraft((previous) => ({ ...previous, items: previous.items.map((line) => line.menuItemId === itemId ? { ...line, note: note.slice(0, 300) } : line) }));
+    updateDraft((previous) => previous.requestId ? previous : ({ ...previous, items: previous.items.map((line) => line.lineId === lineId ? { ...line, note: note.slice(0, 300) } : line) }));
+    setCartError("");
+  };
+
+  const removeCartLine = (lineId: string) => {
+    if (checkoutInFlight.current || draft.requestId) return;
+    updateDraft((previous) => previous.requestId ? previous : ({ ...previous, items: previous.items.filter((line) => line.lineId !== lineId) }));
+    setCartError("");
   };
 
   const canCheckout = cartReady && !sessionValidation.isChecking && sessionValidation.isValid && !isSubmittingOrder && (Boolean(draft.requestId) || (!isLoading && !menuLoadError));
@@ -363,12 +373,16 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
               )}
             </div>
             <div className="min-w-0">
+              {isLoading ? <SkeletonRegion label="กำลังโหลดข้อมูลร้าน" className="space-y-2">
+                <Skeleton className="h-4 w-32" /><Skeleton className="h-3 w-40" />
+              </SkeletonRegion> : <>
               <h1 className="truncate font-bold text-sm text-foreground leading-tight">
                 {storeInfo.name}
               </h1>
               <p className="text-xs text-muted-foreground">
                 เวลาทำการ {storeInfo.openingTime} - {storeInfo.closingTime}
               </p>
+              </>}
             </div>
           </div>
 
@@ -402,6 +416,7 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
         <CustomerChatbot key={JSON.stringify([storeSlug, tableNumber, sessionToken])} storeSlug={storeSlug} tableNumber={tableNumber} sessionToken={sessionToken}
           enabled={!!canEditCart} onSessionExpired={validateSession}
           onAdd={(id) => { const item = menuList.find((menu) => menu.id === id); return item ? addToCart(item) : false; }} />
+        {cartError && !selectedMenuItem && <p role="alert" className="mb-3 text-sm text-destructive">{cartError}</p>}
         {cartReady && !persistent && <p role="alert" className="mb-3 rounded-lg border border-amber-500/40 p-3 text-sm text-foreground">
           เบราว์เซอร์ไม่อนุญาตให้บันทึกตะกร้า รายการอาจหายเมื่อรีเฟรชหรือปิดหน้านี้
         </p>}
@@ -435,6 +450,9 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
         </div>
 
         {/* Categories Pills */}
+        {isLoading ? <SkeletonRegion label="กำลังโหลดหมวดหมู่" className="mb-3 flex gap-2 overflow-hidden pb-2">
+          {[0, 1, 2, 3].map((item) => <Skeleton key={item} className="h-8 w-20 shrink-0 rounded-full" />)}
+        </SkeletonRegion> : (
         <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-none mb-3">
           <Button
             type="button"
@@ -459,9 +477,12 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
           ))}
         </div>
 
+        )}
+
         {/* Menu Items List */}
         {isLoading ? (
-          <div className="space-y-2.5">
+          <div role="status" className="space-y-2.5">
+            <span className="sr-only">กำลังโหลดเมนูอาหารและเครื่องดื่ม</span>
             {[1, 2, 3, 4, 5].map((i) => (
               <Card key={i} className="p-3 flex gap-3 border-border shadow-2xs">
                 <Skeleton className="w-20 h-20 rounded-lg shrink-0" />
@@ -503,6 +524,7 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
                 key={item.id}
                 onClick={() => {
                   if (item.isAvailable) {
+                    setCartError("");
                     setSelectedMenuItem(item);
                     setDetailQuantity(1);
                     setDetailNote("");
@@ -644,9 +666,11 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
               </div>}
               {cartReady && !persistent && <p role="alert" className="text-sm text-amber-700 dark:text-amber-300">บันทึกตะกร้าในเบราว์เซอร์ไม่ได้ กรุณาอย่ารีเฟรชก่อนส่งออเดอร์</p>}
               {isLoading && cart.length > 0 && <p role="status" className="text-sm text-muted-foreground">กำลังตรวจราคาและเมนูปัจจุบัน...</p>}
-              {cart.map((c) => (
+              {cart.map((c, index) => (
                 <div
-                  key={c.menuItem.id}
+                  key={c.lineId}
+                  role="group"
+                  aria-label={`รายการที่ ${index + 1}: ${c.menuItem.name}`}
                   className="p-3 rounded-lg border border-border bg-muted/30 space-y-2"
                 >
                   <div className="flex justify-between items-start gap-3">
@@ -672,21 +696,21 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
                     aria-label={`หมายเหตุสำหรับ ${c.menuItem.name}`}
                     maxLength={300}
                     disabled={isSubmittingOrder || Boolean(draft.requestId)}
-                    onChange={(e) => updateItemNote(c.menuItem.id, e.target.value)}
+                    onChange={(e) => updateItemNote(c.lineId, e.target.value)}
                     className="min-h-11 w-full text-base sm:text-sm p-2 rounded-md border border-border bg-background outline-none focus:ring-1 focus:ring-primary"
                   />
 
                   {/* Quantity Stepper */}
                   <div className="flex flex-wrap items-center justify-end gap-2.5">
                     <Button type="button" variant="ghost" className="mr-auto min-h-11" disabled={isSubmittingOrder || Boolean(draft.requestId)}
-                      aria-label={`นำ ${c.menuItem.name} ออกจากตะกร้า`} onClick={() => updateDraft((previous) => ({ ...previous, items: previous.items.filter((line) => line.menuItemId !== c.menuItem.id) }))}>
+                      aria-label={`นำ ${c.menuItem.name} ออกจากตะกร้า`} onClick={() => removeCartLine(c.lineId)}>
                       <Trash2 className="size-4" /> นำออก
                     </Button>
                     <Button
                       type="button"
                       variant="outline"
                       size="icon-xs"
-                      onClick={() => updateQuantity(c.menuItem.id, -1)}
+                      onClick={() => updateQuantity(c.lineId, -1)}
                       aria-label={`ลดจำนวน ${c.menuItem.name}`}
                       disabled={isSubmittingOrder || Boolean(draft.requestId)}
                       className="size-11 rounded-full cursor-pointer"
@@ -699,7 +723,7 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
                     <Button
                       type="button"
                       size="icon-xs"
-                      onClick={() => updateQuantity(c.menuItem.id, 1)}
+                      onClick={() => updateQuantity(c.lineId, 1)}
                       aria-label={`เพิ่มจำนวน ${c.menuItem.name}`}
                       disabled={!canEditCart || !c.menuItem.isAvailable || c.quantity >= MAX_CART_QUANTITY}
                       className="size-11 rounded-full cursor-pointer shadow-2xs"
@@ -814,6 +838,8 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
                   />
                 </div>
 
+                {cartError && <p role="alert" className="text-sm text-destructive">{cartError}</p>}
+
                 {/* Quantity and Add Button */}
                 <div className="space-y-3 pt-1">
                   <div className="flex items-center justify-between">
@@ -850,7 +876,7 @@ function CustomerOrdering({ storeSlug, tableNumber, sessionToken, cartKey }: {
                     className="w-full h-11 rounded-xl text-sm font-semibold justify-center cursor-pointer shadow-xs"
                     disabled={!canEditCart}
                     onClick={() => {
-                      addToCart(selectedMenuItem, detailQuantity, detailNote.trim());
+                      if (!addToCart(selectedMenuItem, detailQuantity, detailNote)) return;
                       setSelectedMenuItem(null);
                       setDetailNote("");
                       setDetailQuantity(1);

@@ -72,24 +72,24 @@ test("non-owners cannot update settings or delete logos", async () => {
 
 function nodes(tree) { return Array.isArray(tree) ? tree.flatMap(nodes) : tree?.props ? [tree,...nodes(tree.props.children)] : []; }
 function text(tree) { return typeof tree === "string" ? tree : Array.isArray(tree) ? tree.map(text).join("") : tree?.props ? text(tree.props.children) : ""; }
-function settingsPage(fetch) {
+function settingsPage(fetch, { checkSlug = async () => ({ available: true }), globals = {} } = {}) {
   const slots=[], effects=[]; let cursor=0;
   const react={
     useState(initial){const i=cursor++; if(!(i in slots))slots[i]=typeof initial==="function"?initial():initial; return [slots[i],value=>{slots[i]=typeof value==="function"?value(slots[i]):value;}];},
     useRef(value){return react.useState(()=>({current:value}))[0];},
-    useEffect(fn,deps){const i=cursor++,old=slots[i]; if(!old||deps.some((dep,n)=>dep!==old[n])){slots[i]=deps;effects.push(fn);}},
+    useEffect(fn,deps){const i=cursor++,old=slots[i]; if(!old||deps.some((dep,n)=>dep!==old.deps[n])){old?.cleanup?.();slots[i]={deps};effects.push(()=>{slots[i].cleanup=fn();});}},
   };
   const ui=names=>Object.fromEntries(names.map(name=>[name,name]));
   const f=fixture("owner",{react,
-    "@/app/actions/owner-auth":{checkSlugAvailability:async()=>({available:true})},
+    "@/app/actions/owner-auth":{checkSlugAvailability:checkSlug},
     "@/components/ui/button":ui(["Button"]),"@/components/ui/badge":ui(["Badge"]),
     "@/components/ui/card":ui(["Card","CardHeader","CardTitle","CardDescription","CardContent","CardFooter"]),
     "@/components/ui/input":ui(["Input"]),"@/components/ui/label":ui(["Label"]),"@/components/ui/skeleton":ui(["Skeleton"]),
     "@/components/ui/avatar":ui(["Avatar","AvatarImage","AvatarFallback"]),
-  },{fetch});
+  },{fetch,...globals});
   const Page=f.load("app/dashboard/settings/page.tsx").default;
   const render=()=>{cursor=0;return Page();};
-  return {render,async ready(){render();effects.splice(0).forEach(fn=>fn());await new Promise(resolve=>setTimeout(resolve,0));return render();}};
+  return {render,flushEffects(){effects.splice(0).forEach(fn=>fn());},dispose(){slots.forEach(slot=>slot?.cleanup?.());},async ready(){render();effects.splice(0).forEach(fn=>fn());await new Promise(resolve=>setTimeout(resolve,0));return render();}};
 }
 
 test("removing a logo in the actual settings form makes no DELETE request and saving sends null", async () => {
@@ -112,4 +112,41 @@ test("failed initial settings load shows retry and never exposes a blank editabl
   const tree=await page.ready();
   assert.ok(nodes(tree).some(n=>n.props.role==="alert"));assert.ok(!nodes(tree).some(n=>n.type==="form"));
   assert.ok(nodes(tree).some(n=>n.type==="Button"&&text(n)==="ลองโหลดอีกครั้ง"));
+});
+
+
+test("slug availability ignores outdated responses and returning to the original slug clears validation", async () => {
+  const timers = new Map(), pending = new Map(); let id = 0;
+  const page = settingsPage(async () => Response.json({ success: true, data: { name: "Cafe", slug: "cafe-a" } }), {
+    checkSlug: slug => new Promise(resolve => pending.set(slug, resolve)),
+    globals: { setTimeout(fn) { timers.set(++id, fn); return id; }, clearTimeout(timer) { timers.delete(timer); } },
+  });
+  const changeSlug = value => {
+    nodes(page.render()).find(node => node.props.id === "store-slug").props.onChange({ target: { value } });
+    page.render(); page.flushEffects();
+  };
+  const runTimers = () => { const calls = [...timers.values()]; timers.clear(); return calls.map(fn => fn()); };
+  try {
+    await page.ready(); page.flushEffects();
+    changeSlug("first-slug");
+    let tree = page.render();
+    assert.equal(nodes(tree).find(node => node.type === "Button" && node.props.type === "submit").props.disabled, true);
+    const first = runTimers();
+    changeSlug("second-slug");
+    const second = runTimers();
+    pending.get("second-slug")({ available: false, error: "second slug is taken" });
+    await Promise.all(second);
+    assert.match(text(page.render()), /second slug is taken/);
+    changeSlug("second-slug!");
+    assert.match(text(page.render()), /second slug is taken/);
+    assert.equal(timers.size, 0, "formatting to the same slug must not leave validation stuck");
+    pending.get("first-slug")({ available: true });
+    await Promise.all(first);
+    assert.match(text(page.render()), /second slug is taken/);
+    changeSlug("cafe-a");
+    tree = page.render();
+    assert.equal(text(tree).includes("second slug is taken"), false);
+    assert.equal(nodes(tree).find(node => node.type === "Button" && node.props.type === "submit").props.disabled, false);
+    assert.equal(timers.size, 0);
+  } finally { page.dispose(); }
 });

@@ -1,5 +1,9 @@
 // @refresh reset
 "use client";
+import { RefreshStatus } from "@/components/refresh-status";
+import { startVisiblePolling } from "@/lib/visible-polling";
+import { BOOLEAN_PREFERENCES, useStoredPreference } from "@/hooks/use-stored-preference";
+import { ServiceRequestsSkeleton } from "@/components/loading-skeletons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,25 +42,19 @@ export function playServiceBellSound() {
 }
 
 export function ServiceRequestBoard() {
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [requests, setRequests] = useState<StaffRequest[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string[]>([]);
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [soundPreference, setSoundPreference] = useStoredPreference("service_sound_enabled", "true", BOOLEAN_PREFERENCES);
+  const soundEnabled = soundPreference === "true";
   const previousRequestsRef = useRef<Set<string> | null>(null);
   const working = useRef(new Set<string>()), mounted = useRef(false), version = useRef({ value: 0 });
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("service_sound_enabled");
-      if (saved !== null) setSoundEnabled(saved === "true");
-    } catch {}
-  }, []);
-
   const toggleSound = () => {
     const next = !soundEnabled;
-    setSoundEnabled(next);
-    try { localStorage.setItem("service_sound_enabled", String(next)); } catch {}
+    setSoundPreference(next ? "true" : "false");
     if (next) playServiceBellSound();
   };
 
@@ -76,6 +74,7 @@ export function ServiceRequestBoard() {
         }
       }
       previousRequestsRef.current = new Set(list.map((r) => r.id));
+      setUpdatedAt(Date.now());
       setRequests(list); setError("");
     } catch (error) { if (mounted.current && current === version.current.value) setError(error instanceof Error ? error.message : "เชื่อมต่อไม่ได้ กรุณาลองใหม่"); }
     finally { if (mounted.current && current === version.current.value) setLoading(false); }
@@ -85,8 +84,8 @@ export function ServiceRequestBoard() {
     const generation = version.current;
     mounted.current = true;
     const initial = setTimeout(() => void load(), 0);
-    const timer = setInterval(() => { if (!working.current.size) void load(); }, 5000);
-    return () => { mounted.current = false; ++generation.value; clearTimeout(initial); clearInterval(timer); };
+    const stopPolling = startVisiblePolling(() => { if (!working.current.size) void load(); }, 5000);
+    return () => { mounted.current = false; ++generation.value; clearTimeout(initial); stopPolling(); };
   }, [load]);
 
   async function resolve(id: string) {
@@ -142,8 +141,9 @@ export function ServiceRequestBoard() {
       </div>
     </div>
     <p className="text-xs text-muted-foreground">อัปเดตทุก 5 วินาที · กดดำเนินการแล้วหลังช่วยลูกค้า รับเงินจากหน้าบิลและปิดโต๊ะจากผังโต๊ะ</p>
+    <RefreshStatus updatedAt={updatedAt} failed={Boolean(error)} />
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-    {loading ? <p role="status" className="text-sm">กำลังโหลดคำขอ…</p> : !error && !requests.length ? <p className="text-sm text-muted-foreground">ไม่มีคำขอที่รออยู่</p> : null}
+    {loading ? <ServiceRequestsSkeleton /> : !error && !requests.length ? <p className="text-sm text-muted-foreground">ไม่มีคำขอที่รออยู่</p> : null}
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {requests.map((request) => {
         const isBill = request.kind === "bill";

@@ -1,6 +1,7 @@
 import type { CookingStatus } from "@/lib/permissions";
 
 export type BillOrder = {
+  cancelledBy: string | null; cancelledByLabel: string | null; cancelledAt: string | null; cancellationReason: string | null;
   id: string; orderNumber: string; status: string; paymentStatus: string; totalAmount: string;
   customerNote: string | null; createdAt: string; servingRequired: boolean; deliveredAt: string | null;
   items: { id: string; menuName: string; quantity: number; unitPrice: string; specialInstruction: string | null; status: CookingStatus }[];

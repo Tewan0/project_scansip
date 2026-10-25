@@ -1,5 +1,7 @@
 "use client";
 
+import { RefreshStatus } from "@/components/refresh-status";
+import { startVisiblePolling } from "@/lib/visible-polling";
 import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 
@@ -79,22 +81,23 @@ interface DashboardStats {
 }
 
 export default function DashboardPage() {
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const activeRequest = useRef<AbortController | null>(null);
-  const fetchStats = useCallback(async (isManual = false) => {
+  const fetchStats = useCallback(async () => {
     if (activeRequest.current) return;
     const controller = new AbortController();
     activeRequest.current = controller;
-    if (isManual) setIsRefreshing(true);
     try {
       const res = await fetch("/api/dashboard/stats", { signal: controller.signal, cache: "no-store" });
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error("Failed to load dashboard");
       if (!controller.signal.aborted) {
+      setUpdatedAt(Date.now());
         setStats(json.data);
         setError(null);
       }
@@ -110,14 +113,21 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    void fetchStats();
-    const timer = setInterval(() => void fetchStats(), 15000);
+    const initial = setTimeout(() => void fetchStats(), 0);
+    const stopPolling = startVisiblePolling(() => void fetchStats(), 15000);
     return () => {
-      clearInterval(timer);
+      clearTimeout(initial);
+      stopPolling();
       activeRequest.current?.abort();
       activeRequest.current = null;
     };
   }, [fetchStats]);
+
+  const refreshStats = () => {
+    if (activeRequest.current) return;
+    setIsRefreshing(true);
+    return fetchStats();
+  };
 
   // Compute SVG chart coordinates based on chartData
   const chartPoints = stats?.chartData || [];
@@ -152,9 +162,10 @@ export default function DashboardPage() {
   // Loading Skeleton State with Shadcn Skeleton
   if (isLoading) {
     return (
-      <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+      <div role="status" className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+        <span className="sr-only">กำลังโหลดภาพรวมร้าน</span>
         {/* Header Skeleton */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-wrap justify-between items-center gap-4">
           <div className="space-y-2">
             <Skeleton className="h-8 w-44 rounded-lg" />
             <Skeleton className="h-4 w-64 rounded-md" />
@@ -202,7 +213,7 @@ export default function DashboardPage() {
   }
 
   if (!stats) {
-    return <div className="p-6 space-y-4"><h1 className="text-2xl font-bold">ภาพรวมร้านค้า</h1><p role="alert" className="text-destructive">{error || "ไม่พบข้อมูล"}</p><Button onClick={() => void fetchStats(true)} disabled={isRefreshing}>ลองอีกครั้ง</Button></div>;
+    return <div className="p-6 space-y-4"><h1 className="text-2xl font-bold">ภาพรวมร้านค้า</h1><p role="alert" className="text-destructive">{error || "ไม่พบข้อมูล"}</p><Button onClick={() => void refreshStats()} disabled={isRefreshing}>ลองอีกครั้ง</Button></div>;
   }
 
   const todaySalesDisplay = `฿${(stats?.todaySales || 0).toLocaleString("th-TH", {
@@ -227,10 +238,11 @@ export default function DashboardPage() {
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
             ยอดสั่งซื้อที่ไม่ยกเลิก รวมรายการที่ยังไม่ชำระ · แบ่งวันตามเวลาไทย
           </p>
+          <RefreshStatus updatedAt={updatedAt} failed={Boolean(error)} />
         </div>
 
         <Button
-          onClick={() => fetchStats(true)}
+          onClick={() => refreshStats()}
           disabled={isRefreshing}
           variant="outline"
           size="sm"

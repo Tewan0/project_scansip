@@ -15,11 +15,13 @@ function setup(){
 test("lost-response retry returns the original order and lines, even after menu changes",async()=>{
   const f=setup();const first=await (await f.post(request(payload))).json();
   f.state.menuItems=[];
+  Object.assign(f.state.orders[0], { cancelledBy: "private-user", cancelledByLabel: "private@example.com", cancellationReason: "private note", cancelledAt: new Date() });
   const response=await f.post(request(payload));assert.equal(response.status,201);
   const replay=await response.json();
   assert.equal(replay.data.id,first.data.id);assert.equal(replay.data.totalAmount,"100.00");
   assert.equal(replay.data.items[0].id,first.data.items[0].id);
   assert.equal(f.state.orders.length,1);assert.equal(f.state.orderItems.length,1);
+  for (const key of ["cancelledBy", "cancelledByLabel", "cancellationReason", "cancelledAt"]) assert.equal(replay.data[key], undefined);
   assert.equal(replay.data.requestHash,undefined);assert.equal(replay.data.sessionToken,undefined);
 });
 
@@ -56,4 +58,31 @@ test("invalid keys and rejected menus cannot reserve a key or create an order",a
   f.state.menuItems[0].isAvailable=false;assert.equal((await f.post(request(payload))).status,400);
   assert.equal(f.state.orders.length,0);
   f.state.menuItems[0].isAvailable=true;assert.equal((await f.post(request(payload))).status,201);
+});
+
+
+test("same-menu note variants persist as separate kitchen lines with authoritative prices and replay safely", async () => {
+  const f = setup();
+  const body = { ...payload, items: [
+    { menuItemId: product, quantity: 2, specialInstruction: "หวานน้อย", unitPrice: "0.01" },
+    { menuItemId: product, quantity: 1, specialInstruction: "หวานปกติ", unitPrice: "0.01" },
+  ] };
+  const response = await f.post(request(body));
+  assert.equal(response.status, 201);
+  const first = (await response.json()).data;
+  assert.equal(first.totalAmount, "150.00");
+  assert.equal(first.items.length, 2);
+  assert.deepEqual(first.items.map(line => [line.quantity, line.specialInstruction, line.unitPrice]), [[2, "หวานน้อย", "50.00"], [1, "หวานปกติ", "50.00"]]);
+  assert.notEqual(first.items[0].id, first.items[1].id);
+  f.state.menuItems = [];
+  const retry = await f.post(request(body));
+  assert.equal(retry.status, 201);
+  const replay = (await retry.json()).data;
+  assert.equal(replay.id, first.id);
+  assert.deepEqual(replay.items, first.items);
+  assert.equal(f.state.orders.length, 1);
+  assert.equal(f.state.orderItems.length, 2);
+  const changed = { ...body, items: body.items.map((line, index) => index === 1 ? { ...line, specialInstruction: "ไม่หวาน" } : line) };
+  assert.equal((await f.post(request(changed))).status, 409);
+  assert.equal(f.state.orderItems.length, 2);
 });

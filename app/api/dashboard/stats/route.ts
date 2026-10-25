@@ -1,27 +1,30 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { orders } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc, gte, lt } from "drizzle-orm";
 import { requireStoreAccess, apiError } from "@/lib/auth";
 
 export async function GET() {
   try {
     const { store } = await requireStoreAccess(["owner"]);
 
-    // ดึงออเดอร์ทั้งหมดของร้าน
-    const allOrders = await db.query.orders.findMany({
-      where: eq(orders.storeId, store.id),
-      with: {
-        items: true,
-      },
-      orderBy: [desc(orders.createdAt)],
-    });
-
     // กำหนดวันเริ่มต้นของวันนี้ (00:00:00)
     // Shift to Bangkok calendar time; use UTC accessors so server timezone cannot change the day.
     const now = new Date(Date.now() + 7 * 60 * 60 * 1000);
     const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     const startOfYesterday = new Date(startOfToday.getTime() - 24 * 60 * 60 * 1000);
+
+    const offset = 7 * 60 * 60 * 1000;
+    const [allOrders, latestOrders, totalOrdersCount] = await Promise.all([
+      db.query.orders.findMany({
+        where: and(eq(orders.storeId, store.id),
+          gte(orders.createdAt, new Date(startOfToday.getTime() - 6 * 86400000 - offset)),
+          lt(orders.createdAt, new Date(startOfToday.getTime() + 86400000 - offset))),
+        with: { items: true },
+      }),
+      db.query.orders.findMany({ where: eq(orders.storeId, store.id), orderBy: [desc(orders.createdAt), desc(orders.id)], limit: 5 }),
+      db.$count(orders, eq(orders.storeId, store.id)),
+    ]);
 
     // คำนวณยอดขายวันนี้
     let todaySales = 0;
@@ -109,7 +112,7 @@ export async function GET() {
     }
 
     // ออเดอร์ล่าสุด 5 รายการ
-    const recentOrders = allOrders.slice(0, 5).map((o) => {
+    const recentOrders = latestOrders.map((o) => {
       // แปลงเวลาให้อ่านง่าย เช่น 5 นาทีที่แล้ว หรือ เวลา
       const diffMs = Date.now() - new Date(o.createdAt).getTime();
       const diffMins = Math.floor(diffMs / 60000);
@@ -153,7 +156,7 @@ export async function GET() {
         todaySales,
         yesterdaySales,
         growthPercent: growthPercent === null ? null : Number(growthPercent.toFixed(1)),
-        totalOrdersCount: allOrders.length,
+        totalOrdersCount,
         todayOrdersCount,
         completedOrdersCount,
         topMenu: {

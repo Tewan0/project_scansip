@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { db } from "@/db";
-import { checkBodyHeaders, readLimitedForm, UPLOAD_BODY_BYTES, UPLOAD_FILE_BYTES } from "@/lib/request-body";
-import { consumeWriteQuota, OWNER_UPLOAD_LIMITS, ONBOARDING_UPLOAD_LIMITS, writeErrorResponse } from "@/lib/write-rate-limit";
+import { reserveUploadQuota, validateImageUpload } from "@/lib/upload-policy";
+import { checkBodyHeaders, readLimitedForm, UPLOAD_BODY_BYTES } from "@/lib/request-body";
+import { writeErrorResponse } from "@/lib/write-rate-limit";
 import { requireUser, getAccessForUser, AccessError, apiError } from "@/lib/auth";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { deleteStorageFile, extractStoragePath } from "@/utils/supabase/storage";
@@ -22,15 +22,13 @@ export async function POST(req: Request) {
     checkBodyHeaders(req, "multipart/form-data", UPLOAD_BODY_BYTES);
     // Reserve before reading multipart data; malformed/failed attempts also count.
     // Commit before contacting Storage so parallel uploads cannot overshoot.
-    await db.transaction(tx => consumeWriteQuota(tx, "uploads:user:" + user.id, access ? OWNER_UPLOAD_LIMITS : ONBOARDING_UPLOAD_LIMITS));
+    await reserveUploadQuota(user.id, Boolean(access));
     const form = await readLimitedForm(req);
     const bucket = form.get("bucket") || "menu-photos";
     if (bucket !== "menu-photos" && bucket !== "restaurant-logos") throw new AccessError("ชนิดรูปภาพไม่ถูกต้อง", 400);
     if ((access && access.role !== "owner") || (!access && bucket !== "restaurant-logos")) throw new AccessError("คุณไม่มีสิทธิ์อัปโหลดรูปภาพ");
-    const file = form.get("file");
-    const types: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
-    if (!(file instanceof File) || !types[file.type] || !file.size || file.size > UPLOAD_FILE_BYTES) throw new AccessError("กรุณาใช้รูป JPG, PNG, WebP หรือ GIF ขนาดไม่เกิน 5 MB", 400);
-    const path = `${user.id}/${randomUUID()}.${types[file.type]}`;
+    const { file, extension } = validateImageUpload(form.get("file"));
+    const path = `${user.id}/${randomUUID()}.${extension}`;
     const client = createAdminClient();
     const { error } = await client.storage.from(bucket).upload(path, new Uint8Array(await file.arrayBuffer()), { contentType: file.type, upsert: false });
     if (error) throw error;

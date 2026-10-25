@@ -43,7 +43,7 @@ test("cashier cannot change cooking status, can cancel unpaid orders, cannot can
   f.state.orders[0].paymentStatus = "paid";
   assert.equal((await route.PATCH(request({ status: "cancelled" }), params("order-a"))).status, 409);
   f.state.orders[0].paymentStatus = "unpaid";
-  assert.equal((await route.PATCH(request({ status: "cancelled" }), params("order-a"))).status, 200);
+  assert.equal((await route.PATCH(request({ status: "cancelled", cancellationReason: "ลูกค้าเปลี่ยนใจ" }), params("order-a"))).status, 200);
   assert.equal((await route.PATCH(request({ paymentStatus: "paid" }), params("order-a"))).status, 409);
 });
 
@@ -150,4 +150,57 @@ test("busy queues keep every unfinished order and still isolate stores", async (
     assert.equal(data.some(order => order.id === "foreign"), false);
     assert.equal(data.filter(order => order.status === "completed").length, role === "kitchen" ? 0 : 200);
   }
+});
+
+
+test("cancellation requires a meaningful bounded reason without changing the order on rejection", async () => {
+  for (const reason of [undefined, null, "", "   ", 123, "ก".repeat(301)]) {
+    const f = orderFixture("owner"), before = structuredClone(f.state);
+    const response = await f.load("app/api/orders/[id]/route.ts").PATCH(request({ status: "cancelled", cancellationReason: reason }), params("order-a"));
+    assert.equal(response.status, 400);
+    assert.deepEqual(f.state, before);
+  }
+});
+
+test("cancellation records the authenticated actor and server time, ignoring forged audit fields", async () => {
+  for (const role of ["owner", "cashier"]) {
+    const f = orderFixture(role), route = f.load("app/api/orders/[id]/route.ts");
+    const before = Date.now();
+    const response = await route.PATCH(request({ status: "cancelled", cancellationReason: "  วัตถุดิบหมด  ",
+      cancelledBy: "forged", cancelledByLabel: "forged", cancelledAt: "1990-01-01" }), params("order-a"));
+    assert.equal(response.status, 200);
+    const order = f.state.orders[0];
+    assert.equal(order.cancelledBy, role);
+    assert.equal(order.cancelledByLabel, f.user.email);
+    assert.equal(order.cancellationReason, "วัตถุดิบหมด");
+    assert.ok(order.cancelledAt.getTime() >= before && order.cancelledAt.getTime() <= Date.now());
+    const audit = structuredClone(order);
+    assert.equal((await route.PATCH(request({ status: "cancelled", cancellationReason: "เปลี่ยนเหตุผล" }), params("order-a"))).status, 409);
+    assert.deepEqual(f.state.orders[0], audit);
+  }
+});
+
+test("paid, delivered, foreign and kitchen cancellation attempts cannot create audit records", async () => {
+  for (const kind of ["paid", "delivered", "foreign", "kitchen"]) {
+    const f = orderFixture(kind === "kitchen" ? "kitchen" : "owner");
+    if (kind === "paid") f.state.orders[0].paymentStatus = "paid";
+    if (kind === "delivered") f.state.orders[0].deliveredAt = new Date();
+    if (kind === "foreign") f.state.orders[0].storeId = "shop-b";
+    const before = structuredClone(f.state);
+    const response = await f.load("app/api/orders/[id]/route.ts").PATCH(request({ status: "cancelled", cancellationReason: "reason" }), params("order-a"));
+    assert.equal(response.status, kind === "kitchen" ? 403 : kind === "foreign" ? 404 : 409);
+    assert.deepEqual(f.state, before);
+  }
+});
+
+test("cancellation audit is shown to frontdesk but hidden from customer order status", async () => {
+  const f = orderFixture("owner");
+  Object.assign(f.state.orders[0], { tableNumber: 1, status: "cancelled", cancelledBy: "private-user", cancelledByLabel: "private@example.com",
+    cancelledAt: new Date(), cancellationReason: "private note", createdAt: new Date() });
+  const bills = f.load("lib/bills-server.ts").buildBills(f.state.orders, f.state.tables);
+  assert.equal(bills[0].orders[0].cancelledByLabel, "private@example.com");
+  const response = await f.load("app/api/orders/[id]/route.ts").GET(new Request("http://localhost/api/orders/order-a?token=token-a"), params("order-a"));
+  assert.equal(response.status, 200);
+  const body = await response.text();
+  for (const value of ["private-user", "private@example.com", "private note", "cancelledAt"]) assert.equal(body.includes(value), false);
 });

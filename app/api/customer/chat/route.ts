@@ -5,17 +5,14 @@ import { chatRateLimits, menuItems } from "@/db/schema";
 import { AccessError } from "@/lib/auth";
 import { withCustomerSession, customerError } from "@/lib/customer-session";
 import { answerMenuQuestion, validateMessages } from "@/lib/customer-ai";
+import { CHAT_BODY_BYTES, readLimitedJson } from "@/lib/request-body";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
   try {
-    if (Number(req.headers.get("content-length") || 0) > 24000) throw new AccessError("ข้อความยาวเกินไป", 413);
-    const raw = await req.text();
-    if (new TextEncoder().encode(raw).length > 24000) throw new AccessError("ข้อความยาวเกินไป", 413);
-    let body;
-    try { body = JSON.parse(raw); } catch { throw new AccessError("ข้อมูลคำถามไม่ถูกต้อง", 400); }
+    const body = await readLimitedJson(req, CHAT_BODY_BYTES);
     if (!body || typeof body !== "object") throw new AccessError("ข้อมูลคำถามไม่ถูกต้อง", 400);
     const messages = validateMessages(body.messages);
     const input = { storeSlug: body.storeSlug, tableNumber: body.tableNumber,
