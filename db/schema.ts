@@ -66,7 +66,9 @@ export const categories = pgTable("categories", {
   name: text("name").notNull(),
   sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-}).enableRLS();
+}, (table) => [
+  index("categories_store_id_idx").on(table.storeId),
+]).enableRLS();
 
 // 3. Menu Items (รายการอาหารและเครื่องดื่ม)
 export const menuItems = pgTable("menu_items", {
@@ -83,7 +85,10 @@ export const menuItems = pgTable("menu_items", {
   isAvailable: boolean("is_available").default(true).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-}).enableRLS();
+}, (table) => [
+  index("menu_items_store_id_idx").on(table.storeId),
+  index("menu_items_category_id_idx").on(table.categoryId),
+]).enableRLS();
 
 // 4. Tables (โต๊ะในร้าน)
 export const tables = pgTable("tables", {
@@ -154,6 +159,7 @@ export const orders = pgTable("orders", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (order) => [
   index("orders_payment_id_idx").on(order.paymentId),
+  index("orders_table_id_idx").on(order.tableId),
   uniqueIndex("orders_request_key_unique").on(order.storeId, order.tableNumber, order.sessionToken, order.requestKey),
 ]).enableRLS();
 
@@ -190,7 +196,10 @@ export const orderItems = pgTable("order_items", {
   specialInstruction: text("special_instruction"),
   status: text("status").$type<"pending" | "preparing" | "ready">().default("pending").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-}).enableRLS();
+}, (table) => [
+  index("order_items_order_id_idx").on(table.orderId),
+  index("order_items_menu_item_id_idx").on(table.menuItemId),
+]).enableRLS();
 
 // 7. Staff (พนักงานร้าน)
 export const staff = pgTable("staff", {
@@ -203,7 +212,9 @@ export const staff = pgTable("staff", {
   name: text("name").notNull(),
   role: staffRoleEnum("role").default("cashier").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-}).enableRLS();
+}, (table) => [
+  index("staff_store_id_idx").on(table.storeId),
+]).enableRLS();
 
 // --- Relations ---
 
