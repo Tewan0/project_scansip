@@ -22,7 +22,7 @@ function panel(file, name, props, fetch, globals = {}) {
     "@/components/ui/table": Object.fromEntries(["Table", "TableHeader", "TableBody", "TableHead", "TableRow", "TableCell"].map(name => [name, name])),
     "@/components/ui/skeleton": { Skeleton: "Skeleton" },
     "@/components/ui/dialog": Object.fromEntries(["Dialog", "DialogContent", "DialogHeader", "DialogTitle", "DialogDescription", "DialogFooter"].map(name => [name, name])),
-    "@/components/ui/button": { Button: "Button" }, "@/components/ui/badge": { Badge: "Badge" } }, {
+    "@/components/ui/button": { Button: "Button" }, "@/components/ui/badge": { Badge: "Badge" }, "qrcode.react": { QRCodeSVG: "QRCodeSVG" } }, {
     fetch, AbortController, setInterval: () => 1, clearInterval() {}, ...globals,
   });
   const Component = f.load(file)[name];
@@ -307,5 +307,32 @@ test("cancellation dialog requires a reason, blocks duplicate sends and preserve
     finish(Response.json({ success: true }));
     await new Promise(resolve => setTimeout(resolve, 0));
     assert.equal(nodes(page.render()).some(node => node.props["aria-label"] === "เหตุผลการยกเลิก"), false);
+  } finally { page.dispose(); }
+});
+
+test("PromptPay QR payload is generated locally with valid EMVCo TLV and CRC16 for mobile and national IDs", async () => {
+  const { crc16Ccitt, generatePromptPayPayload } = fixture().load("lib/promptpay.ts");
+  assert.equal(crc16Ccitt("123456789"), "29B1");
+
+  const mobilePayload = generatePromptPayPayload("098-955-1686", 80);
+  assert.ok(mobilePayload.startsWith("00020101021229370016A000000677010111011300669895516865802TH5303764540580.006304"));
+  assert.equal(mobilePayload.slice(-4), crc16Ccitt(mobilePayload.slice(0, -4)));
+
+  const citizenPayload = generatePromptPayPayload("1234567890123", 150.5);
+  assert.ok(citizenPayload.startsWith("00020101021229370016A000000677010111021312345678901235802TH53037645406150.506304"));
+  assert.equal(citizenPayload.slice(-4), crc16Ccitt(citizenPayload.slice(0, -4)));
+
+  assert.equal(generatePromptPayPayload("invalid", 80), null);
+  assert.equal(generatePromptPayPayload("0989551686", 0), null);
+  assert.equal(generatePromptPayPayload("0989551686", -10), null);
+
+  const page = panel("components/customer-session-panel.tsx", "CustomerSessionPanel", { ...props, promptPayNumber: "0989551686" },
+    async () => Response.json({ success: true, data: { orders: [{ ...order, totalAmount: "80.00", items: [{ ...order.items[0], unitPrice: "80.00" }] }], requests: [] } }));
+  try {
+    const tree = await page.ready();
+    const qrNode = nodes(tree).find(node => node.type === "QRCodeSVG");
+    assert.ok(qrNode);
+    assert.equal(qrNode.props.value, mobilePayload);
+    assert.equal(text(tree).includes("โหลด QR ไม่สำเร็จ"), false);
   } finally { page.dispose(); }
 });

@@ -1,12 +1,13 @@
-/* eslint-disable @next/next/no-img-element */
 // @refresh reset
 "use client";
 import { CustomerOrdersSkeleton } from "@/components/loading-skeletons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BellRing, ReceiptText, QrCode, ChevronDown } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { generatePromptPayPayload } from "@/lib/promptpay";
 import { CustomerOrder, CustomerRequest, REQUEST_LABELS, ORDER_LABELS, customerItemStatus, sessionTotals } from "@/lib/customer-session-view";
 
 export function CustomerSessionPanel({ storeSlug, tableNumber, sessionToken, enabled, refreshKey, onSessionExpired, promptPayNumber }: {
@@ -19,7 +20,6 @@ export function CustomerSessionPanel({ storeSlug, tableNumber, sessionToken, ena
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
-  const [qrFailed, setQrFailed] = useState(false);
   const mounted = useRef(false), version = useRef({ value: 0 }), submitting = useRef(false);
   const load = useCallback(async () => {
     const current = ++version.current.value;
@@ -65,6 +65,9 @@ export function CustomerSessionPanel({ storeSlug, tableNumber, sessionToken, ena
   }
   const totals = sessionTotals(orders);
   const hasOrders = orders.length > 0;
+  const promptPayPayload = promptPayNumber && totals.unpaid > 0
+    ? generatePromptPayPayload(promptPayNumber, totals.unpaid)
+    : null;
   return <section aria-label="ออเดอร์และบริการของโต๊ะ" className={cn("mb-4 rounded-xl border bg-card transition-all", hasOrders ? "p-4 space-y-3" : "p-3 space-y-2.5")}>
     <div className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-2">
@@ -168,19 +171,22 @@ export function CustomerSessionPanel({ storeSlug, tableNumber, sessionToken, ena
                 ยอดที่ต้องชำระ: <span className="text-primary font-bold">฿{totals.unpaid.toFixed(2)}</span>
               </p>
             </div>
-            {qrFailed ? (
-              <p className="text-sm text-destructive py-2">โหลด QR ไม่สำเร็จ กรุณาขอ QR จากพนักงาน</p>
-            ) : (
+            {promptPayPayload ? (
               <div className="flex justify-center py-1">
                 <div className="rounded-xl bg-white p-3 shadow-md border border-black/5 ring-1 ring-black/5">
-                  <img
+                  <QRCodeSVG
+                    value={promptPayPayload}
+                    size={160}
+                    level="M"
+                    fgColor="#18181b"
+                    bgColor="#ffffff"
                     className="size-40 mx-auto rounded-lg bg-white"
-                    alt="QR พร้อมเพย์สำหรับยอดที่ยังไม่ชำระ"
-                    src={`https://promptpay.io/${encodeURIComponent(promptPayNumber.replace(/-/g, ""))}/${totals.unpaid.toFixed(2)}.png`}
-                    onError={() => setQrFailed(true)}
+                    title="QR พร้อมเพย์สำหรับยอดที่ยังไม่ชำระ"
                   />
                 </div>
               </div>
+            ) : (
+              <p className="text-sm text-destructive py-2">โหลด QR ไม่สำเร็จ กรุณาขอ QR จากพนักงาน</p>
             )}
             <p className="text-xs text-muted-foreground">เมื่อโอนแล้ว แจ้งพนักงานเพื่อตรวจสอบและยืนยันการรับเงิน</p>
           </div>
