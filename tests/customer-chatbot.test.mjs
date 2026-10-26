@@ -65,7 +65,7 @@ test("slow chat times out and keeps the prompt; leaving the dialog never blocks 
   ask(page); page.fire(8000); assert.match(text(page.render()), /กำลังรอคำตอบ/);
   button(page, "กลับไปเลือกเมนู").props.onClick();
   assert.equal(find(page, node => node.type === "Dialog").props.open, false);
-  page.fire(30000); await tick();
+  page.fire(55000); await tick();
   assert.match(text(page.render()), /ใช้เวลาตอบนานเกินไป/);
   assert.equal(input(page).props.value, "ชาไม่หวาน"); assert.equal(input(page).props.disabled, false);
   assert.equal(calls, 1); assert.equal(page.timers.size, 0); page.dispose();
@@ -111,4 +111,25 @@ test("chat keeps message identity when trimming history and sends only conversat
   assert.equal(payload.messages.length, 9);
   assert.ok(payload.messages.every(message => Object.keys(message).sort().join(",") === "content,role"));
   page.dispose();
+});
+
+test("chat accepts a response after the old 30-second deadline without another request", async () => {
+  let resolve, signal, calls = 0;
+  const page = chatbot((_url, options) => { calls++; signal = options.signal; return new Promise(done => { resolve = done; }); });
+  ask(page); page.fire(30000); await tick();
+  assert.equal(signal.aborted, false); assert.equal(input(page).props.disabled, true);
+  resolve(reply()); await tick();
+  assert.equal(calls, 1); assert.match(text(page.render()), /ลองชานี้ครับ/);
+  assert.equal(input(page).props.value, ""); assert.equal(page.timers.size, 0); page.dispose();
+});
+
+test("non-JSON gateway failures preserve the question and show a server error instead of a network error", async () => {
+  for (const status of [502, 504]) {
+    const page = chatbot(async () => new Response("private gateway details", { status, headers: { "Content-Type": "text/plain" } }));
+    ask(page); await tick();
+    assert.match(text(page.render()), status === 504 ? /ระบบตอบกลับไม่ทัน/ : /ระบบแชทไม่พร้อมชั่วคราว/);
+    assert.equal(input(page).props.value, "ชาไม่หวาน");
+    assert.equal(text(page.render()).includes("private gateway details"), false);
+    assert.equal(page.timers.size, 0); assert.equal(page.expired, 0); page.dispose();
+  }
 });

@@ -8,6 +8,7 @@ function setup(role = "owner") {
   let now = start, providerCalls = 0, duringAnswer = () => {};
   class Clock extends Date { constructor(...args) { super(...(args.length ? args : [now])); } static now() { return now; } }
   const f = fixture(role, { "@/lib/customer-ai": {
+    CustomerAiError: class extends Error {},
     validateMessages: input => input,
     async answerMenuQuestion() { providerCalls++; duringAnswer(); return { answer: "Coffee", recommendations: [] }; },
   } }, { Date: Clock, process: { env: { GEMINI_AI_API_KEY: "mock-only" } }, TextEncoder });

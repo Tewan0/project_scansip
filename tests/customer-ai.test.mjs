@@ -4,9 +4,10 @@ import { fixture } from "./helpers.mjs";
 
 const geminiReply = (answer = "ลองชาในรายการนี้ได้ครับ", menuIds = ["tea-a", "foreign", "soldout", "tea-a"]) => ({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: JSON.stringify({ answer, menuIds }) }] } }] });
 
-function setup({ key = "test-key-never-used-on-network", provider, model } = {}) {
-  const calls = [];
-  const f = fixture("anonymous", {}, { process: { env: { GEMINI_AI_API_KEY: key, GEMINI_MODEL: model } }, AbortSignal, TextEncoder,
+function setup({ key = "test-key-never-used-on-network", provider, model, abortSignal = AbortSignal } = {}) {
+  const calls = [], logs = [];
+  const f = fixture("anonymous", {}, { process: { env: { GEMINI_AI_API_KEY: key, GEMINI_MODEL: model } }, AbortSignal: abortSignal, TextEncoder,
+    console: { ...console, info: (...args) => logs.push(args), warn: (...args) => logs.push(args) },
     fetch: async (url, options) => {
       calls.push({ url, ...options });
       if (provider) return provider(url, options);
@@ -20,7 +21,7 @@ function setup({ key = "test-key-never-used-on-network", provider, model } = {})
     method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify({ storeSlug: "cafe-a", tableNumber: 1, messages: [{ role: "user", content: "แนะนำชา" }], ...extra }),
   }));
-  return { ...f, ask, calls };
+  return { ...f, ask, calls, logs };
 }
 
 test("AI uses actual in-store available menus and filters forged recommendations without disclosing QR or credentials", async () => {
@@ -245,4 +246,40 @@ test("normal nine-message Thai chat history still reaches the provider through t
   assert.equal(contents.length, 9);
   assert.deepEqual(contents.map(message => message.role), messages.map(message => message.role === "assistant" ? "model" : "user"));
   assert.equal(streamed.req.body.locked, false);
+});
+
+test("chat diagnostics distinguish provider HTTP failures and exclude private data", async () => {
+  const f = setup({ provider: async () => Response.json({ error: { message: "secret-provider-body" } }, { status: 404 }) });
+  const response = await f.ask(); assert.equal(response.status, 503);
+  const requestId = response.headers.get("x-chat-request-id");
+  assert.match(requestId, /^[a-f0-9-]{36}$/);
+  const providerLog = f.logs.find(([event]) => event === "[customer-ai]")[1];
+  assert.equal(providerLog.code, "AI_PROVIDER_HTTP"); assert.equal(providerLog.httpStatus, 404);
+  assert.equal(providerLog.model, "gemini-3.1-flash-lite"); assert.equal(providerLog.requestId, requestId);
+  const serialized = JSON.stringify(f.logs) + await response.text();
+  for (const secret of ["test-key-never-used-on-network", "round-a", "แนะนำชา", "secret-provider-body", "secret other shop"]) {
+    assert.equal(serialized.includes(secret), false, secret);
+  }
+});
+
+test("provider timeout covers both response headers and body reading with no automatic retries", async () => {
+  for (const phase of ["headers", "body"]) {
+    const controller = new AbortController(); let timeout;
+    const f = setup({ abortSignal: { timeout(ms) { timeout = ms; return controller.signal; } }, provider: async () => {
+      const fail = () => { controller.abort(); throw new Error("private timeout details"); };
+      if (phase === "headers") return fail();
+      return { ok: true, status: 200, json: async () => fail() };
+    } });
+    const response = await f.ask(); assert.equal(response.status, 503); assert.equal(timeout, 20000);
+    assert.match((await response.json()).error, /ตอบไม่ทัน/); assert.equal(f.calls.length, 1);
+    assert.equal(f.logs.find(([event]) => event === "[customer-ai]")[1].code, "AI_TIMEOUT");
+  }
+});
+
+test("successful chat logs each phase without logging conversation contents", async () => {
+  const f = setup(); assert.equal((await f.ask()).status, 200);
+  assert.deepEqual(f.logs.filter(([event]) => event === "[customer-chat]").map(([, entry]) => entry.stage),
+    ["read_request", "session_and_menu", "provider", "session_recheck", "complete"]);
+  assert.equal(new Set(f.logs.map(([, entry]) => entry.requestId)).size, 1);
+  assert.ok(f.logs.every(([, entry]) => entry.elapsedMs >= 0));
 });

@@ -77,3 +77,22 @@ test("pending invitations go to workspace without an access-denied loop", async 
     if (previous.key === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY; else process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = previous.key;
   }
 });
+
+test("customer chat skips account refresh even with stale login cookies, without bypassing staff routes", async () => {
+  let calls = 0;
+  const f = fixture("anonymous", {
+    "@supabase/ssr": { createServerClient() { calls++; throw new Error("Auth service unavailable"); } },
+  }, { process: { env: { NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co", NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-only" } } });
+  const { updateSession } = f.load("utils/supabase/middleware.ts");
+  for (const cookie of ["", "sb-test-auth-token=expired-test-cookie"]) {
+    const response = await updateSession(new NextRequest("http://localhost/api/customer/chat", { headers: { cookie } }));
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("cache-control"), "private, no-store");
+    assert.equal(response.headers.get("location"), null);
+  }
+  assert.equal(calls, 0);
+  for (const path of ["/dashboard", "/owner/login", "/workspace", "/api/customer/chat-admin"]) {
+    await assert.rejects(updateSession(new NextRequest("http://localhost" + path)), /Auth service unavailable/);
+  }
+  assert.equal(calls, 4);
+});

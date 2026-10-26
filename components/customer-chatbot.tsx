@@ -37,15 +37,23 @@ export function CustomerChatbot({ storeSlug, tableNumber, sessionToken, enabled,
     setBusy(true); setError(""); setNotice(""); setQuestion(content); setPendingQuestion(content); setSlow(false);
     let timedOut = false;
     const slowTimer = setTimeout(() => { if (active.current === controller) setSlow(true); }, 8000);
-    const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 30000);
+    // Leave transport time beyond the route's 45-second execution limit.
+    const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 55000);
     try {
       const response = await fetch("/api/customer/chat", { method: "POST", signal: controller.signal,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionToken}` },
         body: JSON.stringify({ storeSlug, tableNumber: Number(tableNumber), messages: history.map(({ role, content }) => ({ role, content: content.slice(0, 1200) })) }),
       });
-      const result = await response.json();
+      // Vercel can return plain text/HTML on timeouts, before the route sends JSON.
+      const result = await response.json().catch(() => null);
       if (generation.current !== version) return;
       if (controller.signal.aborted) throw new Error("Request aborted");
+      if (!result) {
+        setError(response.status === 504
+          ? "ระบบตอบกลับไม่ทัน คำถามยังอยู่ กรุณาลองอีกครั้งหรือสอบถามพนักงาน"
+          : "ระบบแชทไม่พร้อมชั่วคราว คำถามยังอยู่ กรุณาลองอีกครั้ง");
+        return;
+      }
       if (result.sessionExpired) {
         setExpired(true); onSessionExpired();
         setError("รอบโต๊ะนี้หมดอายุแล้ว กรุณาสแกน QR ของรอบใหม่"); return;

@@ -1,22 +1,32 @@
 import { NextResponse } from "next/server";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { and, asc, eq } from "drizzle-orm";
 import { chatRateLimits, menuItems } from "@/db/schema";
 import { AccessError } from "@/lib/auth";
 import { withCustomerSession, customerError } from "@/lib/customer-session";
-import { answerMenuQuestion, validateMessages } from "@/lib/customer-ai";
+import { answerMenuQuestion, CustomerAiError, validateMessages } from "@/lib/customer-ai";
 import { CHAT_BODY_BYTES, readLimitedJson } from "@/lib/request-body";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+// Includes both database phases plus the bounded 20-second provider request.
+export const maxDuration = 45;
 
 export async function POST(req: Request) {
+  const requestId = randomUUID();
+  const startedAt = Date.now();
+  let stage = "read_request";
+  function mark(next: string) {
+    stage = next;
+    console.info("[customer-chat]", { requestId, stage, elapsedMs: Date.now() - startedAt });
+  }
+  mark(stage);
   try {
     const body = await readLimitedJson(req, CHAT_BODY_BYTES);
     if (!body || typeof body !== "object") throw new AccessError("ข้อมูลคำถามไม่ถูกต้อง", 400);
     const messages = validateMessages(body.messages);
     const input = { storeSlug: body.storeSlug, tableNumber: body.tableNumber,
       sessionToken: req.headers.get("authorization")?.replace(/^Bearer /, "") };
+    mark("session_and_menu");
     const menu = await withCustomerSession(input, async (tx, table) => {
       if (!process.env.GEMINI_AI_API_KEY?.trim()) throw new AccessError("ผู้ช่วย AI ยังไม่เปิดใช้งาน กรุณาเลือกเมนูหรือเรียกพนักงานได้ตามปกติ", 503);
       const now = new Date();
@@ -37,9 +47,19 @@ export async function POST(req: Request) {
       return tx.select({ id: menuItems.id, name: menuItems.name, description: menuItems.description, price: menuItems.price, isAvailable: menuItems.isAvailable })
         .from(menuItems).where(and(eq(menuItems.storeId, table.storeId), eq(menuItems.isAvailable, true))).orderBy(asc(menuItems.name), asc(menuItems.id)).limit(80);
     }, true);
-    const data = await answerMenuQuestion(messages, menu);
+    mark("provider");
+    const data = await answerMenuQuestion(messages, menu, requestId);
     // A table may close while the provider is answering. Discard that old-round answer.
+    mark("session_recheck");
     await withCustomerSession(input, async () => undefined);
+    mark("complete");
     return NextResponse.json({ success: true, data }, { headers: { "Cache-Control": "private, no-store" } });
-  } catch (error) { return customerError(error); }
+  } catch (error) {
+    console.warn("[customer-chat]", { requestId, stage, elapsedMs: Date.now() - startedAt,
+      status: error instanceof AccessError ? error.status : 500,
+      code: error instanceof CustomerAiError ? error.code : "CHAT_REQUEST_FAILED" });
+    const response = customerError(error);
+    response.headers.set("X-Chat-Request-Id", requestId);
+    return response;
+  }
 }

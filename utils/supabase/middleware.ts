@@ -8,6 +8,9 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const privateResponse = /^\/(api|auth|owner|dashboard|frontdesk|kitchen|workspace|onboarding)(\/|$)/.test(pathname);
   if (privateResponse) response.headers.set("Cache-Control", "private, no-store");
+  // Customer chat authorizes the QR in its route; an owner login cookie is irrelevant.
+  // Do not make this request wait for Supabase Auth or a session refresh.
+  if (pathname === "/api/customer/chat") return response;
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return response;
   const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
     cookies: {
