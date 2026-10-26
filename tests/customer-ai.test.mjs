@@ -29,7 +29,7 @@ test("AI uses actual in-store available menus and filters forged recommendations
   assert.match(response.headers.get("cache-control"), /no-store/);
   const sent = JSON.parse(f.calls[0].body); assert.equal(sent.generationConfig.maxOutputTokens, 512);
   assert.deepEqual(sent.generationConfig.thinkingConfig, { thinkingLevel: "MINIMAL" });
-  assert.equal(f.calls[0].url, "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent");
+  assert.equal(f.calls[0].url, "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent");
   assert.equal(f.calls[0].headers["x-goog-api-key"], "test-key-never-used-on-network");
   assert.equal(sent.generationConfig.responseFormat.text.mimeType, "APPLICATION_JSON");
   assert.ok(sent.systemInstruction.parts[0].text.includes("ScanSip"));

@@ -28,7 +28,7 @@ export async function answerMenuQuestion(messages: ChatMessage[], menu: ChatMenu
 ข้อมูลเมนูชุดนี้มีไม่เกิน 80 รายการ หากไม่พบเมนูอย่าสรุปว่าร้านไม่มี ให้ลูกค้าดูรายการเมนูทั้งหมดหรือสอบถามพนักงาน`;
   let response: Response;
   try {
-    const model = process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite";
+    const model = process.env.GEMINI_MODEL?.trim() || "gemini-3.1-flash-lite";
     const thinkingConfig = model.startsWith("gemini-3")
       ? { thinkingLevel: "MINIMAL" }
       : model.startsWith("gemini-2.5")
