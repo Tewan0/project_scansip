@@ -5,7 +5,7 @@ import { menuItems, categories } from "@/db/schema";
 import { and, desc, eq } from "drizzle-orm";
 import { getStoreBySlugOrId } from "@/utils/store";
 import { requireStoreAccess, apiError, AccessError } from "@/lib/auth";
-import { validateCategory, validateName, validatePrice } from "@/lib/menu-validation";
+import { validateCategory, validateDescription, validateName, validatePrice } from "@/lib/menu-validation";
 import { validateImageUrl } from "@/utils/supabase/storage";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { readLimitedForm, readLimitedJson, MENU_BODY_BYTES } from "@/lib/request-body";
@@ -40,6 +40,7 @@ export async function POST(req: Request) {
       body = await readLimitedJson(req, MENU_BODY_BYTES);
     }
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new AccessError("ข้อมูลเมนูไม่ถูกต้อง", 400);
+    const description = validateDescription(body.description);
     const name = validateName(body.name);
     const price = validatePrice(body.price);
     const categoryId = await validateCategory(body.categoryId, store.id);
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
     try {
       const [item] = await db.insert(menuItems).values({
         storeId: store.id, name, price, categoryId,
-        description: typeof body.description === "string" ? body.description.trim() : null,
+        description,
         imageUrl,
         isAvailable: body.isAvailable ?? true,
       }).returning();

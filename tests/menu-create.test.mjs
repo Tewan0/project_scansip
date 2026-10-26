@@ -139,6 +139,13 @@ test("real add-menu form reaches the route with and without an image, preserves 
     assert.equal(find(node => node.props.id === "menu-name").props.value, "Test coffee");
     assert.equal(backend.uploads.length, 0);
     find(node => node.props.id === "menu-price").props.onChange({ target: { value: "50" } });
+    const description = find(node => node.props.id === "menu-desc");
+    assert.equal(description.props.maxLength, 1000);
+    description.props.onChange({ target: { value: "ก".repeat(1001) } });
+    await find(node => node.type === "form").props.onSubmit({ preventDefault() {} });
+    assert.equal(sent, 1); assert.equal(backend.uploads.length, 0);
+    assert.equal(find(node => node.props.id === "menu-desc").props.value.length, 1001);
+    description.props.onChange({ target: { value: "ก".repeat(1000) } });
     const submit = find(node => node.type === "form").props.onSubmit;
     await Promise.all([submit({ preventDefault() {} }), submit({ preventDefault() {} })]);
     assert.equal(sent, 2); assert.equal(backend.state.menuItems.length, 1);

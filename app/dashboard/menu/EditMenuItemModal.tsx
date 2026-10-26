@@ -1,6 +1,8 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
+import { MENU_DESCRIPTION_MAX_LENGTH, MENU_DESCRIPTION_LENGTH_ERROR } from "@/lib/menu-fields";
+
 import { imageUploadProblem, IMAGE_ACCEPT, IMAGE_UPLOAD_HINT } from "@/lib/image-upload";
 
 import { useState, useEffect, useRef } from "react";
@@ -107,6 +109,10 @@ export default function EditMenuItemModal({
       return;
     }
 
+    if (description.length > MENU_DESCRIPTION_MAX_LENGTH) {
+      setErrorMessage(MENU_DESCRIPTION_LENGTH_ERROR);
+      return;
+    }
     try {
       submitting.current = true;
       setIsSubmitting(true);
@@ -342,12 +348,17 @@ export default function EditMenuItemModal({
             </label>
             <textarea
               id="edit-menu-description"
+              maxLength={MENU_DESCRIPTION_MAX_LENGTH}
+              aria-describedby="edit-menu-description-count"
               rows={2}
               className="w-full p-2.5 rounded-lg border border-border-subtle bg-surface text-body-md font-body-md focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-shadow text-on-surface resize-none"
               placeholder="รายละเอียด ส่วนผสม หรือรสชาติ..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
+            <p id="edit-menu-description-count" className="text-xs text-muted-foreground text-right">
+              {description.length.toLocaleString("th-TH")} / 1,000 ตัวอักษร
+            </p>
           </div>
 
           {/* Availability Toggle */}

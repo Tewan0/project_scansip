@@ -1,6 +1,8 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
+import { MENU_DESCRIPTION_MAX_LENGTH, MENU_DESCRIPTION_LENGTH_ERROR } from "@/lib/menu-fields";
+
 import { imageUploadProblem, IMAGE_ACCEPT, IMAGE_UPLOAD_HINT } from "@/lib/image-upload";
 
 import { useState, useEffect, useRef } from "react";
@@ -141,6 +143,10 @@ export default function MenuManagementPage() {
   const handleCreateItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (createInFlight.current || !newItemName.trim() || !newItemPrice) return;
+    if (newItemDesc.length > MENU_DESCRIPTION_MAX_LENGTH) {
+      setCreateError(MENU_DESCRIPTION_LENGTH_ERROR);
+      return;
+    }
     createInFlight.current = true;
 
     try {
@@ -579,12 +585,17 @@ export default function MenuManagementPage() {
                 <Label htmlFor="menu-desc" className="text-xs">รายละเอียด / ส่วนผสม (ถ้ามี)</Label>
                 <textarea
                   id="menu-desc"
+                  maxLength={MENU_DESCRIPTION_MAX_LENGTH}
+                  aria-describedby="menu-desc-count"
                   rows={2}
                   className="w-full p-2.5 rounded-lg border border-border bg-background text-xs outline-none focus:border-ring resize-none"
                   placeholder="รสชาติกลมกล่อม หวานมันกำลังดี..."
                   value={newItemDesc}
                   onChange={(e) => setNewItemDesc(e.target.value)}
                 />
+                <p id="menu-desc-count" className="text-xs text-muted-foreground text-right">
+                  {newItemDesc.length.toLocaleString("th-TH")} / 1,000 ตัวอักษร
+                </p>
               </div>
 
               </fieldset>
