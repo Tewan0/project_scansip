@@ -132,6 +132,11 @@ export async function POST(req: Request) {
         }).where(eq(tables.id, table.id)).returning();
         return opened;
       }
+      // Match the round shown when closing was requested, after locking the table.
+      if (!table.currentSessionToken || typeof body.expectedSessionToken !== "string"
+        || body.expectedSessionToken !== table.currentSessionToken) {
+        throw new TableError("รอบโต๊ะนี้เปลี่ยนไปแล้ว กรุณาตรวจสอบข้อมูลล่าสุดก่อนปิดโต๊ะอีกครั้ง", 409);
+      }
       const outstanding = await tx.select({ id: orders.id, status: orders.status, paymentStatus: orders.paymentStatus, totalAmount: orders.totalAmount, servingRequired: orders.servingRequired, deliveredAt: orders.deliveredAt }).from(orders).where(and(
         eq(orders.storeId, store.id), eq(orders.sessionToken, table.currentSessionToken ?? ""),
         ne(orders.status, "cancelled"),

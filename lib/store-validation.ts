@@ -36,3 +36,31 @@ export function validateStoreSettings(input: unknown) {
   }
   return values;
 }
+
+// Onboarding uses the same field rules as settings, with required fields and defaults.
+export function validateStoreOnboarding(input: unknown) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new AccessError("ข้อมูลร้านไม่ถูกต้อง", 400);
+  const body = input as Record<string, unknown>;
+  const fields = validateStoreSettings({
+    name: body.name ?? "",
+    promptPayNumber: body.promptpayNumber,
+    openingTime: body.openingTime === undefined ? "08:00" : body.openingTime,
+    closingTime: body.closingTime === undefined ? "18:00" : body.closingTime,
+  });
+  const name = fields.name!;
+  let rawSlug = body.slug;
+  if (rawSlug === undefined || (typeof rawSlug === "string" && !rawSlug.trim())) {
+    rawSlug = name.toLowerCase().replace(/[^\u0E00-\u0E7Fa-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "")
+      || "store-" + Math.random().toString(36).substring(2, 7);
+  }
+  // Validate after generation as well, so every stored slug fits customer routes.
+  const slug = validateStoreSettings({ slug: rawSlug }).slug!;
+  return {
+    name,
+    slug,
+    promptPayNumber: fields.promptPayNumber ?? null,
+    openingTime: fields.openingTime!,
+    closingTime: fields.closingTime!,
+    logoUrl: body.logoUrl,
+  };
+}

@@ -49,11 +49,10 @@ export async function POST(req: Request) {
     let uploadedPath: string | null = null;
     if (image !== null) {
       await reserveUploadQuota(user.id);
-      const validated = validateImageUpload(image);
-      image = validated.file;
+      const validated = await validateImageUpload(image);
       const path = `${user.id}/${randomUUID()}.${validated.extension}`;
       const storage = createAdminClient().storage.from("menu-photos");
-      const { error } = await storage.upload(path, new Uint8Array(await image.arrayBuffer()), { contentType: image.type, upsert: false });
+      const { error } = await storage.upload(path, validated.bytes, { contentType: validated.file.type, upsert: false });
       if (error) throw new AccessError("อัปโหลดรูปไม่สำเร็จ กรุณาลองอีกครั้ง", 503);
       uploadedPath = path;
       imageUrl = storage.getPublicUrl(path).data.publicUrl;

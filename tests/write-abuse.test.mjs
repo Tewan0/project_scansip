@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { fixture, request } from "./helpers.mjs";
+import { imageFile } from "./image-fixtures.mjs";
 
 const product = "11111111-1111-1111-1111-111111111111";
 const body = { storeSlug: "cafe-a", tableNumber: 1, sessionToken: "round-a", items: [{ menuItemId: product, quantity: 1 }] };
@@ -22,9 +23,9 @@ function setupUpload(role = "owner", failStorage = false) {
   }) } }) } }, { console: { ...console, error() {} } });
   return { ...f, calls, post: f.load("app/api/upload/route.ts").POST };
 }
-function upload(bucket = "menu-photos", size = 12, type = "image/png") {
+function upload(bucket = "menu-photos", size, type = "image/png") {
   const form = new FormData(); form.set("bucket", bucket);
-  form.set("file", new File([new Uint8Array(size)], "image.png", { type }));
+  form.set("file", imageFile({ size, type }));
   return new Request("http://localhost/api/upload", { method: "POST", body: form });
 }
 function streamRequest(chunks, headers, onCancel = () => {}) {

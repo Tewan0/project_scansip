@@ -10,6 +10,7 @@ import { requireUser, getAccessForUser, AccessError } from "@/lib/auth";
 import { DEFAULT_STORE_CATEGORIES } from "@/utils/store";
 import { validateImageUrl } from "@/utils/supabase/storage";
 import { lockAccount } from "@/lib/account-lock";
+import { validateStoreOnboarding, validateStoreSettings } from "@/lib/store-validation";
 
 export interface CreateStoreInput {
   name: string;
@@ -87,15 +88,7 @@ export async function getCurrentOwnerStore() {
  */
 export async function checkSlugAvailability(slug: string) {
   try {
-    const cleanSlug = slug
-      .trim()
-      .toLowerCase()
-      .replace(/[^\u0E00-\u0E7Fa-zA-Z0-9_-]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-
-    if (!cleanSlug) {
-      return { available: false, error: "Slug cannot be empty", slug: "" };
-    }
+    const cleanSlug = validateStoreSettings({ slug: slug ?? "" }).slug!;
 
     const existing = await db
       .select({ id: stores.id })
@@ -106,7 +99,7 @@ export async function checkSlugAvailability(slug: string) {
     return { available: existing.length === 0, slug: cleanSlug };
   } catch (error) {
     console.error("checkSlugAvailability error:", error);
-    return { available: false, error: "Failed to verify slug availability", slug };
+    return { available: false, error: error instanceof AccessError ? error.message : "ไม่สามารถตรวจสอบ URL ได้ กรุณาลองใหม่", slug: typeof slug === "string" ? slug : "" };
   }
 }
 
@@ -132,33 +125,9 @@ export async function createStoreOnboarding(data: FormData | CreateStoreInput) {
     const access = await getAccessForUser(user);
     if (access && access.role !== "owner") throw new AccessError("บัญชีพนักงานไม่สามารถสร้างร้านได้");
 
-    // Extract fields based on whether data is FormData or CreateStoreInput object
-    let name = "";
-    let rawSlug = "";
-    let promptpayNumber: string | null = null;
-    let openingTime = "08:00";
-    let closingTime = "18:00";
-    let logoUrl: string | null = null;
-
-    if (data instanceof FormData) {
-      name = (data.get("name") as string) || "";
-      rawSlug = (data.get("slug") as string) || "";
-      promptpayNumber = (data.get("promptpayNumber") as string) || null;
-      openingTime = (data.get("openingTime") as string) || "08:00";
-      closingTime = (data.get("closingTime") as string) || "18:00";
-      logoUrl = (data.get("logoUrl") as string) || null;
-    } else {
-      name = data.name || "";
-      rawSlug = data.slug || "";
-      promptpayNumber = data.promptpayNumber || null;
-      openingTime = data.openingTime || "08:00";
-      closingTime = data.closingTime || "18:00";
-      logoUrl = data.logoUrl || null;
-    }
-
-    if (!name.trim()) {
-      return { success: false, error: "กรุณาระบุชื่อร้านค้า" };
-    }
+    const input = data instanceof FormData ? Object.fromEntries(data.entries()) : data;
+    const { name, slug, promptPayNumber, openingTime, closingTime, logoUrl: rawLogoUrl } = validateStoreOnboarding(input);
+    const logoUrl = validateImageUrl(rawLogoUrl, "restaurant-logos", user.id);
 
     // Check if user already owns a store
     const existingUserStores = await db
@@ -175,21 +144,6 @@ export async function createStoreOnboarding(data: FormData | CreateStoreInput) {
       };
     }
 
-    // Sanitize and validate slug
-    let slug = rawSlug
-      .trim()
-      .toLowerCase()
-      .replace(/[^\u0E00-\u0E7Fa-zA-Z0-9_-]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-
-    if (!slug) {
-      slug = name
-        .trim()
-        .toLowerCase()
-        .replace(/[^\u0E00-\u0E7Fa-zA-Z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "") || `store-${Math.random().toString(36).substring(2, 7)}`;
-    }
-
     // Validate uniqueness of slug
     const existingSlug = await db
       .select({ id: stores.id })
@@ -204,7 +158,6 @@ export async function createStoreOnboarding(data: FormData | CreateStoreInput) {
       };
     }
 
-    logoUrl = validateImageUrl(logoUrl, "restaurant-logos", user.id);
     const newStore = await db.transaction(async (tx) => {
     // Serialize store creation with accepting a staff invitation for this account.
     await lockAccount(tx, user.id);
@@ -213,12 +166,12 @@ export async function createStoreOnboarding(data: FormData | CreateStoreInput) {
       .insert(stores)
       .values({
         ownerId: user.id,
-        name: name.trim(),
+        name,
         slug,
         logoUrl: logoUrl?.trim() || null,
-        promptPayNumber: promptpayNumber?.trim() || null,
-        openingTime: openingTime?.trim() || "08:00",
-        closingTime: closingTime?.trim() || "18:00",
+        promptPayNumber,
+        openingTime,
+        closingTime,
         currency: "THB",
       })
       .returning();
@@ -249,7 +202,7 @@ export async function createStoreOnboarding(data: FormData | CreateStoreInput) {
     };
   } catch (error: unknown) {
     console.error("createStoreOnboarding error:", error);
-    const message = error instanceof Error ? error.message : "เกิดข้อผิดพลาดในการสร้างร้านค้า";
+    const message = error instanceof AccessError ? error.message : "ไม่สามารถสร้างร้านได้ กรุณาลองใหม่อีกครั้ง";
     return { success: false, error: message };
   }
 }
