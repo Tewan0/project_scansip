@@ -80,7 +80,7 @@ test("accepts exact dimension and frame boundaries without changing formats", as
 test("rejects invalid file objects, empty and oversized files before reading their bytes", async () => {
   const check = validate();
   for (const value of [null, "image", new File([], "empty.png", { type: "image/png" })]) await assert.rejects(check(value), rejected);
-  const oversized = imageFile({ size: 5 * 1024 * 1024 + 1 });
+  const oversized = imageFile({ size: 4 * 1024 * 1024 + 1 });
   let read = false;
   oversized.arrayBuffer = async () => { read = true; throw new Error("must not read"); };
   await assert.rejects(check(oversized), rejected);

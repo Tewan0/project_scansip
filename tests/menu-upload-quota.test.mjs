@@ -125,7 +125,7 @@ test("quota outage blocks both menu upload paths without changing menu records",
 });
 
 test("menu payloads are bounded including non-file fields and forged Content-Length", async () => {
-  const f = setup(), limit = 5 * 1024 * 1024 + 64 * 1024;
+  const f = setup(), limit = 4 * 1024 * 1024 + 64 * 1024;
   const form = new FormData(); form.set("name", "Coffee"); form.set("price", "50"); form.set("extra", "x".repeat(limit));
   const req = new Request("http://localhost/api/menu", { method: "POST", body: form }); req.headers.set("content-length", "1");
   assert.equal((await f.create(req)).status, 413);
@@ -134,12 +134,12 @@ test("menu payloads are bounded including non-file fields and forged Content-Len
   assert.equal(denied.status, 413); assert.equal(f.uploads.length, 0); assert.equal(f.state.chatRateLimits.length, 0);
 });
 
-test("both menu paths use the same image type and 5 MiB application file limit", async () => {
+test("both menu paths use the same image type and 4 MiB application file limit", async () => {
   for (const kind of ["create", "edit"]) {
     const f = setup();
     // Direct action invocation tests application validation, not Next/Vercel transport limits.
-    assert.ok([200, 201].includes((await f.call(kind, image(5 * 1024 * 1024))).status));
-    assert.equal((await f.call(kind, image(5 * 1024 * 1024 + 1))).status, 400);
+    assert.ok([200, 201].includes((await f.call(kind, image(4 * 1024 * 1024))).status));
+    assert.equal((await f.call(kind, image(4 * 1024 * 1024 + 1))).status, 400);
     assert.equal((await f.call(kind, image(12, "constructor"))).status, 400);
     assert.equal(f.uploads.length, 1);
   }

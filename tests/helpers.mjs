@@ -9,7 +9,7 @@ const root = path.resolve(import.meta.dirname, "..");
 export function fixture(role = "owner", overrides = {}, globals = {}) {
   const tableNames = ["stores", "staff", "tables", "orders", "orderItems", "menuItems", "categories", "serviceRequests", "billPayments", "chatRateLimits"];
   const schema = Object.fromEntries(tableNames.map((name) => [name, Object.fromEntries([
-    ...["id", "storeId", "ownerId", "userId", "email", "role", "orderId", "tableId", "tableNumber", "sessionToken", "currentSessionToken", "currentQrToken", "qrExpiresAt", "sessionStartedAt", "status", "kind", "paymentStatus", "totalAmount", "createdAt", "slug", "servingRequired", "deliveredAt", "billId", "name", "description", "price", "isAvailable", "requestKey"].map((key) => [key, { key }]), ["tableName", name],
+    ...["id", "storeId", "ownerId", "userId", "email", "role", "orderId", "tableId", "tableNumber", "sessionToken", "currentSessionToken", "currentQrToken", "qrExpiresAt", "sessionStartedAt", "status", "kind", "paymentStatus", "totalAmount", "createdAt", "slug", "servingRequired", "deliveredAt", "billId", "name", "description", "imageUrl", "price", "isAvailable", "requestKey"].map((key) => [key, { key }]), ["tableName", name],
   ])]));
   const state = { stores: [{ id: "shop-a", ownerId: "owner", slug: "cafe-a" }, { id: "shop-b", ownerId: "owner-b", slug: "cafe-b" }],
     staff: ["cashier", "kitchen"].includes(role) ? [{ id: "member-a", storeId: "shop-a", role, userId: role, email: "staff@example.com" }] : [],

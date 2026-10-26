@@ -59,7 +59,7 @@ test("invalid menu fields, foreign categories and invalid images never upload or
     [{ name: " " }], [{ price: "-1" }], [{ categoryId: "22222222-2222-2222-2222-222222222222" }], [{ isAvailable: "yes" }],
     [{}, "not a file"], [{}, new File(["svg"], "photo.svg", { type: "image/svg+xml" })],
     [{}, new File([], "empty.png", { type: "image/png" })],
-    [{}, new File([new Uint8Array(5 * 1024 * 1024 + 1)], "large.png", { type: "image/png" })],
+    [{}, new File([new Uint8Array(4 * 1024 * 1024 + 1)], "large.png", { type: "image/png" })],
   ];
   for (const [values, image] of cases) {
     const f = setup();

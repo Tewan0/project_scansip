@@ -1,5 +1,7 @@
 "use client";
 
+import { imageUploadProblem, IMAGE_ACCEPT, IMAGE_UPLOAD_HINT } from "@/lib/image-upload";
+
 import { useState, useEffect, useRef } from "react";
 
 // Shadcn UI Components
@@ -129,8 +131,9 @@ export default function SettingsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || !file.size || file.size > 5 * 1024 * 1024) {
-      setLogoUploadError("กรุณาใช้รูป JPG, PNG หรือ WebP ขนาดไม่เกิน 5 MB");
+    const problem = imageUploadProblem(file);
+    if (problem) {
+      setLogoUploadError(problem);
       e.target.value = "";
       return;
     }
@@ -308,7 +311,7 @@ export default function SettingsPage() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/png,image/jpeg,image/webp"
+                  accept={IMAGE_ACCEPT}
                   className="hidden"
                   onChange={handleLogoFileChange}
                 />
@@ -346,7 +349,7 @@ export default function SettingsPage() {
                 </div>
 
                 <p className="text-[11px] text-muted-foreground">
-                  รองรับไฟล์ PNG, JPG หรือ WebP ขนาดไม่เกิน 5MB (แนะนำอัตราส่วน 1:1)
+                  {IMAGE_UPLOAD_HINT} (แนะนำอัตราส่วน 1:1)
                 </p>
                 <p className="text-xs text-muted-foreground">การเปลี่ยนหรือลบโลโก้จะมีผลเมื่อกดบันทึกการตั้งค่า</p>
 

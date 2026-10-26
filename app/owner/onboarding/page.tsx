@@ -1,6 +1,8 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
+import { imageUploadProblem, IMAGE_ACCEPT, IMAGE_UPLOAD_HINT } from "@/lib/image-upload";
+
 import { useState, useTransition, useEffect, useRef } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LogoutButton } from "@/components/logout-button";
@@ -57,8 +59,10 @@ export default function OwnerOnboardingPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      setLogoUploadError("กรุณาเลือกไฟล์รูปภาพเท่านั้น (JPG, PNG)");
+    const problem = imageUploadProblem(file);
+    if (problem) {
+      setLogoUploadError(problem);
+      e.target.value = "";
       return;
     }
 
@@ -393,10 +397,12 @@ export default function OwnerOnboardingPage() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/png,image/jpeg,image/webp,image/jpg"
+                  accept={IMAGE_ACCEPT}
                   onChange={handleLogoFileChange}
                   className="hidden"
                 />
+
+                <p className="text-xs text-muted-foreground">{IMAGE_UPLOAD_HINT}</p>
 
                 {logoUrl ? (
                   <div className="p-3 rounded-xl bg-muted/40 border border-border flex items-center justify-between gap-3">

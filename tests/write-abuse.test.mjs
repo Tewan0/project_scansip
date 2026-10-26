@@ -169,12 +169,12 @@ test("upload bounds the entire multipart stream, not just its file field", async
   const f = setupUpload();
   const form = new FormData(); form.set("bucket", "menu-photos");
   form.set("file", new File(["small"], "photo.png", { type: "image/png" }));
-  form.set("extra", "x".repeat(5 * 1024 * 1024 + 64 * 1024));
+  form.set("extra", "x".repeat(4 * 1024 * 1024 + 64 * 1024));
   const req = new Request("http://localhost", { method: "POST", body: form }); req.headers.set("content-length", "1");
   assert.equal((await f.post(req)).status, 413); assert.equal(f.calls.length, 0);
   const oversized = upload(); oversized.headers.set("content-length", String(6 * 1024 * 1024));
   assert.equal((await f.post(oversized)).status, 413); assert.equal(oversized.bodyUsed, false);
-  assert.equal((await f.post(upload("menu-photos", 5 * 1024 * 1024 + 1))).status, 400);
+  assert.equal((await f.post(upload("menu-photos", 4 * 1024 * 1024 + 1))).status, 400);
   assert.equal(f.calls.length, 0);
 });
 
@@ -206,8 +206,8 @@ test("exhausted or unavailable upload quota never reads the body or contacts Sto
   assert.equal(failed.bodyUsed, false); assert.equal(f.calls.length, 1);
 });
 
-test("upload accepts a file at the existing 5 MiB boundary with multipart overhead", async () => {
+test("upload accepts a file at the existing 4 MiB boundary with multipart overhead", async () => {
   const f = setupUpload();
-  assert.equal((await f.post(upload("menu-photos", 5 * 1024 * 1024))).status, 200);
-  assert.equal(f.calls[0].size, 5 * 1024 * 1024);
+  assert.equal((await f.post(upload("menu-photos", 4 * 1024 * 1024))).status, 200);
+  assert.equal(f.calls[0].size, 4 * 1024 * 1024);
 });

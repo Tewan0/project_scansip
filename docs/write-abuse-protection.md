@@ -28,9 +28,9 @@ lib/request-body.ts ตรวจทั้ง Content-Type, Content-Length แล
 
 - JSON ออเดอร์ไม่เกิน 80 KiB รองรับ 50 รายการและหมายเหตุภาษาไทยตามขีดจำกัดเดิม
 - JSON เพิ่มเมนูไม่เกิน 64 KiB; multipart เพิ่มเมนูใช้เพดานเดียวกับ API อัปโหลด
-- Server Action ตรวจผลรวม byte ของชื่อ field ข้อความ UTF-8 และไฟล์หลัง Next.js parse แล้ว ไม่ได้แทนที่ขีดจำกัด transport ของ Next.js ที่ยังคงค่าเดิม (1 MB) และแพลตฟอร์มโฮสต์
-- multipart อัปโหลดรวมทุก field ไม่เกิน 5 MiB + 64 KiB โดยไฟล์ยังไม่เกิน 5 MiB ตามเดิม
-- เกินขนาดตอบ 413 ก่อน parse ข้อมูลทั้งหมดหรือเรียก Storage ส่วนไฟล์ที่เกิน 5 MiB แต่ multipart ยังอยู่ในเพดานตอบ 400 ตามการตรวจไฟล์เดิม
+- Server Action ตรวจขนาด field หลัง parse และตั้ง experimental.serverActions.bodySizeLimit เป็น 4 MiB + 64 KiB จาก lib/image-upload.ts ใช้เพดานร่วมกับ multipart API และต่ำกว่าเพดาน Vercel 4.5 MB
+- multipart อัปโหลดรวมทุก field ไม่เกิน 4 MiB + 64 KiB โดยไฟล์ไม่เกิน 4 MiB
+- เกินขนาดตอบ 413 ก่อน parse ข้อมูลทั้งหมดหรือเรียก Storage ส่วนไฟล์ที่เกิน 4 MiB แต่ multipart ยังอยู่ในเพดานตอบ 400 ตามการตรวจไฟล์เดิม
 - แพลตฟอร์มโฮสต์อาจมีขีดจำกัดต่ำกว่าและปฏิเสธคำขอก่อนถึงแอป
 
 ## การตรวจสอบ
@@ -55,3 +55,11 @@ lib/request-body.ts ตรวจทั้ง Content-Type, Content-Length แล
 - Server Action คืน status: 429 และ retryAfter ในข้อมูลผลลัพธ์ ไม่ได้อ้างว่า HTTP ของ Server Action เปลี่ยนเป็น 429
 - คำเตือน Advisor เดิมยังอยู่: [สิทธิ์ฟังก์ชัน anon](https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable), [สิทธิ์ฟังก์ชัน authenticated](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable), [การป้องกันรหัสผ่านรั่ว](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)
 - ยังไม่ได้ทดสอบอัปโหลดจริงผ่านเบราว์เซอร์/Vercel และไม่ได้รัน production build ใหม่ในรอบนี้
+
+## ปรับปรุงการอัปโหลด — 26 ตุลาคม 2026
+
+- UI ทุกหน้าตรวจ MIME และขนาดด้วย lib/image-upload.ts รองรับ JPG/PNG/WebP/GIF ไม่เกิน 4 MiB; server ยังคงตรวจ signature และ decode ภาพจริง
+- updateMenuItem ตรวจการอ้างอิงรูปใหม่ก่อน cleanup เมื่อบันทึก DB ล้มเหลว ถ้ามีการอ้างอิงหรืออ่าน DB ไม่ได้ จะเก็บไฟล์ไว้; เมื่อเมนูถูกลบระหว่างอัปโหลด จะตอบ 404 และ cleanup รูปใหม่ที่ไม่มีการอ้างอิง
+- ทดสอบทั้งหมด 331/331 ผ่าน พร้อม TypeScript และ ESLint ไม่มีคำเตือน
+- การทดสอบ HTTP ผ่าน Next dev fixture ถูก automatic approval review บล็อกเนื่องจากการเชื่อมต่อ telemetry ภายนอกที่ไม่ทราบ payload จึงยังไม่ได้ยืนยันผ่าน transport จริง; ไม่ได้ rerun วิธีเดิม
+- ยังไม่ได้ push/deploy หรือเปลี่ยนการตั้งค่า Storage bucket; หลัง deploy ควรทดสอบเพิ่ม/แก้เมนูและโลโก้ด้วยรูปเล็ก, 2 MB, ใกล้ 4 MB และเกิน 4 MB

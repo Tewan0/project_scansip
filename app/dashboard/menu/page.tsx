@@ -1,6 +1,8 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
+import { imageUploadProblem, IMAGE_ACCEPT, IMAGE_UPLOAD_HINT } from "@/lib/image-upload";
+
 import { useState, useEffect, useRef } from "react";
 import {
   Search,
@@ -124,8 +126,9 @@ export default function MenuManagementPage() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type) || !file.size || file.size > 5 * 1024 * 1024) {
-        setCreateError("กรุณาใช้รูป JPG, PNG, WebP หรือ GIF ขนาดไม่เกิน 5 MB");
+      const problem = imageUploadProblem(file);
+      if (problem) {
+        setCreateError(problem);
         e.target.value = "";
         return;
       }
@@ -505,7 +508,7 @@ export default function MenuManagementPage() {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    accept={IMAGE_ACCEPT}
                     className="hidden"
                     onChange={handleImageChange}
                   />
@@ -521,6 +524,8 @@ export default function MenuManagementPage() {
                   </Button>
                 </div>
               </div>
+
+              <p className="text-xs text-muted-foreground">{IMAGE_UPLOAD_HINT}</p>
 
               {/* Menu Name */}
               <div className="space-y-1.5">

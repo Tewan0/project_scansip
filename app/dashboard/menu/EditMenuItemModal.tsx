@@ -1,6 +1,8 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
+import { imageUploadProblem, IMAGE_ACCEPT, IMAGE_UPLOAD_HINT } from "@/lib/image-upload";
+
 import { useState, useEffect, useRef } from "react";
 import {
   X,
@@ -64,8 +66,10 @@ export default function EditMenuItemModal({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      setErrorMessage("กรุณาเลือกไฟล์รูปภาพเท่านั้น (JPG, PNG)");
+    const problem = imageUploadProblem(file);
+    if (problem) {
+      setErrorMessage(problem);
+      e.target.value = "";
       return;
     }
 
@@ -246,10 +250,11 @@ export default function EditMenuItemModal({
               )}
 
               <div className="flex-1">
+                <p className="text-xs text-on-surface-variant mb-2">{IMAGE_UPLOAD_HINT}</p>
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept={IMAGE_ACCEPT}
                   className="hidden"
                   onChange={handleImageFileChange}
                 />
