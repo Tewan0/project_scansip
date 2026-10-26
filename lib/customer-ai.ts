@@ -1,4 +1,5 @@
 import "server-only";
+import { setTimeout as delay } from "node:timers/promises";
 import { AccessError } from "@/lib/auth";
 
 type AiErrorCode = "AI_TIMEOUT" | "AI_NETWORK" | "AI_RATE_LIMIT" | "AI_PROVIDER_HTTP" | "AI_INVALID_RESPONSE";
@@ -33,10 +34,12 @@ export async function answerMenuQuestion(messages: ChatMessage[], menu: ChatMenu
 ข้อมูลเมนูชุดนี้มีไม่เกิน 80 รายการ หากไม่พบเมนูอย่าสรุปว่าร้านไม่มี ให้ลูกค้าดูรายการเมนูทั้งหมดหรือสอบถามพนักงาน`;
   const model = process.env.GEMINI_MODEL?.trim() || "gemini-3.1-flash-lite";
   const startedAt = Date.now();
+  // One shared deadline for both attempts, backoff and response-body reading.
   const signal = AbortSignal.timeout(20000);
+  let attempt = 1;
   function failure(code: AiErrorCode, message: string, status = 503, httpStatus?: number) {
     // Never log request/response bodies, keys, QR tokens or raw exception messages.
-    console.warn("[customer-ai]", { requestId, code, httpStatus,
+    console.warn("[customer-ai]", { requestId, code, httpStatus, attempt,
       model: /^gemini-[a-z0-9.-]{1,80}$/.test(model) ? model : "custom-model",
       elapsedMs: Date.now() - startedAt });
     return new CustomerAiError(message, status, code);
@@ -48,7 +51,8 @@ export async function answerMenuQuestion(messages: ChatMessage[], menu: ChatMenu
       : model.startsWith("gemini-2.5")
         ? { thinkingBudget: 0 }
         : undefined;
-    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+    const options: RequestInit = {
       method: "POST", headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
       signal, cache: "no-store",
       body: JSON.stringify({
@@ -66,7 +70,26 @@ export async function answerMenuQuestion(messages: ChatMessage[], menu: ChatMenu
           } } },
         },
       }),
-    });
+    };
+    response = await fetch(url, options);
+    if (response.status === 503) {
+      // Only retry an explicit unavailable response, once. Respect Retry-After
+      // without extending the shared deadline or retrying before Google's hint.
+      const retryAfter = response.headers.get("retry-after");
+      const suggestedMs = retryAfter === null ? 0 : /^\d+$/.test(retryAfter.trim())
+        ? Number(retryAfter) * 1000 : Date.parse(retryAfter) - Date.now();
+      const retryDelayMs = Math.max(1000 + Math.floor(Math.random() * 500), Number.isNaN(suggestedMs) ? 0 : suggestedMs);
+      if (!signal.aborted && retryDelayMs < 20000 - (Date.now() - startedAt)) {
+        // Release the failed response without reading or logging its body.
+        void response.body?.cancel().catch(() => undefined);
+        console.info("[customer-ai]", { requestId, event: "retry", httpStatus: 503,
+          attempt: 2, retryDelayMs, elapsedMs: Date.now() - startedAt });
+        await delay(retryDelayMs, undefined, { signal });
+        signal.throwIfAborted();
+        attempt = 2;
+        response = await fetch(url, options);
+      }
+    }
   } catch {
     throw failure(signal.aborted ? "AI_TIMEOUT" : "AI_NETWORK", "AI ตอบไม่ทันหรือเชื่อมต่อไม่ได้ กรุณาลองอีกครั้งสักครู่");
   }

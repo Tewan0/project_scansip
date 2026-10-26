@@ -4,9 +4,13 @@ import { fixture } from "./helpers.mjs";
 
 const geminiReply = (answer = "ลองชาในรายการนี้ได้ครับ", menuIds = ["tea-a", "foreign", "soldout", "tea-a"]) => ({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: JSON.stringify({ answer, menuIds }) }] } }] });
 
-function setup({ key = "test-key-never-used-on-network", provider, model, abortSignal = AbortSignal } = {}) {
-  const calls = [], logs = [];
-  const f = fixture("anonymous", {}, { process: { env: { GEMINI_AI_API_KEY: key, GEMINI_MODEL: model } }, AbortSignal: abortSignal, TextEncoder,
+function setup({ key = "test-key-never-used-on-network", provider, model, abortSignal = AbortSignal, wait, clock = Date } = {}) {
+  const calls = [], logs = [], waits = [];
+  const f = fixture("anonymous", { "node:timers/promises": { setTimeout: async (ms, value, options) => {
+    waits.push({ ms, signal: options.signal });
+    options.signal.throwIfAborted();
+    if (wait) await wait(ms, value, options);
+  } } }, { Date: clock, process: { env: { GEMINI_AI_API_KEY: key, GEMINI_MODEL: model } }, AbortSignal: abortSignal, TextEncoder,
     console: { ...console, info: (...args) => logs.push(args), warn: (...args) => logs.push(args) },
     fetch: async (url, options) => {
       calls.push({ url, ...options });
@@ -21,7 +25,7 @@ function setup({ key = "test-key-never-used-on-network", provider, model, abortS
     method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify({ storeSlug: "cafe-a", tableNumber: 1, messages: [{ role: "user", content: "แนะนำชา" }], ...extra }),
   }));
-  return { ...f, ask, calls, logs };
+  return { ...f, ask, calls, logs, waits };
 }
 
 test("AI uses actual in-store available menus and filters forged recommendations without disclosing QR or credentials", async () => {
@@ -282,4 +286,112 @@ test("successful chat logs each phase without logging conversation contents", as
     ["read_request", "session_and_menu", "provider", "session_recheck", "complete"]);
   assert.equal(new Set(f.logs.map(([, entry]) => entry.requestId)).size, 1);
   assert.ok(f.logs.every(([, entry]) => entry.elapsedMs >= 0));
+});
+
+
+test("503 retries once after backoff, releases the error body and charges the question quota once", async () => {
+  let attempts = 0, cancelled = false;
+  const timeouts = [];
+  const f = setup({ abortSignal: { timeout(ms) { timeouts.push(ms); return AbortSignal.timeout(ms); } },
+    provider: async () => ++attempts === 1
+      ? new Response(new ReadableStream({ cancel() { cancelled = true; } }), { status: 503 })
+      : Response.json(geminiReply()),
+    wait: async () => assert.equal(cancelled, true),
+  });
+  const response = await f.ask();
+  assert.equal(response.status, 200); assert.equal(f.calls.length, 2);
+  assert.equal((await response.json()).data.recommendations.length, 1);
+  assert.equal(f.waits.length, 1); assert.ok(f.waits[0].ms >= 1000 && f.waits[0].ms < 1500);
+  assert.deepEqual(timeouts, [20000]);
+  assert.equal(f.calls[0].signal, f.calls[1].signal);
+  assert.equal(f.calls[0].signal, f.waits[0].signal);
+  assert.equal(f.calls[0].body, f.calls[1].body);
+  assert.equal(f.calls[0].url, f.calls[1].url);
+  assert.equal(f.state.chatRateLimits.length, 2);
+  assert.ok(f.state.chatRateLimits.every(row => row.count === 1));
+  const retries = f.logs.filter(([, entry]) => entry.event === "retry");
+  assert.equal(retries.length, 1); assert.equal(retries[0][1].attempt, 2);
+  for (const secret of ["test-key-never-used-on-network", "round-a", "แนะนำชา"]) {
+    assert.equal(JSON.stringify(f.logs).includes(secret), false);
+  }
+});
+
+test("repeated 503 stops after the second attempt and preserves safe diagnostics", async () => {
+  const f = setup({ provider: async () => Response.json({ secret: "upstream-secret" }, { status: 503 }) });
+  const response = await f.ask();
+  assert.equal(response.status, 503); assert.equal(f.calls.length, 2); assert.equal(f.waits.length, 1);
+  const failure = f.logs.find(([, entry]) => entry.code === "AI_PROVIDER_HTTP")[1];
+  assert.equal(failure.httpStatus, 503); assert.equal(failure.attempt, 2);
+  assert.equal(failure.requestId, response.headers.get("x-chat-request-id"));
+  assert.equal((JSON.stringify(f.logs) + await response.text()).includes("upstream-secret"), false);
+});
+
+test("only provider 503 is retried; authentication, quota and other failures are not", async () => {
+  for (const status of [400, 401, 403, 404, 429, 500, 502, 504]) {
+    const f = setup({ provider: async () => Response.json({}, { status }) });
+    assert.equal((await f.ask()).status, status === 429 ? 429 : 503);
+    assert.equal(f.calls.length, 1, String(status)); assert.equal(f.waits.length, 0);
+  }
+  let attempts = 0;
+  const f = setup({ provider: async () => Response.json({}, { status: ++attempts === 1 ? 503 : 429 }) });
+  assert.equal((await f.ask()).status, 429); assert.equal(f.calls.length, 2);
+});
+
+test("deadline during backoff prevents the second request", async () => {
+  const controller = new AbortController();
+  const f = setup({ abortSignal: { timeout: () => controller.signal },
+    provider: async () => new Response(null, { status: 503 }),
+    wait: async (_ms, _value, { signal }) => { controller.abort(); signal.throwIfAborted(); },
+  });
+  assert.equal((await f.ask()).status, 503); assert.equal(f.calls.length, 1);
+  assert.equal(f.logs.find(([, entry]) => entry.code)[1].code, "AI_TIMEOUT");
+});
+
+test("the retry and its body read share the original deadline", async () => {
+  for (const phase of ["headers", "body"]) {
+    const controller = new AbortController(); let attempts = 0, deadlines = 0;
+    const f = setup({ abortSignal: { timeout(ms) { deadlines++; assert.equal(ms, 20000); return controller.signal; } },
+      provider: async () => {
+        if (++attempts === 1) return new Response(null, { status: 503 });
+        const fail = () => { controller.abort(); throw new Error("private timeout"); };
+        if (phase === "headers") return fail();
+        return { ok: true, status: 200, json: async () => fail() };
+      },
+    });
+    assert.equal((await f.ask()).status, 503); assert.equal(f.calls.length, 2); assert.equal(deadlines, 1);
+    const failure = f.logs.find(([, entry]) => entry.code)[1];
+    assert.equal(failure.code, "AI_TIMEOUT"); assert.equal(failure.attempt, 2);
+  }
+});
+
+test("Retry-After is respected and retries are skipped when the delay cannot fit the deadline", async () => {
+  const start = Date.now(); let now = start;
+  class Clock extends Date { constructor(...args) { super(...(args.length ? args : [now])); } static now() { return now; } }
+  for (const hint of ["2", new Date(start + 4000).toUTCString(), "invalid", "60"]) {
+    now = start; let attempts = 0;
+    const f = setup({ clock: Clock, provider: async () => ++attempts === 1
+      ? new Response(null, { status: 503, headers: { "Retry-After": hint } })
+      : Response.json(geminiReply()) });
+    const response = await f.ask();
+    if (hint === "60") {
+      assert.equal(response.status, 503); assert.equal(f.calls.length, 1); assert.equal(f.waits.length, 0);
+    } else {
+      assert.equal(response.status, 200);
+      const expected = hint === "2" ? 2000 : hint === "invalid" ? 1000 : Date.parse(hint) - start;
+      assert.ok(f.waits[0].ms >= expected);
+    }
+  }
+  now = start;
+  const f = setup({ clock: Clock, provider: async () => { now += 19500; return new Response(null, { status: 503 }); } });
+  assert.equal((await f.ask()).status, 503); assert.equal(f.calls.length, 1); assert.equal(f.waits.length, 0);
+});
+
+test("a table closing during retry backoff still discards the eventual AI answer", async () => {
+  let attempts = 0, f;
+  f = setup({ provider: async () => ++attempts === 1 ? new Response(null, { status: 503 }) : Response.json(geminiReply()),
+    wait: async () => { f.state.tables[0].status = "available"; },
+  });
+  const response = await f.ask();
+  assert.equal(response.status, 403); assert.equal((await response.json()).sessionExpired, true);
+  assert.equal(f.calls.length, 2);
 });
