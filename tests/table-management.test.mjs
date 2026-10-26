@@ -204,7 +204,7 @@ test("duplicate table numbers never report a successful close of the wrong row",
   const before = structuredClone(f.state);
   assert.equal((await f.get()).status, 409);
   for (const action of ["close_session", "open_session"]) {
-    assert.equal((await f.post({ action, tableNumber: 3 })).status, 409);
+    assert.equal((await f.post({ action, tableNumber: 3, expectedSessionToken: "active-session" })).status, 409);
     assert.deepEqual(f.state, before);
   }
 });
@@ -213,7 +213,7 @@ test("cashier closes an empty session and refresh shows it available while other
   const f = fixture({ role: "cashier" });
   f.state.tables.push({ id: "other-3", storeId: "shop-b", tableNumber: 3, status: "occupied", currentSessionToken: "other-session" });
   await f.post({ action: "open_session", tableNumber: 3 });
-  const response = await f.post({ action: "close_session", tableNumber: 3 });
+  const response = await f.post({ action: "close_session", tableNumber: 3, expectedSessionToken: f.state.tables[2].currentSessionToken });
   assert.equal(response.status, 200);
   const closed = (await f.get()).body.data.find(table => table.tableNumber === 3);
   assert.equal(closed.status, "available");

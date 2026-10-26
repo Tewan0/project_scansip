@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fixture, request } from "./helpers.mjs";
+import { imageFile, pngBytes } from "./image-fixtures.mjs";
 
 const categoryId = "11111111-1111-1111-1111-111111111111";
 function formRequest(values = {}, image) {
@@ -36,11 +37,11 @@ test("create menu accepts the browser multipart form without an image and return
 
 test("multipart image is uploaded into the owner's folder and saved on the created menu", async () => {
   const f = setup();
-  const response = await f.post(formRequest({}, new File([new Uint8Array([137, 80, 78, 71])], "photo.png", { type: "image/png" })));
+  const response = await f.post(formRequest({}, imageFile()));
   assert.equal(response.status, 201);
   const { data } = await response.json();
   assert.match(f.uploads[0].path, /^owner\/[\da-f-]+\.png$/);
-  assert.equal(f.uploads[0].bytes.length, 4); assert.equal(f.uploads[0].options.upsert, false);
+  assert.deepEqual(f.uploads[0].bytes, pngBytes); assert.equal(f.uploads[0].options.upsert, false);
   assert.ok(data.imageUrl.endsWith(f.uploads[0].path)); assert.equal(f.removed.length, 0);
 });
 
@@ -69,7 +70,7 @@ test("invalid menu fields, foreign categories and invalid images never upload or
 
 test("failed upload leaves no menu and does not disclose the storage error", async () => {
   const f = setup("owner", { message: "private storage details" });
-  const response = await f.post(formRequest({}, new File(["image"], "a.png", { type: "image/png" })));
+  const response = await f.post(formRequest({}, imageFile()));
   assert.equal(response.status, 503); assert.equal(f.state.menuItems.length, 0);
   assert.ok(!(await response.text()).includes("private storage details"));
 });
@@ -77,7 +78,7 @@ test("failed upload leaves no menu and does not disclose the storage error", asy
 test("failed database insert cleans up only the image uploaded by that request", async () => {
   const f = setup();
   f.db.insert = () => { throw new Error("simulated insert failure"); };
-  const response = await f.post(formRequest({}, new File(["image"], "a.png", { type: "image/png" })));
+  const response = await f.post(formRequest({}, imageFile()));
   assert.equal(response.status, 500); assert.equal(f.state.menuItems.length, 0);
   assert.deepEqual(f.removed, [f.uploads[0].path]);
 });
@@ -132,7 +133,7 @@ test("real add-menu form reaches the route with and without an image, preserves 
     find(node => node.type === "Button" && text(node).includes("เพิ่มเมนู")).props.onClick();
     find(node => node.props.id === "menu-name").props.onChange({ target: { value: "Test coffee" } });
     find(node => node.props.id === "menu-price").props.onChange({ target: { value: "-1" } });
-    if (withImage) find(node => node.props.type === "file").props.onChange({ target: { files: [new File(["png"], "a.png", { type: "image/png" })] } });
+    if (withImage) find(node => node.props.type === "file").props.onChange({ target: { files: [imageFile()] } });
     await find(node => node.type === "form").props.onSubmit({ preventDefault() {} });
     assert.ok(find(node => node.props.role === "alert"));
     assert.equal(find(node => node.props.id === "menu-name").props.value, "Test coffee");

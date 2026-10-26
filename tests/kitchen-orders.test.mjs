@@ -103,12 +103,12 @@ test("invalid quantities and unavailable menu items do not create partial orders
 
 test("closing a table cannot discard an unpaid or unfinished order", async () => {
   const f = orderFixture("cashier"), route = f.load("app/api/tables/route.ts");
-  assert.equal((await route.POST(request({ action: "close_session", tableNumber: 1 }))).status, 409);
+  assert.equal((await route.POST(request({ action: "close_session", tableNumber: 1, expectedSessionToken: "token-a" }))).status, 409);
   assert.equal(f.state.tables[0].currentSessionToken, "token-a");
   f.state.orders[0].paymentStatus = "paid"; f.state.orders[0].status = "preparing";
-  assert.equal((await route.POST(request({ action: "close_session", tableNumber: 1 }))).status, 409);
+  assert.equal((await route.POST(request({ action: "close_session", tableNumber: 1, expectedSessionToken: "token-a" }))).status, 409);
   f.state.orders[0].status = "served";
-  assert.equal((await route.POST(request({ action: "close_session", tableNumber: 1 }))).status, 200);
+  assert.equal((await route.POST(request({ action: "close_session", tableNumber: 1, expectedSessionToken: "token-a" }))).status, 200);
   assert.equal(f.state.tables[0].currentSessionToken, null);
 });
 
@@ -117,7 +117,7 @@ test("cashier records each payment, close explains the remainder and only succee
   f.state.orders[0].status = "served"; f.state.orders[0].totalAmount = "100.00";
   f.state.orders.push({ ...f.state.orders[0], id: "order-b", totalAmount: "70.00" });
   const tables = f.load("app/api/tables/route.ts"), orders = f.load("app/api/orders/[id]/route.ts");
-  const close = () => tables.POST(request({ action: "close_session", tableNumber: 1 }));
+  const close = () => tables.POST(request({ action: "close_session", tableNumber: 1, expectedSessionToken: "token-a" }));
   let response = await close(); assert.equal(response.status, 409);
   assert.match((await response.json()).error, /2 ออเดอร์ รวม ฿170.00/);
   assert.equal(f.state.orders[0].paymentStatus, "unpaid");
@@ -133,7 +133,7 @@ test("receiving payment while cooking does not close the unfinished order or tab
   assert.equal(f.state.orders[0].paymentStatus, "unpaid");
   assert.equal((await orders.PATCH(request({ paymentStatus: "paid" }), params("order-a"))).status, 200);
   assert.equal(f.state.orders[0].status, "pending");
-  const response = await f.load("app/api/tables/route.ts").POST(request({ action: "close_session", tableNumber: 1 }));
+  const response = await f.load("app/api/tables/route.ts").POST(request({ action: "close_session", tableNumber: 1, expectedSessionToken: "token-a" }));
   assert.equal(response.status, 409); assert.match((await response.json()).error, /อาหารที่ยังทำไม่เสร็จ 1 ออเดอร์/);
 });
 

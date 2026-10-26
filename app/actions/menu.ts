@@ -40,10 +40,10 @@ export async function updateMenuItem(menuItemId: string, form: FormData) {
     // An empty unnamed file is the browser's unselected file input.
     if (file !== null && !(file instanceof File && !file.size && !file.name)) {
       await reserveUploadQuota(user.id);
-      const validated = validateImageUpload(file);
+      const validated = await validateImageUpload(file);
       const path = `${user.id}/${randomUUID()}.${validated.extension}`;
       const client = createAdminClient();
-      const { error } = await client.storage.from("menu-photos").upload(path, new Uint8Array(await validated.file.arrayBuffer()), { contentType: validated.file.type, upsert: false });
+      const { error } = await client.storage.from("menu-photos").upload(path, validated.bytes, { contentType: validated.file.type, upsert: false });
       if (error) throw error;
       imageUrl = client.storage.from("menu-photos").getPublicUrl(path).data.publicUrl;
     }

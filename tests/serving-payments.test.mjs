@@ -13,7 +13,7 @@ function setup(role = "cashier", overrides = {}) {
   return { ...f, id, identity,
     pay: (extra = {}) => f.load("app/api/bills/[id]/payment/route.ts").POST(request({ anchorOrderId: id, expectedOrderIds: [id], expectedTotalCents: 7050, method: "cash", receivedCents: 10000, ...extra }), params(identity.id)),
     update: body => f.load("app/api/orders/[id]/route.ts").PATCH(request(body), params(id)),
-    close: () => f.load("app/api/tables/route.ts").POST(request({ action: "close_session", tableNumber: 1 })),
+    close: () => f.load("app/api/tables/route.ts").POST(request({ action: "close_session", tableNumber: 1, expectedSessionToken: "round-a" })),
   };
 }
 

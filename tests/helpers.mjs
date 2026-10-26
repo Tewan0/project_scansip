@@ -91,6 +91,7 @@ export function fixture(role = "owner", overrides = {}, globals = {}) {
       if (name in dependencies) return dependencies[name];
       if (name.startsWith("@/")) return load(name.slice(2) + ".ts");
       if (name.startsWith(".")) return load(path.posix.join(path.posix.dirname(file), name + ".ts"));
+      if (name === "sharp") return { default: require(name) }; // CommonJS default interop, using the real decoder.
       return require(name);
     }, console, Date, Request, Response, URL, URLSearchParams, File, FormData, crypto: globalThis.crypto, process, setTimeout, clearTimeout, setInterval, clearInterval, ...globals }, { filename: file });
     return exports;

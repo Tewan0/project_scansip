@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fixture, request } from "./helpers.mjs";
+import { imageFile } from "./image-fixtures.mjs";
 
 const itemId = "11111111-1111-1111-1111-111111111111";
 const start = 1_800_000_000_000;
@@ -37,7 +38,7 @@ function setup(role = "owner") {
   }
   return { ...f, uploads, control, call, upload, create, edit, advance(ms) { now += ms; } };
 }
-function image(size = 12, type = "image/png") { return new File([new Uint8Array(size)], "photo.png", { type }); }
+function image(size, type = "image/png") { return imageFile({ size, type }); }
 
 test("create, edit and direct upload share one account quota and reject before changing menu or Storage", async () => {
   const f = setup();
@@ -152,3 +153,16 @@ test("an account cannot reset the quota through request fields, while another ow
   assert.equal(f.uploads.at(-1).path.startsWith("owner-b/"), true);
   assert.equal(f.state.chatRateLimits.length, 4);
 });
+
+for (const kind of ["upload", "create", "edit"]) {
+  test(kind + " rejects fake and truncated images before Storage or menu writes", async () => {
+    for (const bytes of [Buffer.from("not an image"), Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])]) {
+      const f = setup(), before = structuredClone(f.state.menuItems);
+      const result = await f.call(kind, new File([bytes], "fake.png", { type: "image/png" }));
+      assert.equal(result.status, 400);
+      assert.equal(f.uploads.length, 0);
+      assert.deepEqual(f.state.menuItems, before);
+      assert.ok(f.state.chatRateLimits.every(row => row.count === 1), "failed uploads still consume a quota attempt");
+    }
+  });
+}

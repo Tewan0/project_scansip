@@ -3,11 +3,12 @@ import { and, desc, eq } from "drizzle-orm";
 import { serviceRequests } from "@/db/schema";
 import { AccessError } from "@/lib/auth";
 import { withCustomerSession, customerError } from "@/lib/customer-session";
+import { readLimitedJson, SERVICE_REQUEST_BODY_BYTES } from "@/lib/request-body";
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    if (!body || typeof body !== "object" || !["assistance", "bill"].includes(body.kind)) throw new AccessError("ประเภทคำขอไม่ถูกต้อง", 400);
+    const body = await readLimitedJson(req, SERVICE_REQUEST_BODY_BYTES);
+    if (!body || typeof body !== "object" || Array.isArray(body) || !["assistance", "bill"].includes(body.kind)) throw new AccessError("ประเภทคำขอไม่ถูกต้อง", 400);
     const data = await withCustomerSession(body, async (tx, table) => {
       const scope = and(eq(serviceRequests.storeId, table.storeId), eq(serviceRequests.tableId, table.id),
         eq(serviceRequests.sessionToken, table.currentSessionToken!), eq(serviceRequests.kind, body.kind));

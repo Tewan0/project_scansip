@@ -122,13 +122,13 @@ test("expiry never prevents kitchen, payment, serving or a valid staff table clo
   await f.order(token); const ticket = f.state.orders[0]; ticket.createdAt = new Date(start);
   const oldId = ticket.id; ticket.id = randomUUID(); f.state.orderItems.filter(line => line.orderId === oldId).forEach(line => { line.orderId = ticket.id; });
   f.setTime(start + lifetime);
-  assert.equal((await f.act("close_session")).status, 409, "unpaid/unfinished bills still block closing");
+  assert.equal((await f.act("close_session", { expectedSessionToken: f.state.tables[0].currentSessionToken })).status, 409, "unpaid/unfinished bills still block closing");
   const id = ticket.id, update = f.load("app/api/orders/[id]/route.ts").PATCH;
   assert.equal((await update(request({ finishAll: true }), params(id))).status, 200);
   assert.equal((await update(request({ delivered: true }), params(id))).status, 200);
   const bill = f.load("lib/bills-server.ts").billIdentity(f.state.orders[0]);
   assert.equal((await f.load("app/api/bills/[id]/payment/route.ts").POST(request({ anchorOrderId: id, expectedOrderIds: [id], expectedTotalCents: 5000, method: "cash", receivedCents: 5000 }), params(bill.id))).status, 200);
-  assert.equal((await f.act("close_session")).status, 200);
+  assert.equal((await f.act("close_session", { expectedSessionToken: f.state.tables[0].currentSessionToken })).status, 200);
   assert.equal(f.state.tables[0].currentQrToken, null); assert.equal(f.state.tables[0].qrExpiresAt, null);
   assert.equal((await (await f.validate(token)).json()).valid, false);
   await f.act("open_session"); assert.notEqual(f.state.tables[0].currentQrToken, token);

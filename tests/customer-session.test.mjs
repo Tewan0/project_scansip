@@ -95,7 +95,7 @@ test("closing a table resolves only requests for that round; reopening cannot ex
   f.state.serviceRequests.push({ id: requestId, storeId: "shop-a", tableId: "table-a", sessionToken: "round-a", kind: "bill", status: "pending" },
     { id: "other", storeId: "shop-a", tableId: "table-b", sessionToken: "round-b", kind: "bill", status: "pending" });
   const tables = f.load("app/api/tables/route.ts");
-  assert.equal((await tables.POST(request({ action: "close_session", tableNumber: 1 }))).status, 200);
+  assert.equal((await tables.POST(request({ action: "close_session", tableNumber: 1, expectedSessionToken: "round-a" }))).status, 200);
   assert.equal(f.state.serviceRequests[0].status, "resolved");
   assert.equal(f.state.serviceRequests[1].status, "pending");
   const history = f.load("app/api/customer/session/route.ts");

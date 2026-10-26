@@ -43,7 +43,7 @@ test("paid current rounds remain current until closing; reopen creates a new emp
   const f = setup(); const snapshot = f.bill(); assert.equal((await f.pay(snapshot)).status, 200);
   const paid = (await (await f.get()).json()).data[0]; assert.equal(paid.unpaidCents, 0); assert.equal(paid.current, true);
   const tables = f.load("app/api/tables/route.ts");
-  assert.equal((await tables.POST(request({ action: "close_session", tableNumber: 6 }))).status, 200);
+  assert.equal((await tables.POST(request({ action: "close_session", tableNumber: 6, expectedSessionToken: "new-round" }))).status, 200);
   assert.equal((await (await f.get()).json()).data.length, 0);
   assert.equal((await (await f.get("?view=history")).json()).data.length, 2);
   await tables.POST(request({ action: "open_session", tableNumber: 6 }));
@@ -72,7 +72,7 @@ test("a new order, cancelled order or prior payment after review rejects stale b
 test("bulk receipt never marks unfinished food complete and table close remains blocked", async () => {
   const f = setup(); f.state.orders[2].status = "preparing";
   assert.equal((await f.pay()).status, 200); assert.equal(f.state.orders[2].status, "preparing");
-  assert.equal((await f.load("app/api/tables/route.ts").POST(request({ action: "close_session", tableNumber: 6 }))).status, 409);
+  assert.equal((await f.load("app/api/tables/route.ts").POST(request({ action: "close_session", tableNumber: 6, expectedSessionToken: "new-round" }))).status, 409);
 });
 
 test("bill endpoints enforce staff roles and store scope; unrelated or forged anchors cannot receive money", async () => {

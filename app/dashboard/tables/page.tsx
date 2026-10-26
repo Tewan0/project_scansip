@@ -104,7 +104,7 @@ export default function TablesManagementPage() {
     return expiry === null || expiry <= now ? "QR หมดอายุ" : "QR ใช้ได้ถึง " + new Date(expiry).toLocaleString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" }) + " น.";
   };
 
-  async function performAction(action: string, fields: { count?: number; tableNumber?: number }) {
+  async function performAction(action: string, fields: { count?: number; tableNumber?: number; expectedSessionToken?: string | null }) {
     if (busy.current) return;
     busy.current = true;
     requests.current.version++;
@@ -313,7 +313,7 @@ export default function TablesManagementPage() {
                     <Button type="button" variant="destructive" className="min-h-11 flex-1 cursor-pointer" disabled={!!processing}
                       onClick={async () => {
                         if (await confirm({ title: `ปิดโต๊ะ ${number}`, description: "QR รอบนี้จะใช้สั่งต่อไม่ได้ กรุณาตรวจสอบการรับเงินและการเสิร์ฟให้ครบก่อนปิดโต๊ะ", confirmLabel: "ยืนยันปิดโต๊ะ" })) {
-                          void performAction("close_session", { tableNumber: table.tableNumber });
+                          void performAction("close_session", { tableNumber: table.tableNumber, expectedSessionToken: table.currentSessionToken });
                         }
                       }}>{working ? <RotateCw className="size-4 animate-spin" /> : <LogOut className="size-4" />} ปิดโต๊ะ</Button>
                   </> : (

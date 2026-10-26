@@ -6,6 +6,8 @@ import { AccessError } from "@/lib/auth";
 export const CHAT_BODY_BYTES = 24_000;
 export const ORDER_BODY_BYTES = 80 * 1024;
 export const MENU_BODY_BYTES = 64 * 1024;
+export const SERVICE_REQUEST_BODY_BYTES = 8 * 1024;
+export const UPLOAD_DELETE_BODY_BYTES = 8 * 1024;
 export const UPLOAD_FILE_BYTES = 5 * 1024 * 1024;
 export const UPLOAD_BODY_BYTES = UPLOAD_FILE_BYTES + 64 * 1024;
 
