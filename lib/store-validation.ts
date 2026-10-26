@@ -13,6 +13,10 @@ export function validateStoreSettings(input: unknown) {
     if (typeof body.slug !== "string" || body.slug.length > 200) throw new AccessError("URL ร้านต้องยาวไม่เกิน 200 ตัวอักษร", 400);
     const slug = body.slug.trim().toLowerCase().replace(/[^\u0E00-\u0E7Fa-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
     if (!slug) throw new AccessError("กรุณาระบุ URL ร้าน", 400);
+    // Reserve the internal store ID namespace, including normalized uppercase input.
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug)) {
+      throw new AccessError("URL ร้านไม่สามารถใช้รูปแบบรหัส UUID ได้ กรุณาใช้ชื่อร้านหรือคำอื่น", 400);
+    }
     values.slug = slug;
   }
   for (const key of ["openingTime", "closingTime"] as const) {

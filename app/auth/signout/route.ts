@@ -1,32 +1,38 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
-async function handleSignOut(request: Request) {
-  const supabase = await createClient();
-
-  // Sign out user on Supabase
-  await supabase.auth.signOut();
-
-  // Resolve safe origin (avoid 0.0.0.0 binding address which is unroutable in browser)
-  const rawHost =
-    request.headers.get("x-forwarded-host") ||
-    request.headers.get("host") ||
-    new URL(request.url).host;
-  const safeHost = rawHost.replace("0.0.0.0", "localhost");
-  const proto =
-    request.headers.get("x-forwarded-proto") ||
-    (request.url.startsWith("https") ? "https" : "http");
-  const baseHost = `${proto}://${safeHost}`;
-
-  return NextResponse.redirect(`${baseHost}/owner/login`, {
-    status: 303, // See Other: convert to GET for redirect
-  });
+function browserOrigin(request: Request): string | null {
+  const url = new URL(request.url);
+  // Next.js may use its internal bind address in request.url. Match the browser's
+  // Host instead, without accepting arbitrary X-Forwarded-Host/Proto headers.
+  const host = request.headers.get("host") ?? url.host;
+  if (!host || /[/\\@?#,\s]/.test(host)) return null;
+  try {
+    return new URL(url.protocol + "//" + host).origin;
+  } catch {
+    return null;
+  }
 }
 
+// GET/HEAD are intentionally absent: Next.js returns 405 without signing out.
 export async function POST(request: Request) {
-  return handleSignOut(request);
-}
+  const origin = browserOrigin(request);
+  const fetchSite = request.headers.get("sec-fetch-site");
+  if (!origin || request.headers.get("origin") !== origin ||
+    (fetchSite !== null && fetchSite !== "same-origin")) {
+    return NextResponse.json({ success: false, error: "แหล่งที่มาของคำขอไม่ถูกต้อง กรุณาออกจากระบบผ่านปุ่มในเว็บไซต์" },
+      { status: 403, headers: { "Cache-Control": "private, no-store" } });
+  }
 
-export async function GET(request: Request) {
-  return handleSignOut(request);
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    return NextResponse.redirect(new URL("/owner/login", origin), {
+      status: 303, headers: { "Cache-Control": "private, no-store" },
+    });
+  } catch {
+    return NextResponse.json({ success: false, error: "ออกจากระบบไม่สำเร็จ กรุณาลองอีกครั้ง" },
+      { status: 503, headers: { "Cache-Control": "private, no-store" } });
+  }
 }

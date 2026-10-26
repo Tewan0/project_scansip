@@ -37,8 +37,13 @@ export async function getOrCreateStore() {
 }
 
 /**
- * ดึงร้านค้าจาก slug หรือ id (สำหรับหน้าสั่งอาหารของลูกค้า)
+ * ค้นหาด้วยรหัสร้านภายในโดยไม่ค้นในช่อง slug
  */
+export async function getStoreById(id: string) {
+  return db.query.stores.findFirst({ where: eq(stores.id, id) });
+}
+
+// Keep slug-first lookup for existing public links. Internal IDs must use getStoreById.
 export async function getStoreBySlugOrId(identifier: string) {
   // ลองหาจาก slug ก่อน
   let store = await db.query.stores.findFirst({
@@ -48,9 +53,7 @@ export async function getStoreBySlugOrId(identifier: string) {
   // ถ้าไม่เจอ ลองหาจาก id
   if (!store) {
     try {
-      store = await db.query.stores.findFirst({
-        where: eq(stores.id, identifier),
-      });
+      store = await getStoreById(identifier);
     } catch {
       // id อาจจะไม่ใช่ uuid รูปแบบถูกต้อง
     }

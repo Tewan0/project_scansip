@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { orders, orderItems, tables, stores, menuItems } from "@/db/schema";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { requireStoreAccess, apiError, AccessError } from "@/lib/auth";
-import { getStoreBySlugOrId } from "@/utils/store";
+import { getStoreById, getStoreBySlugOrId } from "@/utils/store";
 import { billIdentity } from "@/lib/bills-server";
 import { assertCustomerQr } from "@/lib/customer-session";
 import { readLimitedJson, ORDER_BODY_BYTES } from "@/lib/request-body";
@@ -54,7 +54,9 @@ export async function POST(req: Request) {
       customerNote: body.customerNote?.trim() || null,
       items: items.map((item) => ({ menuItemId: item.menuItemId.toLowerCase(), quantity: item.quantity, specialInstruction: item.specialInstruction?.trim() || null })),
     })).digest("hex") : null;
-    const store = await getStoreBySlugOrId(body.storeSlug || body.storeId);
+    const store = body.storeSlug
+      ? await getStoreBySlugOrId(body.storeSlug)
+      : await getStoreById(body.storeId);
     if (!store) throw new AccessError("ไม่พบร้านค้า", 404);
     const data = await db.transaction(async (tx) => {
       // Same lock order as opening/closing tables: store, then table.

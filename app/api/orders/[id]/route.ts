@@ -5,7 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { requireStoreAccess, apiError, AccessError } from "@/lib/auth";
 import { canAdvanceItem, aggregateCookingStatus, type CookingStatus } from "@/lib/permissions";
 import { needsServing } from "@/lib/payments";
-import { withCustomerSession, customerError } from "@/lib/customer-session";
+import { withCustomerSessionByStoreId, customerError } from "@/lib/customer-session";
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(req: Request, { params }: Params) {
@@ -18,7 +18,7 @@ export async function GET(req: Request, { params }: Params) {
     });
     if (!order) throw new AccessError("ไม่พบออเดอร์", 404);
     if (token) {
-      return await withCustomerSession({ storeSlug: order.storeId, tableNumber: order.tableNumber, sessionToken: token }, async (tx, table) => {
+      return await withCustomerSessionByStoreId({ storeId: order.storeId, tableNumber: order.tableNumber, sessionToken: token }, async (tx, table) => {
         if (order.sessionToken !== table.currentSessionToken) throw new AccessError("ไม่พบออเดอร์ในรอบโต๊ะนี้", 404);
         const current = await tx.query.orders.findFirst({ where: and(eq(orders.id, id), eq(orders.storeId, table.storeId), eq(orders.sessionToken, table.currentSessionToken!)), with: { items: true } });
         if (!current) throw new AccessError("ไม่พบออเดอร์", 404);

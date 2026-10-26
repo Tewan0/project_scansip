@@ -129,3 +129,33 @@ test("logout button prompts for confirmation before signing out and cancels clea
   r.dispose();
 });
 
+
+test("default logout form submits POST only after confirmation and prevents repeat clicks", async () => {
+  let submitted = 0;
+  const r = runtime();
+  const LogoutButton = r.load("components/logout-button.tsx").LogoutButton;
+  const render = () => r.render(() => LogoutButton({ children: "Logout", confirmLabel: "Confirm logout" }));
+  let tree = render();
+  const form = nodes(tree).find(node => node.type === "form");
+  assert.equal(form.props.action, "/auth/signout");
+  assert.equal(form.props.method, "post");
+  form.props.ref.current = { submit() { submitted++; } };
+  let pending = nodes(tree).find(node => node.type === "button").props.onClick({ preventDefault() {} });
+  assert.equal(submitted, 0);
+  tree = render();
+  tree.props.children[1].props.onOpenChange(false);
+  await pending;
+  assert.equal(submitted, 0);
+  tree = render();
+  pending = nodes(tree).find(node => node.type === "button").props.onClick({ preventDefault() {} });
+  tree = render();
+  nodes(tree.props.children[1]).find(node => node.type === "Button" && text(node) === "Confirm logout").props.onClick();
+  await pending;
+  assert.equal(submitted, 1);
+  tree = render();
+  const button = nodes(tree).find(node => node.type === "button");
+  assert.equal(button.props.disabled, true);
+  await button.props.onClick({ preventDefault() {} });
+  assert.equal(submitted, 1);
+  r.dispose();
+});
