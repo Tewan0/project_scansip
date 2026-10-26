@@ -1,4 +1,5 @@
 import "server-only";
+import { MENU_DESCRIPTION_MAX_LENGTH, MENU_DESCRIPTION_LENGTH_ERROR } from "@/lib/menu-fields";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { categories } from "@/db/schema";
@@ -22,4 +23,11 @@ export function validatePrice(value: unknown) {
 export function validateName(value: unknown) {
   if (typeof value !== "string" || !value.trim() || value.length > 200) throw new AccessError("กรุณาระบุชื่อไม่เกิน 200 ตัวอักษร", 400);
   return value.trim();
+}
+
+export function validateDescription(value: unknown) {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string") throw new AccessError("คำอธิบายเมนูต้องเป็นข้อความ", 400);
+  if (value.length > MENU_DESCRIPTION_MAX_LENGTH) throw new AccessError(MENU_DESCRIPTION_LENGTH_ERROR, 400);
+  return value.trim() || null;
 }

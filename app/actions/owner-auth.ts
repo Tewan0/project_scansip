@@ -61,19 +61,6 @@ export async function signInWithGoogleOwner() {
 }
 
 /**
- * Signs out store owner and clears session cookies
- */
-export async function signOutOwner() {
-  try {
-    const supabase = await createClient();
-    await supabase.auth.signOut();
-  } catch (error) {
-    console.error("Sign out error:", error);
-  }
-  redirect("/owner/login");
-}
-
-/**
  * Queries current owner store details via Drizzle ORM based on auth.uid()
  */
 export async function getCurrentOwnerStore() {

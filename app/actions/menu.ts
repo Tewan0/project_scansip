@@ -6,7 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
 import { requireStoreAccess, AccessError } from "@/lib/auth";
-import { validateCategory, validateName, validatePrice } from "@/lib/menu-validation";
+import { validateCategory, validateDescription, validateName, validatePrice } from "@/lib/menu-validation";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { deleteStorageFile } from "@/utils/supabase/storage";
 import { reserveUploadQuota, validateImageUpload } from "@/lib/upload-policy";
@@ -48,6 +48,7 @@ export async function updateMenuItem(menuItemId: string, form: FormData) {
     const item = await db.query.menuItems.findFirst({ where: and(eq(menuItems.id, menuItemId), eq(menuItems.storeId, store.id)) });
     if (!item) throw new AccessError("ไม่พบเมนูในร้านนี้", 404);
     checkFormSize(form);
+    const description = validateDescription(form.get("description"));
     const name = validateName(form.get("name"));
     const price = validatePrice(form.get("unitPrice") ?? form.get("price"));
     const categoryId = await validateCategory(form.get("categoryId") === "none" ? null : form.get("categoryId"), store.id);
@@ -68,7 +69,7 @@ export async function updateMenuItem(menuItemId: string, form: FormData) {
     let updated: typeof menuItems.$inferSelect;
     try {
       const [saved] = await db.update(menuItems).set({
-        name, price, categoryId, imageUrl, description: String(form.get("description") || "").trim() || null,
+        name, price, categoryId, imageUrl, description,
         isAvailable: ["true", "on", "1"].includes(String(form.get("isAvailable"))), updatedAt: new Date(),
       }).where(and(eq(menuItems.id, item.id), eq(menuItems.storeId, store.id))).returning();
       if (!saved) throw new AccessError("ไม่พบเมนูในร้านนี้ กรุณาโหลดรายการใหม่", 404);

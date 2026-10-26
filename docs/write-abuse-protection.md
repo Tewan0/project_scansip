@@ -63,3 +63,9 @@ lib/request-body.ts ตรวจทั้ง Content-Type, Content-Length แล
 - ทดสอบทั้งหมด 331/331 ผ่าน พร้อม TypeScript และ ESLint ไม่มีคำเตือน
 - การทดสอบ HTTP ผ่าน Next dev fixture ถูก automatic approval review บล็อกเนื่องจากการเชื่อมต่อ telemetry ภายนอกที่ไม่ทราบ payload จึงยังไม่ได้ยืนยันผ่าน transport จริง; ไม่ได้ rerun วิธีเดิม
 - ยังไม่ได้ push/deploy หรือเปลี่ยนการตั้งค่า Storage bucket; หลัง deploy ควรทดสอบเพิ่ม/แก้เมนูและโลโก้ด้วยรูปเล็ก, 2 MB, ใกล้ 4 MB และเกิน 4 MB
+
+## ตั้งข้อจำกัด Storage bucket — 26 ตุลาคม 2026
+
+ตั้ง menu-photos และ restaurant-logos ผ่าน Storage API แล้ว: file_size_limit = 4,194,304 bytes และ allowed_mime_types = image/jpeg, image/png, image/webp, image/gif โดยคง public = true เดิม ตรวจอ่านค่าจริงผ่าน Supabase SQL แล้วทั้งสอง bucket ตรงตามกำหนด มีผลทันทีโดยไม่ต้อง deploy แอป
+
+ยังไม่ได้ทดสอบอัปโหลดจริงรอบนี้ เนื่องจาก automatic approval review ปฏิเสธการติดตามคำสั่งที่เกี่ยวข้องกับ telemetry ภายนอก ดูรายละเอียด ผลตรวจ และวิธีตรวจซ้ำใน docs/maintenance-plan-2026-10-26.md ลำดับ 3

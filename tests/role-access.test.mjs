@@ -105,11 +105,20 @@ test("server actions enforce owner roles and reject foreign menu IDs", async () 
     const f = fixture(role), actions = f.load("app/actions/menu.ts");
     assert.equal((await actions.deleteMenuItem("foreign-item")).success, false);
     assert.equal((await actions.updateMenuItem("foreign-item", new FormData())).success, false);
-    assert.equal((await f.load("app/actions/table.ts").updateStoreTableCount(4)).success, false);
     assert.equal(f.writes.length, 0);
   }
   const f = fixture();
   f.state.menuItems.push({ id: "foreign-item", storeId: "shop-b" });
   assert.equal((await f.load("app/actions/menu.ts").deleteMenuItem("foreign-item")).status, 404);
   assert.equal(f.state.menuItems.length, 1);
+});
+
+test("table resize API rejects non-owners using current identity without writes", async () => {
+  for (const role of ["anonymous", "cashier", "kitchen"]) {
+    const f = fixture(role);
+    const response = await f.load("app/api/tables/route.ts").POST(request({ action: "sync_tables", count: 4 }));
+    assert.equal(response.status, role === "anonymous" ? 401 : 403, role);
+    assert.equal((await response.json()).success, false);
+    assert.equal(f.writes.length, 0, role);
+  }
 });

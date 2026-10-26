@@ -159,3 +159,21 @@ test("default logout form submits POST only after confirmation and prevents repe
   assert.equal(submitted, 1);
   r.dispose();
 });
+
+test("edit description preserves legacy long text, blocks save, and allows shortening", async () => {
+  let sent = 0;
+  const r = runtime({ "@/app/actions/menu": { updateMenuItem: async () => { sent++; return { success: false, error: "Retry" }; } } });
+  const Edit = r.load("app/dashboard/menu/EditMenuItemModal.tsx").default;
+  const item = { id: "coffee", name: "Coffee", price: "50", description: "ก".repeat(1001), categoryId: null, isAvailable: true };
+  const render = () => r.render(() => Edit({ item, isOpen: true, categories: [], onClose() {}, onSuccess() {} }));
+  render();
+  let tree = render();
+  let textarea = nodes(tree).find(node => node.type === "textarea");
+  assert.equal(textarea.props.maxLength, 1000); assert.equal(textarea.props.value, item.description);
+  await nodes(tree).find(node => node.type === "form").props.onSubmit({ preventDefault() {} });
+  assert.equal(sent, 0); assert.match(text(render()), /1,000/);
+  textarea.props.onChange({ target: { value: "ก".repeat(1000) } });
+  tree = render();
+  await nodes(tree).find(node => node.type === "form").props.onSubmit({ preventDefault() {} });
+  assert.equal(sent, 1); r.dispose();
+});

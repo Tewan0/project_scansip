@@ -107,7 +107,7 @@ export default async function HomePage() {
   const primaryCtaText = user
     ? userStore
       ? "เข้าสู่แดชบอร์ดร้าน"
-      : "เข้าใช้งาน"
+      : "เข้าสู่พื้นที่ทำงาน"
     : "เริ่มต้นใช้งาน";
 
   return (
@@ -151,7 +151,7 @@ export default async function HomePage() {
                   </AvatarFallback>
                 </Avatar>
                 <Button render={<Link href={primaryCtaHref} />} size="sm" className="font-semibold shadow-xs">
-                  <span className="sm:hidden">{userStore ? "แดชบอร์ด" : "ตั้งค่าร้าน"}</span>
+                  <span className="sm:hidden">{userStore ? "แดชบอร์ด" : "เข้าทำงาน"}</span>
                   <span className="hidden sm:inline">{primaryCtaText}</span>
                   <ArrowRight data-icon="inline-end" />
                 </Button>

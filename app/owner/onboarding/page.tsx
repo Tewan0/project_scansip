@@ -73,9 +73,6 @@ export default function OwnerOnboardingPage() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("bucket", "restaurant-logos");
-      if (logoUrl) {
-        formData.append("oldUrl", logoUrl);
-      }
 
       const res = await fetch("/api/upload", {
         method: "POST",

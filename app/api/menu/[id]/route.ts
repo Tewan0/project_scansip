@@ -4,7 +4,7 @@ import { menuItems } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { deleteMenuItem } from "@/app/actions/menu";
 import { requireStoreAccess, apiError, AccessError } from "@/lib/auth";
-import { validateCategory, validateName, validatePrice } from "@/lib/menu-validation";
+import { validateCategory, validateDescription, validateName, validatePrice } from "@/lib/menu-validation";
 import { validateImageUrl } from "@/utils/supabase/storage";
 type Params = { params: Promise<{ id: string }> };
 
@@ -28,7 +28,7 @@ export async function PATCH(req: Request, { params }: Params) {
     if (body.name !== undefined) values.name = validateName(body.name);
     if (body.price !== undefined) values.price = validatePrice(body.price);
     if (body.categoryId !== undefined) values.categoryId = await validateCategory(body.categoryId, store.id);
-    if (body.description !== undefined) values.description = typeof body.description === "string" ? body.description.trim() : null;
+    if (body.description !== undefined) values.description = validateDescription(body.description);
     if (body.imageUrl !== undefined) values.imageUrl = validateImageUrl(body.imageUrl, "menu-photos", user.id, item.imageUrl);
     if (body.isAvailable !== undefined) {
       if (typeof body.isAvailable !== "boolean") throw new AccessError("สถานะเมนูไม่ถูกต้อง", 400);
