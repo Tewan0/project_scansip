@@ -65,7 +65,7 @@ test("slow chat times out and keeps the prompt; leaving the dialog never blocks 
   ask(page); page.fire(8000); assert.match(text(page.render()), /กำลังรอคำตอบ/);
   button(page, "กลับไปเลือกเมนู").props.onClick();
   assert.equal(find(page, node => node.type === "Dialog").props.open, false);
-  page.fire(25000); await tick();
+  page.fire(30000); await tick();
   assert.match(text(page.render()), /ใช้เวลาตอบนานเกินไป/);
   assert.equal(input(page).props.value, "ชาไม่หวาน"); assert.equal(input(page).props.disabled, false);
   assert.equal(calls, 1); assert.equal(page.timers.size, 0); page.dispose();

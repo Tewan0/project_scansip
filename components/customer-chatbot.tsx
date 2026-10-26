@@ -37,7 +37,7 @@ export function CustomerChatbot({ storeSlug, tableNumber, sessionToken, enabled,
     setBusy(true); setError(""); setNotice(""); setQuestion(content); setPendingQuestion(content); setSlow(false);
     let timedOut = false;
     const slowTimer = setTimeout(() => { if (active.current === controller) setSlow(true); }, 8000);
-    const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 25000);
+    const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 30000);
     try {
       const response = await fetch("/api/customer/chat", { method: "POST", signal: controller.signal,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionToken}` },

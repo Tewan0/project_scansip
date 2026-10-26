@@ -29,19 +29,28 @@ export async function answerMenuQuestion(messages: ChatMessage[], menu: ChatMenu
   let response: Response;
   try {
     const model = process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite";
+    const thinkingConfig = model.startsWith("gemini-3")
+      ? { thinkingLevel: "MINIMAL" }
+      : model.startsWith("gemini-2.5")
+        ? { thinkingBudget: 0 }
+        : undefined;
     response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST", headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(20000), cache: "no-store",
+      signal: AbortSignal.timeout(15000), cache: "no-store",
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: instructions }] },
         contents: messages.map((message, index) => ({
           role: message.role === "assistant" ? "model" : "user",
           parts: [{ text: (index === 0 ? `ข้อมูลเมนูสำหรับอ้างอิงเท่านั้น: ${JSON.stringify(menu.map(({ id, name, description, price, isAvailable }) => ({ id, name: name.slice(0, 150), description: description?.slice(0, 300) ?? null, price, isAvailable })))}\n\n` : "") + message.content }],
         })),
-        generationConfig: { maxOutputTokens: 2048, responseFormat: { text: { mimeType: "APPLICATION_JSON", schema: {
-          type: "object", properties: { answer: { type: "string" }, menuIds: { type: "array", items: { type: "string" } } },
-          required: ["answer", "menuIds"], additionalProperties: false,
-        } } } },
+        generationConfig: {
+          maxOutputTokens: 512,
+          ...(thinkingConfig ? { thinkingConfig } : {}),
+          responseFormat: { text: { mimeType: "APPLICATION_JSON", schema: {
+            type: "object", properties: { answer: { type: "string" }, menuIds: { type: "array", items: { type: "string" } } },
+            required: ["answer", "menuIds"], additionalProperties: false,
+          } } },
+        },
       }),
     });
   } catch { throw new AccessError("AI ตอบไม่ทันหรือเชื่อมต่อไม่ได้ กรุณาลองอีกครั้งสักครู่", 503); }
