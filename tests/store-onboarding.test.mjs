@@ -14,8 +14,8 @@ function form(input) {
 const valid = { name: "Cafe", slug: "new-cafe" };
 
 for (const [field, value] of [
-  ["name", " "], ["name", "a".repeat(201)], ["name", 123],
-  ["slug", "a".repeat(201)], ["slug", 123], ["slug", null], ["slug", "!!!"],
+  ["name", " "], ["name", "a".repeat(101)], ["name", 123],
+  ["slug", "a".repeat(101)], ["slug", 123], ["slug", null], ["slug", "!!!"],
   ["openingTime", "25:99"], ["openingTime", "9:30"], ["openingTime", ""],
   ["closingTime", "invalid"], ["closingTime", null], ["closingTime", 1800],
   ["promptpayNumber", "not-a-number"], ["promptpayNumber", "1234567890"], ["promptpayNumber", 123],
@@ -33,7 +33,7 @@ for (const [field, value] of [
 }
 
 test("onboarding rejects malformed payloads and File values in FormData", async () => {
-  for (const input of [null, undefined, [], "Cafe", {}, form({ ...valid, slug: "a".repeat(201) }),
+  for (const input of [null, undefined, [], "Cafe", {}, form({ ...valid, slug: "a".repeat(101) }),
     form({ ...valid, openingTime: "25:99" }), form({ ...valid, promptpayNumber: "abc" }),
     ...["name", "slug", "openingTime", "closingTime", "promptpayNumber", "logoUrl"].map(key =>
       form({ ...valid, [key]: new File(["abc"], "value.txt") }))]) {
@@ -63,19 +63,19 @@ test("object and FormData creation normalize valid values and allow overnight ho
   }
 });
 
-test("200-character names and explicit or generated slugs work with onboarding defaults", async () => {
-  for (const slug of ["a".repeat(200), "", undefined]) {
+test("100-character names and explicit or generated slugs work with onboarding defaults", async () => {
+  for (const slug of ["a".repeat(100), "", undefined]) {
     const f = setup();
-    const result = await f.createStoreOnboarding({ name: "a".repeat(200), slug });
+    const result = await f.createStoreOnboarding({ name: "a".repeat(100), slug });
     assert.equal(result.success, true);
     const store = f.state.stores.at(-1);
-    assert.equal(store.slug, "a".repeat(200));
+    assert.equal(store.slug, "a".repeat(100));
     assert.equal(store.openingTime, "08:00");
     assert.equal(store.closingTime, "18:00");
     assert.equal(store.promptPayNumber, null);
   }
   const f = setup();
-  assert.equal((await f.createStoreOnboarding({ name: "a".repeat(201), slug: "" })).success, false);
+  assert.equal((await f.createStoreOnboarding({ name: "a".repeat(101), slug: "" })).success, false);
   assert.equal(f.writes.length, 0);
 });
 
@@ -84,7 +84,7 @@ test("Thai names, generated fallback slugs and optional PromptPay identifiers re
     const f = setup();
     const result = await f.createStoreOnboarding({ name, slug: "", promptpayNumber });
     assert.equal(result.success, true);
-    assert.ok(result.store.slug.length > 0 && result.store.slug.length <= 200);
+    assert.ok(result.store.slug.length > 0 && result.store.slug.length <= 100);
     assert.equal(result.store.promptPayNumber, promptpayNumber || null);
     if (name === "ร้านกาแฟ") assert.equal(result.store.slug, name);
   }
@@ -92,10 +92,10 @@ test("Thai names, generated fallback slugs and optional PromptPay identifiers re
 
 test("slug availability uses the same limit and normalization as creation", async () => {
   const f = setup();
-  for (const slug of ["a".repeat(201), "", "!!!", null, undefined, 123]) {
+  for (const slug of ["a".repeat(101), "", "!!!", null, undefined, 123]) {
     assert.equal((await f.checkSlugAvailability(slug)).available, false);
   }
-  assert.equal((await f.checkSlugAvailability("a".repeat(200))).available, true);
+  assert.equal((await f.checkSlugAvailability("a".repeat(100))).available, true);
   assert.equal((await f.checkSlugAvailability(" CAFE A ")).available, false);
   assert.equal((await f.checkSlugAvailability(" My Cafe ")).slug, "my-cafe");
 });

@@ -6,11 +6,11 @@ export function validateStoreSettings(input: unknown) {
   const body = input as Record<string, unknown>;
   const values: { name?: string; slug?: string; promptPayNumber?: string | null; openingTime?: string; closingTime?: string; currency?: string } = {};
   if (body.name !== undefined) {
-    if (typeof body.name !== "string" || !body.name.trim() || body.name.trim().length > 200) throw new AccessError("กรุณาระบุชื่อร้าน 1–200 ตัวอักษร", 400);
+    if (typeof body.name !== "string" || !body.name.trim() || body.name.trim().length > 100) throw new AccessError("กรุณาระบุชื่อร้าน 1–100 ตัวอักษร", 400);
     values.name = body.name.trim();
   }
   if (body.slug !== undefined) {
-    if (typeof body.slug !== "string" || body.slug.length > 200) throw new AccessError("URL ร้านต้องยาวไม่เกิน 200 ตัวอักษร", 400);
+    if (typeof body.slug !== "string" || body.slug.length > 100) throw new AccessError("URL ร้านต้องยาวไม่เกิน 100 ตัวอักษร", 400);
     const slug = body.slug.trim().toLowerCase().replace(/[^\u0E00-\u0E7Fa-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
     if (!slug) throw new AccessError("กรุณาระบุ URL ร้าน", 400);
     // Reserve the internal store ID namespace, including normalized uppercase input.

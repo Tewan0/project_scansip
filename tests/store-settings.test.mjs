@@ -22,7 +22,7 @@ function setup(role = "owner", cleanupFails = false) {
 }
 
 test("settings reject malformed fields before writing or deleting the existing logo", async () => {
-  for (const input of [null, [], "settings", {name:" "}, {name:"a".repeat(201)}, {name:5}, {openingTime:"25:99"}, {closingTime:null}, {closingTime:"9:30"}, {promptPayNumber:"abc"}, {promptPayNumber:123}, {promptPayNumber:"1234567890"}, {currency:"USD"}, {slug:""}, {slug:"a".repeat(201)}, {logoUrl:"foreign"}]) {
+  for (const input of [null, [], "settings", {name:" "}, {name:"a".repeat(101)}, {name:5}, {openingTime:"25:99"}, {closingTime:null}, {closingTime:"9:30"}, {promptPayNumber:"abc"}, {promptPayNumber:123}, {promptPayNumber:"1234567890"}, {currency:"USD"}, {slug:""}, {slug:"a".repeat(101)}, {logoUrl:"foreign"}]) {
     const f = setup();
     const body = input && typeof input === "object" && !Array.isArray(input) ? {logoUrl:null, ...input} : input;
     assert.equal((await f.put(request(body))).status, 400, JSON.stringify(input));
@@ -39,6 +39,7 @@ test("settings normalize values, allow overnight hours and preserve omitted fiel
   assert.equal(store.name, "Cafe updated"); assert.equal(store.promptPayNumber,"0891234567");
   assert.equal(store.logoUrl,"old-logo"); assert.equal(store.slug,"cafe-a");
   assert.equal(store.closingTime,"02:00"); assert.equal(f.removed.length,0);
+  assert.equal((await f.put(request({ name: "ก".repeat(100), slug: "ก".repeat(100) }))).status, 200);
   assert.equal((await f.put(request({promptPayNumber:"1234567890123"}))).status,200);
   assert.equal((await f.put(request({promptPayNumber:""}))).status,200);
   assert.equal(f.state.stores[0].promptPayNumber,null);
@@ -101,6 +102,9 @@ test("removing a logo in the actual settings form makes no DELETE request and sa
     return backend.put(new Request("http://localhost/api/store",options));
   });
   let tree=await page.ready();
+  assert.equal(nodes(tree).find(n=>n.props.id==="store-name").props.maxLength,100);
+  assert.equal(nodes(tree).find(n=>n.props.id==="store-slug").props.maxLength,100);
+  assert.match(text(tree),/จำกัดความยาวไม่เกิน 100 ตัวอักษร/);
   nodes(tree).find(n=>n.type==="Button"&&text(n)==="ลบรูปภาพ").props.onClick();
   assert.equal(calls.length,1);assert.equal(backend.state.stores[0].logoUrl,"old-logo");
   tree=page.render();await nodes(tree).find(n=>n.type==="form").props.onSubmit({preventDefault(){}});

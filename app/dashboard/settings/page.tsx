@@ -71,7 +71,8 @@ export default function SettingsPage() {
       .trim()
       .toLowerCase()
       .replace(/[^\u0E00-\u0E7Fa-zA-Z0-9_-]+/g, "-")
-      .replace(/^-+|-+$/g, "");
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 100);
   };
 
   useEffect(() => {
@@ -376,26 +377,40 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             {/* Store Name */}
             <div className="space-y-1.5">
-              <Label htmlFor="store-name" className="text-xs flex items-center gap-1.5">
-                <Store className="size-3.5 text-muted-foreground" />
-                <span>ชื่อร้านค้า *</span>
-              </Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="store-name" className="text-xs flex items-center gap-1.5">
+                  <Store className="size-3.5 text-muted-foreground" />
+                  <span>ชื่อร้านค้า *</span>
+                </Label>
+                <span className="text-[11px] text-muted-foreground">
+                  {storeName.length}/100 ตัวอักษร
+                </span>
+              </div>
               <Input
                 id="store-name"
                 required
+                maxLength={100}
                 value={storeName}
                 onChange={(e) => setStoreName(e.target.value)}
                 placeholder="เช่น ScanSip Cafe & Roastery"
                 className="h-9 text-xs"
               />
+              <p className="text-[11px] text-muted-foreground">
+                จำกัดความยาวไม่เกิน 100 ตัวอักษร
+              </p>
             </div>
 
             {/* Store URL Slug */}
             <div className="space-y-1.5">
-              <Label htmlFor="store-slug" className="text-xs flex items-center gap-1.5">
-                <Globe className="size-3.5 text-muted-foreground" />
-                <span>URL Slug ของร้าน *</span>
-              </Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="store-slug" className="text-xs flex items-center gap-1.5">
+                  <Globe className="size-3.5 text-muted-foreground" />
+                  <span>URL Slug ของร้าน *</span>
+                </Label>
+                <span className="text-[11px] text-muted-foreground">
+                  {slug.length}/100 ตัวอักษร
+                </span>
+              </div>
               <div className="flex items-center gap-2">
                 <div className="flex flex-wrap items-center gap-y-2 w-full min-w-0 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
                   <span className="text-muted-foreground select-none">project-scansip.vercel.app/r/</span>
@@ -403,6 +418,7 @@ export default function SettingsPage() {
                     id="store-slug"
                     type="text"
                     required
+                    maxLength={100}
                     value={slug}
                     onChange={handleSlugChange}
                     className="min-w-24 w-24 flex-1 bg-transparent font-mono text-foreground outline-none font-semibold pl-1"
@@ -423,6 +439,9 @@ export default function SettingsPage() {
                   )}
                 </div>
               </div>
+              <p className="text-[11px] text-muted-foreground">
+                จำกัดความยาวไม่เกิน 100 ตัวอักษร
+              </p>
               {slugError && (
                 <p className="text-xs text-destructive">{slugError}</p>
               )}

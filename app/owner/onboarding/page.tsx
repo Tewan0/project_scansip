@@ -120,7 +120,8 @@ export default function OwnerOnboardingPage() {
       .trim()
       .toLowerCase()
       .replace(/[^\u0E00-\u0E7Fa-zA-Z0-9_-]+/g, "-")
-      .replace(/^-+|-+$/g, "");
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 100);
   };
 
   // Auto-generate slug as store name changes if not manually edited
@@ -273,18 +274,27 @@ export default function OwnerOnboardingPage() {
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Store Name */}
               <div className="space-y-1.5">
-                <Label className="flex items-center gap-1.5 text-xs font-semibold">
-                  <Store className="w-3.5 h-3.5 text-primary" />
-                  ชื่อร้านค้า <span className="text-destructive">*</span>
-                </Label>
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="flex items-center gap-1.5 text-xs font-semibold">
+                    <Store className="w-3.5 h-3.5 text-primary" />
+                    ชื่อร้านค้า <span className="text-destructive">*</span>
+                  </Label>
+                  <span className="text-[11px] text-muted-foreground">
+                    {storeName.length}/100 ตัวอักษร
+                  </span>
+                </div>
                 <Input
                   type="text"
                   required
+                  maxLength={100}
                   placeholder="เช่น Slow Bar Coffee, กาแฟริมทาง"
                   value={storeName}
                   onChange={handleStoreNameChange}
                   className="h-10 text-sm"
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  จำกัดความยาวไม่เกิน 100 ตัวอักษร
+                </p>
               </div>
 
               {/* Store Slug */}
@@ -311,31 +321,32 @@ export default function OwnerOnboardingPage() {
                   )}
                 </div>
 
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-xs text-muted-foreground font-mono select-none">
-                    scansip.com/r/
-                  </div>
-                  <Input
+                <div
+                  className={`flex items-center w-full min-w-0 h-10 rounded-lg border border-input bg-transparent dark:bg-input/30 px-3 text-sm transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 ${
+                    slugStatus === "unavailable"
+                      ? "border-destructive focus-within:border-destructive focus-within:ring-destructive/30"
+                      : slugStatus === "available"
+                      ? "border-emerald-500 focus-within:border-emerald-500 focus-within:ring-emerald-500/30"
+                      : ""
+                  }`}
+                >
+                  <span className="text-xs text-muted-foreground font-mono select-none shrink-0">
+                    project-scansip.vercel.app/r/
+                  </span>
+                  <input
                     type="text"
                     required
+                    maxLength={100}
                     placeholder="my-coffee-shop"
                     value={slug}
                     onChange={handleSlugChange}
-                    className={`pl-28 font-mono text-sm h-10 ${
-                      slugStatus === "unavailable"
-                        ? "border-destructive focus-visible:ring-destructive/30"
-                        : slugStatus === "available"
-                        ? "border-emerald-500 focus-visible:ring-emerald-500/30"
-                        : ""
-                    }`}
+                    className="min-w-0 flex-1 bg-transparent pl-1 font-mono text-sm text-foreground placeholder:text-muted-foreground outline-none"
                   />
                 </div>
-                <p className="text-[11px] text-muted-foreground">
-                  ใช้สำหรับสร้างลิงก์หน้าสั่งอาหารของลูกค้า เช่น{" "}
-                  <code className="text-foreground bg-muted px-1 py-0.5 rounded text-[11px]">
-                    scansip.com/r/{slug || "your-slug"}
-                  </code>
-                </p>
+                <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                  <p>จำกัดความยาวไม่เกิน 100 ตัวอักษร</p>
+                  <span className="shrink-0">{slug.length}/100 ตัวอักษร</span>
+                </div>
               </div>
 
               {/* PromptPay Number */}
