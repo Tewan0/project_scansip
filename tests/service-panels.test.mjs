@@ -18,6 +18,8 @@ function panel(file, name, props, fetch, globals = {}) {
   const router = { replace() {} };
   const f = fixture("anonymous", { react, "next/navigation": { useRouter: () => router }, "next/link": { default: "Link" },
     "@/components/service-request-board": { ServiceRequestBoard: "ServiceRequestBoard" },
+    "@/hooks/use-confirmation": { useConfirmation: () => ({ confirm: async () => true, confirmationDialog: null }) },
+    "@/components/ui/input": { Input: "Input" },
     "@/components/ui/card": Object.fromEntries(["Card", "CardHeader", "CardTitle", "CardDescription", "CardContent", "CardFooter"].map(name => [name, name])),
     "@/components/ui/table": Object.fromEntries(["Table", "TableHeader", "TableBody", "TableHead", "TableRow", "TableCell"].map(name => [name, name])),
     "@/components/ui/skeleton": { Skeleton: "Skeleton" },
@@ -437,5 +439,66 @@ test("each completed staff mutation refreshes even while another mutation refres
     reads[2](Response.json({ success: true, data: [] })); await flushReads();
     reads[1](Response.json({ success: true, data: [requests[1]] })); await flushReads();
     assert.ok(text(page.render()).includes("ไม่มีคำขอที่รออยู่"));
+  } finally { page.dispose(); }
+});
+
+
+const floorTable = { id: "table-one", tableNumber: 1, status: "available", currentSessionToken: null, currentQrToken: null, qrExpiresAt: null, sessionStartedAt: null };
+const floorResult = (table = floorTable) => ({ success: true, data: [table], canManageTables: true, store: { slug: "cafe-a", name: "Cafe A" } });
+
+test("floor plan accepts slow reads, releases failed reads and clears recovered read errors", async () => {
+  let tick; const reads = [];
+  const page = panel("app/dashboard/tables/page.tsx", "default", {}, () => new Promise((resolve, reject) => reads.push({ resolve, reject })),
+    { setInterval(fn) { tick = fn; return 1; } });
+  try {
+    await page.ready(); tick(); tick();
+    assert.equal(reads.length, 1);
+    reads[0].resolve(Response.json(floorResult())); await flushReads();
+    assert.ok(text(page.render()).includes("โต๊ะ 01"));
+    tick(); reads[1].resolve(Response.json({ success: false, error: "read outage" }, { status: 500 })); await flushReads();
+    assert.ok(text(page.render()).includes("read outage"));
+    tick(); reads[2].resolve(Response.json(floorResult())); await flushReads();
+    assert.equal(text(page.render()).includes("read outage"), false);
+  } finally { page.dispose(); }
+});
+
+test("floor plan pauses hidden/offline polls, refreshes on resume and removes listeners", async () => {
+  let tick, calls = 0; const listeners = new Map();
+  const events = { addEventListener: (name, fn) => listeners.set(name, fn), removeEventListener: name => listeners.delete(name) };
+  const document = { ...events, visibilityState: "visible" }, navigator = { onLine: true };
+  const page = panel("app/dashboard/tables/page.tsx", "default", {}, async () => { calls++; return Response.json(floorResult()); },
+    { document, navigator, window: events, setInterval(fn) { tick = fn; return 1; } });
+  try {
+    await page.ready(); assert.equal(calls, 1);
+    document.visibilityState = "hidden"; tick(); assert.equal(calls, 1);
+    document.visibilityState = "visible"; navigator.onLine = false; tick(); assert.equal(calls, 1);
+    navigator.onLine = true; listeners.get("online")(); await flushReads(); assert.equal(calls, 2);
+    listeners.get("visibilitychange")(); await flushReads(); assert.equal(calls, 3);
+  } finally { page.dispose(); }
+  assert.equal(listeners.size, 0);
+});
+
+test("floor plan refresh after opening a table bypasses old polls and keeps action failures visible", async () => {
+  let tick, fail = false; const reads = [];
+  const occupied = { ...floorTable, status: "occupied", currentSessionToken: "round-new", sessionStartedAt: new Date().toISOString() };
+  const page = panel("app/dashboard/tables/page.tsx", "default", {}, (_url, options) => {
+    if (options.method === "POST") return Promise.resolve(fail ? Response.json({ success: false, error: "action failed" }, { status: 500 }) : Response.json({ success: true, data: occupied }));
+    return new Promise(resolve => reads.push(resolve));
+  }, { setInterval(fn) { tick = fn; return 1; } });
+  try {
+    await page.ready(); reads[0](Response.json(floorResult())); await flushReads();
+    tick();
+    button(page.render(), "เปิดโต๊ะและสร้าง QR").props.onClick(); await flushReads();
+    assert.equal(reads.length, 3);
+    reads[1](Response.json(floorResult())); await flushReads();
+    tick(); assert.equal(reads.length, 3);
+    reads[2](Response.json(floorResult(occupied))); await flushReads();
+    assert.ok(text(page.render()).includes("กำลังใช้งาน 1"));
+    fail = true;
+    await button(page.render(), " ปิดโต๊ะ").props.onClick(); await flushReads();
+    reads[3](Response.json(floorResult(occupied))); await flushReads();
+    assert.ok(text(page.render()).includes("action failed"), "read success must not hide an action failure");
+    tick(); page.dispose(); reads[4](Response.json(floorResult())); await flushReads();
+    assert.ok(text(page.render()).includes("กำลังใช้งาน 1"));
   } finally { page.dispose(); }
 });

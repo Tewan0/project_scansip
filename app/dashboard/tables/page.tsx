@@ -1,4 +1,5 @@
 "use client";
+import { startVisiblePolling } from "@/lib/visible-polling";
 import { useConfirmation } from "@/hooks/use-confirmation";
 import { ServiceRequestBoard } from "@/components/service-request-board";
 import Link from "next/link";
@@ -43,15 +44,19 @@ export default function TablesManagementPage() {
   const [activeQrTable, setActiveQrTable] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const [now, setNow] = useState(() => Date.now());
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setError] = useState<string | null>(null);
+  const [readError, setReadError] = useState<string | null>(null);
+  const error = actionError ?? readError;
   const [notice, setNotice] = useState<string | null>(null);
   const busy = useRef(false);
-  const requests = useRef({ version: 0 });
+  const requests = useRef({ version: 0, mounted: false });
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const pendingRead = useRef<number | null>(null);
   const fetchTables = useCallback(async () => {
-    if (busy.current) return;
+    if (!requests.current.mounted || busy.current || pendingRead.current === requests.current.version) return;
     const version = ++requests.current.version;
+    pendingRead.current = version;
     try {
       const res = await fetch("/api/tables", { cache: "no-store" });
       const json = await res.json();
@@ -63,25 +68,29 @@ export default function TablesManagementPage() {
         }
         throw new Error(json.error || "โหลดผังโต๊ะไม่สำเร็จ");
       }
+      setReadError(null);
       setTables(uniqueTables(json.data || []));
       setNow(Date.now());
       setStoreSlug(json.store?.slug || json.store?.id || "");
       setStoreName(json.store?.name || "");
       setCanManageTables(json.canManageTables === true);
     } catch (err) {
-      if (version === requests.current.version) setError(err instanceof Error ? err.message : "ไม่สามารถเชื่อมต่อได้ กรุณาลองใหม่");
+      if (version === requests.current.version) setReadError(err instanceof Error ? err.message : "ไม่สามารถเชื่อมต่อได้ กรุณาลองใหม่");
     } finally {
+      if (pendingRead.current === version) pendingRead.current = null;
       if (version === requests.current.version) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
     const requestState = requests.current;
+    requestState.mounted = true;
     const initialLoad = setTimeout(() => void fetchTables(), 0);
-    const interval = setInterval(() => { setNow(Date.now()); void fetchTables(); }, 10000);
+    const stopPolling = startVisiblePolling(() => { setNow(Date.now()); void fetchTables(); }, 10000);
     return () => {
       clearTimeout(initialLoad);
-      clearInterval(interval);
+      stopPolling();
+      requestState.mounted = false;
       requestState.version++;
       if (copyTimer.current) clearTimeout(copyTimer.current);
     };
@@ -117,6 +126,7 @@ export default function TablesManagementPage() {
         body: JSON.stringify({ action, ...fields }),
       });
       const json = await res.json();
+      if (!requests.current.mounted) return;
       if (!res.ok || !json.success) throw new Error(json.error || "บันทึกไม่สำเร็จ");
       if (action === "sync_tables") {
         setTables(uniqueTables(json.data));
