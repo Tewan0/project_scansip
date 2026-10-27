@@ -4,13 +4,13 @@ import { fixture } from "./helpers.mjs";
 
 const geminiReply = (answer = "ลองชาในรายการนี้ได้ครับ", menuIds = ["tea-a", "foreign", "soldout", "tea-a"]) => ({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: JSON.stringify({ answer, menuIds }) }] } }] });
 
-function setup({ key = "test-key-never-used-on-network", provider, model, abortSignal = AbortSignal, wait, clock = Date } = {}) {
+function setup({ key = "test-key-never-used-on-network", provider, model, fallbackModel, abortSignal = AbortSignal, wait, clock = Date } = {}) {
   const calls = [], logs = [], waits = [];
   const f = fixture("anonymous", { "node:timers/promises": { setTimeout: async (ms, value, options) => {
     waits.push({ ms, signal: options.signal });
     options.signal.throwIfAborted();
     if (wait) await wait(ms, value, options);
-  } } }, { Date: clock, process: { env: { GEMINI_AI_API_KEY: key, GEMINI_MODEL: model } }, AbortSignal: abortSignal, TextEncoder,
+  } } }, { Date: clock, process: { env: { GEMINI_AI_API_KEY: key, GEMINI_MODEL: model, GEMINI_FALLBACK_MODEL: fallbackModel } }, AbortSignal: abortSignal, TextEncoder,
     console: { ...console, info: (...args) => logs.push(args), warn: (...args) => logs.push(args) },
     fetch: async (url, options) => {
       calls.push({ url, ...options });
@@ -253,12 +253,12 @@ test("normal nine-message Thai chat history still reaches the provider through t
 });
 
 test("chat diagnostics distinguish provider HTTP failures and exclude private data", async () => {
-  const f = setup({ provider: async () => Response.json({ error: { message: "secret-provider-body" } }, { status: 404 }) });
+  const f = setup({ provider: async () => Response.json({ error: { message: "secret-provider-body" } }, { status: 401 }) });
   const response = await f.ask(); assert.equal(response.status, 503);
   const requestId = response.headers.get("x-chat-request-id");
   assert.match(requestId, /^[a-f0-9-]{36}$/);
   const providerLog = f.logs.find(([event]) => event === "[customer-ai]")[1];
-  assert.equal(providerLog.code, "AI_PROVIDER_HTTP"); assert.equal(providerLog.httpStatus, 404);
+  assert.equal(providerLog.code, "AI_PROVIDER_HTTP"); assert.equal(providerLog.httpStatus, 401);
   assert.equal(providerLog.model, "gemini-3.1-flash-lite"); assert.equal(providerLog.requestId, requestId);
   const serialized = JSON.stringify(f.logs) + await response.text();
   for (const secret of ["test-key-never-used-on-network", "round-a", "แนะนำชา", "secret-provider-body", "secret other shop"]) {
@@ -289,7 +289,7 @@ test("successful chat logs each phase without logging conversation contents", as
 });
 
 
-test("503 retries once after backoff, releases the error body and charges the question quota once", async () => {
+test("503 switches to a different model once, releases the error body and charges the question quota once", async () => {
   let attempts = 0, cancelled = false;
   const timeouts = [];
   const f = setup({ abortSignal: { timeout(ms) { timeouts.push(ms); return AbortSignal.timeout(ms); } },
@@ -306,11 +306,16 @@ test("503 retries once after backoff, releases the error body and charges the qu
   assert.equal(f.calls[0].signal, f.calls[1].signal);
   assert.equal(f.calls[0].signal, f.waits[0].signal);
   assert.equal(f.calls[0].body, f.calls[1].body);
-  assert.equal(f.calls[0].url, f.calls[1].url);
+  assert.match(f.calls[0].url, /gemini-3\.1-flash-lite:generateContent$/);
+  assert.match(f.calls[1].url, /gemini-3\.5-flash-lite:generateContent$/);
   assert.equal(f.state.chatRateLimits.length, 2);
   assert.ok(f.state.chatRateLimits.every(row => row.count === 1));
-  const retries = f.logs.filter(([, entry]) => entry.event === "retry");
+  const retries = f.logs.filter(([, entry]) => entry.event === "fallback");
   assert.equal(retries.length, 1); assert.equal(retries[0][1].attempt, 2);
+  assert.equal(retries[0][1].fromModel, "gemini-3.1-flash-lite");
+  assert.equal(retries[0][1].toModel, "gemini-3.5-flash-lite");
+  const success = f.logs.find(([, entry]) => entry.event === "success")[1];
+  assert.equal(success.model, "gemini-3.5-flash-lite"); assert.equal(success.attempt, 2);
   for (const secret of ["test-key-never-used-on-network", "round-a", "แนะนำชา"]) {
     assert.equal(JSON.stringify(f.logs).includes(secret), false);
   }
@@ -322,12 +327,13 @@ test("repeated 503 stops after the second attempt and preserves safe diagnostics
   assert.equal(response.status, 503); assert.equal(f.calls.length, 2); assert.equal(f.waits.length, 1);
   const failure = f.logs.find(([, entry]) => entry.code === "AI_PROVIDER_HTTP")[1];
   assert.equal(failure.httpStatus, 503); assert.equal(failure.attempt, 2);
+  assert.equal(failure.model, "gemini-3.5-flash-lite");
   assert.equal(failure.requestId, response.headers.get("x-chat-request-id"));
   assert.equal((JSON.stringify(f.logs) + await response.text()).includes("upstream-secret"), false);
 });
 
-test("only provider 503 is retried; authentication, quota and other failures are not", async () => {
-  for (const status of [400, 401, 403, 404, 429, 500, 502, 504]) {
+test("client errors and quota failures do not trigger model fallback", async () => {
+  for (const status of [400, 401, 403, 422, 429]) {
     const f = setup({ provider: async () => Response.json({}, { status }) });
     assert.equal((await f.ask()).status, status === 429 ? 429 : 503);
     assert.equal(f.calls.length, 1, String(status)); assert.equal(f.waits.length, 0);
@@ -394,4 +400,56 @@ test("a table closing during retry backoff still discards the eventual AI answer
   const response = await f.ask();
   assert.equal(response.status, 403); assert.equal((await response.json()).sessionExpired, true);
   assert.equal(f.calls.length, 2);
+});
+
+
+test("missing models and transient HTTP failures switch models, never exceeding two attempts", async () => {
+  for (const status of [404, 500, 502, 503, 504]) {
+    let count = 0;
+    const f = setup({ provider: async () => ++count === 1 ? new Response(null, { status }) : Response.json(geminiReply()) });
+    assert.equal((await f.ask()).status, 200); assert.equal(f.calls.length, 2);
+    assert.notEqual(f.calls[0].url, f.calls[1].url);
+    assert.equal(f.logs.find(([, e]) => e.event === "fallback")[1].httpStatus, status);
+  }
+});
+
+test("the newer primary model defaults to a distinct backup without a fallback loop", async () => {
+  const f = setup({ model: "gemini-3.5-flash-lite", provider: async () => new Response(null, { status: 503 }) });
+  assert.equal((await f.ask()).status, 503); assert.equal(f.calls.length, 2);
+  assert.match(f.calls[0].url, /gemini-3\.5-flash-lite:generateContent$/);
+  assert.match(f.calls[1].url, /gemini-3\.1-flash-lite:generateContent$/);
+});
+
+test("blank or duplicate fallback settings disable the second request", async () => {
+  for (const fallbackModel of ["", "   ", "gemini-3.1-flash-lite"]) {
+    const f = setup({ fallbackModel, provider: async () => new Response(null, { status: 503 }) });
+    assert.equal((await f.ask()).status, 503); assert.equal(f.calls.length, 1); assert.equal(f.waits.length, 0);
+  }
+});
+
+test("configured backup uses its own model settings and keeps credentials at the Google host", async () => {
+  let count = 0;
+  const f = setup({ fallbackModel: " gemini-2.5-flash-lite ", provider: async () => ++count === 1
+    ? new Response(null, { status: 503 }) : Response.json(geminiReply()) });
+  assert.equal((await f.ask()).status, 200);
+  assert.match(f.calls[1].url, /gemini-2\.5-flash-lite:generateContent$/);
+  assert.deepEqual(JSON.parse(f.calls[1].body).generationConfig.thinkingConfig, { thinkingBudget: 0 });
+  assert.equal(new URL(f.calls[1].url).origin, "https://generativelanguage.googleapis.com");
+  assert.equal(f.calls[1].headers["x-goog-api-key"], "test-key-never-used-on-network");
+  assert.equal(f.calls[0].signal, f.calls[1].signal);
+});
+
+test("blocked or malformed primary answers do not fall back to another model", async () => {
+  for (const result of [{ promptFeedback: { blockReason: "SAFETY" } }, { candidates: [] }]) {
+    const f = setup({ provider: async () => Response.json(result) });
+    assert.equal((await f.ask()).status, 503); assert.equal(f.calls.length, 1); assert.equal(f.waits.length, 0);
+  }
+});
+
+test("fallback responses retain menu filtering and rejection of malformed provider output", async () => {
+  let count = 0;
+  const f = setup({ provider: async () => ++count === 1 ? new Response(null, { status: 503 })
+    : Response.json(geminiReply("answer", [123])) });
+  assert.equal((await f.ask()).status, 503); assert.equal(f.calls.length, 2);
+  assert.equal(f.logs.find(([, e]) => e.code === "AI_INVALID_RESPONSE")[1].model, "gemini-3.5-flash-lite");
 });

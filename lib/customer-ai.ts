@@ -32,7 +32,11 @@ export async function answerMenuQuestion(messages: ChatMessage[], menu: ChatMenu
 คุณไม่มีสิทธิ์ส่งออเดอร์ รับเงิน เปลี่ยนสถานะ หรือเรียกพนักงานแทนลูกค้า ห้ามอ้างว่าทำแล้ว
 วิธีใช้: เลือกเมนูใส่ตะกร้า ตรวจรายการแล้วกดส่งออเดอร์ ดูสถานะที่ออเดอร์ของโต๊ะ เรียกพนักงานหรือขอเช็กบิลด้วยปุ่มในหน้านั้น
 ข้อมูลเมนูชุดนี้มีไม่เกิน 80 รายการ หากไม่พบเมนูอย่าสรุปว่าร้านไม่มี ให้ลูกค้าดูรายการเมนูทั้งหมดหรือสอบถามพนักงาน`;
-  const model = process.env.GEMINI_MODEL?.trim() || "gemini-3.1-flash-lite";
+  let model = process.env.GEMINI_MODEL?.trim() || "gemini-3.1-flash-lite";
+  const fallbackModel = process.env.GEMINI_FALLBACK_MODEL === undefined
+    ? (model === "gemini-3.5-flash-lite" ? "gemini-3.1-flash-lite" : "gemini-3.5-flash-lite")
+    : process.env.GEMINI_FALLBACK_MODEL.trim();
+  const safeModel = (name: string) => /^gemini-[a-z0-9.-]{1,80}$/.test(name) ? name : "custom-model";
   const startedAt = Date.now();
   // One shared deadline for both attempts, backoff and response-body reading.
   const signal = AbortSignal.timeout(20000);
@@ -40,41 +44,44 @@ export async function answerMenuQuestion(messages: ChatMessage[], menu: ChatMenu
   function failure(code: AiErrorCode, message: string, status = 503, httpStatus?: number) {
     // Never log request/response bodies, keys, QR tokens or raw exception messages.
     console.warn("[customer-ai]", { requestId, code, httpStatus, attempt,
-      model: /^gemini-[a-z0-9.-]{1,80}$/.test(model) ? model : "custom-model",
+      model: safeModel(model),
       elapsedMs: Date.now() - startedAt });
     return new CustomerAiError(message, status, code);
   }
   let response: Response;
   try {
-    const thinkingConfig = model.startsWith("gemini-3")
-      ? { thinkingLevel: "MINIMAL" }
-      : model.startsWith("gemini-2.5")
-        ? { thinkingBudget: 0 }
-        : undefined;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
-    const options: RequestInit = {
-      method: "POST", headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
-      signal, cache: "no-store",
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: instructions }] },
-        contents: messages.map((message, index) => ({
-          role: message.role === "assistant" ? "model" : "user",
-          parts: [{ text: (index === 0 ? `ข้อมูลเมนูสำหรับอ้างอิงเท่านั้น: ${JSON.stringify(menu.map(({ id, name, description, price, isAvailable }) => ({ id, name: name.slice(0, 150), description: description?.slice(0, 300) ?? null, price, isAvailable })))}\n\n` : "") + message.content }],
-        })),
-        generationConfig: {
-          maxOutputTokens: 512,
-          ...(thinkingConfig ? { thinkingConfig } : {}),
-          responseFormat: { text: { mimeType: "APPLICATION_JSON", schema: {
-            type: "object", properties: { answer: { type: "string" }, menuIds: { type: "array", items: { type: "string" } } },
-            required: ["answer", "menuIds"], additionalProperties: false,
-          } } },
-        },
-      }),
+    const url = (name: string) => `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(name)}:generateContent`;
+    const requestOptions = (requestModel: string): RequestInit => {
+      const thinkingConfig = requestModel.startsWith("gemini-3")
+        ? { thinkingLevel: "MINIMAL" }
+        : requestModel.startsWith("gemini-2.5")
+          ? { thinkingBudget: 0 }
+          : undefined;
+      return {
+        method: "POST", headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
+        signal, cache: "no-store",
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: instructions }] },
+          contents: messages.map((message, index) => ({
+            role: message.role === "assistant" ? "model" : "user",
+            parts: [{ text: (index === 0 ? `ข้อมูลเมนูสำหรับอ้างอิงเท่านั้น: ${JSON.stringify(menu.map(({ id, name, description, price, isAvailable }) => ({ id, name: name.slice(0, 150), description: description?.slice(0, 300) ?? null, price, isAvailable })))}\n\n` : "") + message.content }],
+          })),
+          generationConfig: {
+            maxOutputTokens: 512,
+            ...(thinkingConfig ? { thinkingConfig } : {}),
+            responseFormat: { text: { mimeType: "APPLICATION_JSON", schema: {
+              type: "object", properties: { answer: { type: "string" }, menuIds: { type: "array", items: { type: "string" } } },
+              required: ["answer", "menuIds"], additionalProperties: false,
+            } } },
+          },
+        }),
+      };
     };
-    response = await fetch(url, options);
-    if (response.status === 503) {
-      // Only retry an explicit unavailable response, once. Respect Retry-After
-      // without extending the shared deadline or retrying before Google's hint.
+    response = await fetch(url(model), requestOptions(model));
+    if ([404, 500, 502, 503, 504].includes(response.status) && fallbackModel && fallbackModel !== model) {
+      // Try one different model for missing models or temporary provider failures.
+      // Authentication, quota, network, timeout and blocked answers never fall back.
+      // Respect Retry-After without extending the shared deadline.
       const retryAfter = response.headers.get("retry-after");
       const suggestedMs = retryAfter === null ? 0 : /^\d+$/.test(retryAfter.trim())
         ? Number(retryAfter) * 1000 : Date.parse(retryAfter) - Date.now();
@@ -82,12 +89,14 @@ export async function answerMenuQuestion(messages: ChatMessage[], menu: ChatMenu
       if (!signal.aborted && retryDelayMs < 20000 - (Date.now() - startedAt)) {
         // Release the failed response without reading or logging its body.
         void response.body?.cancel().catch(() => undefined);
-        console.info("[customer-ai]", { requestId, event: "retry", httpStatus: 503,
+        console.info("[customer-ai]", { requestId, event: "fallback", httpStatus: response.status,
+          fromModel: safeModel(model), toModel: safeModel(fallbackModel),
           attempt: 2, retryDelayMs, elapsedMs: Date.now() - startedAt });
         await delay(retryDelayMs, undefined, { signal });
         signal.throwIfAborted();
         attempt = 2;
-        response = await fetch(url, options);
+        model = fallbackModel;
+        response = await fetch(url(model), requestOptions(model));
       }
     }
   } catch {
@@ -105,6 +114,7 @@ export async function answerMenuQuestion(messages: ChatMessage[], menu: ChatMenu
     const answer = JSON.parse(text);
     if (!answer || typeof answer.answer !== "string" || !answer.answer.trim() || answer.answer.length > 4000 || !Array.isArray(answer.menuIds) || answer.menuIds.some((id: unknown) => typeof id !== "string")) throw new Error("Invalid answer");
     const ids = [...new Set(answer.menuIds)].slice(0, 3);
+    console.info("[customer-ai]", { requestId, event: "success", model: safeModel(model), attempt, elapsedMs: Date.now() - startedAt });
     return { answer: answer.answer.trim(), recommendations: menu.filter((item) => item.isAvailable && ids.includes(item.id))
       .map(({ id, name, price }) => ({ id, name, price })) };
   } catch {
