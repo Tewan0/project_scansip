@@ -86,7 +86,7 @@ function KitchenOrderBoard() {
   const [now, setNow] = useState(() => Date.now());
   const previousOrdersRef = useRef<Set<string> | null>(null);
   const working = useRef(new Set<string>());
-  const version = useRef(0);
+  const version = useRef({ value: 0 });
   const mounted = useRef(false);
 
   const handleSoundChange = (type: SoundType) => {
@@ -97,13 +97,13 @@ function KitchenOrderBoard() {
   const pendingRead = useRef<number | null>(null);
   const load = useCallback(async (afterMutation = false) => {
     // Polls share a pending read; each completed mutation needs a fresh snapshot.
-    if (!afterMutation && pendingRead.current === version.current) return;
-    const request = ++version.current;
+    if (!afterMutation && pendingRead.current === version.current.value) return;
+    const request = ++version.current.value;
     pendingRead.current = request;
     try {
       const response = await fetch("/api/orders", { cache: "no-store" });
       const result = await response.json();
-      if (!mounted.current || request !== version.current) return;
+      if (!mounted.current || request !== version.current.value) return;
       if (response.status === 401 || response.status === 403) { setOrders([]); router.replace("/workspace"); return; }
       if (!response.ok || !result.success) throw new Error(result.error || "โหลดออเดอร์ไม่สำเร็จ");
       if (previousOrdersRef.current !== null && soundEnabled) {
@@ -119,22 +119,23 @@ function KitchenOrderBoard() {
       setUpdatedAt(Date.now());
       setOrders(result.data); setError("");
     } catch (error) {
-      if (mounted.current && request === version.current) setError(error instanceof Error ? error.message : "เชื่อมต่อไม่สำเร็จ");
+      if (mounted.current && request === version.current.value) setError(error instanceof Error ? error.message : "เชื่อมต่อไม่สำเร็จ");
     } finally {
       if (pendingRead.current === request) pendingRead.current = null;
-      if (mounted.current && request === version.current) setLoading(false);
+      if (mounted.current && request === version.current.value) setLoading(false);
     }
   }, [router, soundEnabled, selectedSound]);
   useEffect(() => {
+    const generation = version.current;
     mounted.current = true;
     const initial = setTimeout(() => void load(), 0);
     const stopPolling = startVisiblePolling(() => { setNow(Date.now()); if (!working.current.size) void load(); }, 8000);
-    return () => { mounted.current = false; ++version.current; clearTimeout(initial); stopPolling(); };
+    return () => { mounted.current = false; ++generation.value; clearTimeout(initial); stopPolling(); };
   }, [load]);
 
   async function update(id: string, body: Record<string, unknown>) {
     if (working.current.has(id)) return;
-    working.current.add(id); setBusy([...working.current]); ++version.current; setError("");
+    working.current.add(id); setBusy([...working.current]); ++version.current.value; setError("");
     try {
       const response = await fetch("/api/orders/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const result = await response.json();
