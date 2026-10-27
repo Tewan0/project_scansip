@@ -1,5 +1,6 @@
 "use server";
 
+import { cleanupFailedMenuUpload } from "@/lib/menu-upload-cleanup";
 import { db } from "@/db";
 import { menuItems } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -23,22 +24,6 @@ export async function deleteMenuItem(menuItemId: string) {
     return { success: true };
   } catch (error) {
     return { success: false, error: error instanceof AccessError ? error.message : "ไม่สามารถลบเมนูได้", status: error instanceof AccessError ? error.status : 500 };
-  }
-}
-
-// Only clean a new upload after a successful read confirms no menu references it.
-// A failed/ambiguous commit or verification outage must never delete a live image.
-async function cleanupFailedMenuUpload(path: string, imageUrl: string, storeId: string) {
-  try {
-    const referenced = await db.query.menuItems.findFirst({
-      where: and(eq(menuItems.storeId, storeId), eq(menuItems.imageUrl, imageUrl)),
-    });
-    if (referenced) return;
-    const { error } = await createAdminClient().storage.from("menu-photos").remove([path]);
-    if (error) console.error("Failed menu upload cleanup failed:", error);
-  } catch (error) {
-    // Keep the original save error and retain the file when verification is uncertain.
-    console.error("Failed menu upload retained:", error);
   }
 }
 

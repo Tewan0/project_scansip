@@ -336,3 +336,106 @@ test("PromptPay QR payload is generated locally with valid EMVCo TLV and CRC16 f
     assert.equal(text(tree).includes("โหลด QR ไม่สำเร็จ"), false);
   } finally { page.dispose(); }
 });
+
+
+const flushReads = () => new Promise(resolve => setTimeout(resolve, 0));
+const billResult = (bill = sampleBill) => ({ success: true, data: [bill], currentCount: 1, historyCount: 0, page: 1, pageCount: 1 });
+for (const scenario of [
+  { file: "customer-session-panel", name: "CustomerSessionPanel", props, result: { success: true, data: { orders: [order], requests: [] } }, expected: "#ONE" },
+  { file: "bill-board", name: "BillBoard", props: {}, result: billResult(), expected: "B06-ABCDEF" },
+  { file: "order-board", name: "OrderBoard", props: { mode: "kitchen" }, result: { success: true, data: [{ ...order, tableNumber: 1, billNumber: "B01" }] }, expected: "#ONE" },
+  { file: "service-request-board", name: "ServiceRequestBoard", props: {}, result: { success: true, data: [{ id: "slow-request", kind: "bill", tableNumber: 3, createdAt: order.createdAt }] }, expected: "โต๊ะ 3" },
+]) {
+  test(scenario.name + " accepts slow responses without overlapping polls and recovers after failure", async () => {
+    let tick; const pending = [];
+    const page = panel("components/" + scenario.file + ".tsx", scenario.name, scenario.props,
+      () => new Promise((resolve, reject) => pending.push({ resolve, reject })),
+      { setInterval(fn) { tick = fn; return 1; } });
+    try {
+      await page.ready();
+      tick(); tick(); tick();
+      assert.equal(pending.length, 1, "polls must not replace an unfinished read");
+      // Reading the response body is also part of the pending request.
+      let finishBody;
+      pending[0].resolve({ ok: true, status: 200, json: () => new Promise(resolve => { finishBody = resolve; }) });
+      await flushReads(); tick();
+      assert.equal(pending.length, 1);
+      finishBody(scenario.result); await flushReads();
+      assert.ok(text(page.render()).includes(scenario.expected));
+      tick(); assert.equal(pending.length, 2);
+      pending[1].reject(Error("temporary outage")); await flushReads();
+      assert.ok(text(page.render()).includes(scenario.expected), "retain existing data on failure");
+      tick(); assert.equal(pending.length, 3, "failed reads must release the polling guard");
+      pending[2].resolve(Response.json(scenario.result)); await flushReads();
+      assert.equal(text(page.render()).includes("temporary outage"), false);
+    } finally { page.dispose(); }
+  });
+}
+
+test("changing the bill view bypasses an old pending read without accepting its late result", async () => {
+  let tick; const pending = [];
+  const page = panel("components/bill-board.tsx", "BillBoard", {},
+    url => new Promise(resolve => pending.push({ url, resolve })),
+    { setInterval(fn) { tick = fn; return 1; } });
+  try {
+    let tree = await page.ready();
+    nodes(tree).find(node => node.type === "Button" && text(node).startsWith("ประวัติบิล")).props.onClick();
+    await page.ready();
+    assert.equal(pending.length, 2, "new filters must not wait for the old request");
+    assert.match(pending[1].url, /view=history/);
+    pending[0].resolve(Response.json(billResult())); await flushReads();
+    assert.equal(text(page.render()).includes("B06-ABCDEF"), false);
+    tick(); assert.equal(pending.length, 2, "old completion must not unlock the newer pending request");
+    pending[1].resolve(Response.json(billResult({ ...sampleBill, number: "HISTORY-ONLY", current: false })));
+    await flushReads();
+    assert.ok(text(page.render()).includes("HISTORY-ONLY"));
+  } finally { page.dispose(); }
+});
+
+test("customer mutation refresh bypasses a stale poll and rejects its late response", async () => {
+  let tick; const pending = [];
+  const service = { id: "request-new", kind: "assistance", status: "pending", createdAt: order.createdAt };
+  const page = panel("components/customer-session-panel.tsx", "CustomerSessionPanel", props, (url, options) => {
+    if (options.method === "POST") return Promise.resolve(Response.json({ success: true, data: service }));
+    return new Promise(resolve => pending.push(resolve));
+  }, { setInterval(fn) { tick = fn; return 1; } });
+  try {
+    await page.ready();
+    pending[0](Response.json({ success: true, data: { orders: [order], requests: [] } })); await flushReads();
+    tick(); assert.equal(pending.length, 2);
+    button(page.render(), "เรียกพนักงาน").props.onClick(); await flushReads();
+    assert.equal(pending.length, 3, "refresh after mutation must bypass the old poll");
+    pending[1](Response.json({ success: true, data: { orders: [], requests: [] } })); await flushReads();
+    assert.ok(text(page.render()).includes("#ONE"));
+    assert.ok(text(page.render()).includes("เรียกพนักงานแล้ว"));
+    pending[2](Response.json({ success: true, data: { orders: [order], requests: [service] } })); await flushReads();
+    tick(); assert.equal(pending.length, 4);
+    page.dispose();
+    pending[3](Response.json({ success: false, sessionExpired: true })); await flushReads();
+    assert.ok(text(page.render()).includes("#ONE"), "late responses after unmount must be ignored");
+  } finally { page.dispose(); }
+});
+
+
+test("each completed staff mutation refreshes even while another mutation refresh is pending", async () => {
+  const reads = [], writes = [];
+  const requests = [1, 2].map(n => ({ id: "request-" + n, kind: "bill", tableNumber: n, createdAt: order.createdAt }));
+  const page = panel("components/service-request-board.tsx", "ServiceRequestBoard", {}, (_url, options) => {
+    if (options.method === "PATCH") return new Promise(resolve => writes.push(resolve));
+    return new Promise(resolve => reads.push(resolve));
+  });
+  try {
+    await page.ready();
+    reads[0](Response.json({ success: true, data: requests })); await flushReads();
+    const actions = nodes(page.render()).filter(node => node.type === "Button" && text(node) === "ดำเนินการแล้ว");
+    actions[0].props.onClick(); actions[1].props.onClick();
+    assert.equal(writes.length, 2);
+    writes[0](Response.json({ success: true })); await flushReads();
+    assert.equal(reads.length, 2);
+    writes[1](Response.json({ success: true })); await flushReads();
+    assert.equal(reads.length, 3, "second mutation requires a read after its own commit");
+    reads[2](Response.json({ success: true, data: [] })); await flushReads();
+    reads[1](Response.json({ success: true, data: [requests[1]] })); await flushReads();
+    assert.ok(text(page.render()).includes("ไม่มีคำขอที่รออยู่"));
+  } finally { page.dispose(); }
+});

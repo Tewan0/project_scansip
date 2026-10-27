@@ -41,8 +41,13 @@ export function BillBoard() {
   const receivedCents = method === "transfer" ? paymentBill?.unpaidCents ?? 0 : parseBaht(cash);
   const paymentValid = paymentBill && receivedCents !== null && receivedCents >= paymentBill.unpaidCents && (method === "cash" || transferChecked);
   const requestState = useRef({ mounted: false, version: 0, working: false });
-  const load = useCallback(async () => {
-    const state = requestState.current, version = ++state.version;
+  const pendingRead = useRef<number | null>(null);
+  const load = useCallback(async (afterMutation = false) => {
+    const state = requestState.current;
+    // Polls share a pending read; filter changes and completed mutations can replace it.
+    if (!afterMutation && pendingRead.current === state.version) return;
+    const version = ++state.version;
+    pendingRead.current = version;
     try {
       const search = new URLSearchParams({ view, page: String(page), ...(table ? { table } : {}), ...(date ? { date } : {}) });
       const response = await fetch(`/api/bills?${search}`, { cache: "no-store" });
@@ -54,7 +59,10 @@ export function BillBoard() {
       setBills(result.data); setStale(false); setError(""); setCounts({ current: result.currentCount, history: result.historyCount, pages: result.pageCount });
       if (page !== result.page) setPage(result.page);
     } catch (error) { if (state.mounted && version === state.version) { setStale(true); setError(error instanceof Error ? error.message : "เชื่อมต่อไม่ได้ กรุณาลองใหม่"); } }
-    finally { if (state.mounted && version === state.version) setLoading(false); }
+    finally {
+      if (pendingRead.current === version) pendingRead.current = null;
+      if (state.mounted && version === state.version) setLoading(false);
+    }
   }, [view, page, table, date, router]);
   useEffect(() => {
     const state = requestState.current; state.mounted = true;
@@ -74,11 +82,11 @@ export function BillBoard() {
       const result = await response.json();
       if (!state.mounted) return;
       if (!response.ok || !result.success) {
-        if (response.status === 409) { setPaymentBill(null); await load(); }
+        if (response.status === 409) { setPaymentBill(null); await load(true); }
         throw new Error(result.error || "บันทึกรับเงินไม่สำเร็จ");
       }
       setNotice(`บันทึก${method === "cash" ? "เงินสด" : "เงินโอน"}บิล ${paymentBill.number} ฿${formatBaht(result.data.paidCents)} แล้ว${method === "cash" ? ` · เงินทอน ฿${formatBaht(result.data.changeCents)}` : ""}`);
-      setPaymentBill(null); await load();
+      setPaymentBill(null); await load(true);
     } catch (error) { if (state.mounted) setError(error instanceof Error ? error.message : "ยืนยันผลรับเงินไม่ได้ กรุณาอัปเดตข้อมูลเพื่อตรวจสอบก่อนทำซ้ำ"); }
     finally { state.working = false; if (state.mounted) setBusy(false); }
   }
@@ -89,7 +97,7 @@ export function BillBoard() {
       const response = await fetch(`/api/orders/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ delivered: true }) });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || "ยืนยันเสิร์ฟไม่สำเร็จ");
-      await load();
+      await load(true);
       if (state.mounted) setNotice("บันทึกว่าเสิร์ฟครบออเดอร์แล้ว");
     } catch (error) { if (state.mounted) setError(error instanceof Error ? error.message : "เชื่อมต่อไม่ได้ กรุณาอัปเดตสถานะก่อนลองใหม่"); }
     finally { state.working = false; if (state.mounted) setBusy(false); }
@@ -102,7 +110,7 @@ export function BillBoard() {
       const response = await fetch(`/api/orders/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "cancelled", cancellationReason }) });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || "ยกเลิกไม่สำเร็จ");
-      if (state.mounted) { setCancelTarget(null); setCancellationReason(""); await load(); }
+      if (state.mounted) { setCancelTarget(null); setCancellationReason(""); await load(true); }
     } catch (error) { if (state.mounted) setError(error instanceof Error ? error.message : "ยกเลิกไม่สำเร็จ"); }
     finally { state.working = false; if (state.mounted) setBusy(false); }
   }

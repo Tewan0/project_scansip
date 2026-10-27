@@ -1,3 +1,4 @@
+import { cleanupFailedMenuUpload } from "@/lib/menu-upload-cleanup";
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { db } from "@/db";
@@ -68,13 +69,7 @@ export async function POST(req: Request) {
       }).returning();
       created = item;
     } catch (error) {
-      // Only clean up a newly uploaded file after a confirmed failed insert.
-      if (uploadedPath) {
-        try {
-          const { error: cleanupError } = await createAdminClient().storage.from("menu-photos").remove([uploadedPath]);
-          if (cleanupError) console.error("Menu image cleanup failed:", cleanupError);
-        } catch (cleanupError) { console.error("Menu image cleanup failed:", cleanupError); }
-      }
+      if (uploadedPath && imageUrl) await cleanupFailedMenuUpload(uploadedPath, imageUrl, store.id);
       throw error;
     }
     return NextResponse.json({ success: true, data: { ...created, category } }, { status: 201 });

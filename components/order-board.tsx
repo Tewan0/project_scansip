@@ -94,8 +94,12 @@ function KitchenOrderBoard() {
     playOrderSound(type);
   };
 
-  const load = useCallback(async () => {
+  const pendingRead = useRef<number | null>(null);
+  const load = useCallback(async (afterMutation = false) => {
+    // Polls share a pending read; each completed mutation needs a fresh snapshot.
+    if (!afterMutation && pendingRead.current === version.current) return;
     const request = ++version.current;
+    pendingRead.current = request;
     try {
       const response = await fetch("/api/orders", { cache: "no-store" });
       const result = await response.json();
@@ -116,13 +120,16 @@ function KitchenOrderBoard() {
       setOrders(result.data); setError("");
     } catch (error) {
       if (mounted.current && request === version.current) setError(error instanceof Error ? error.message : "เชื่อมต่อไม่สำเร็จ");
-    } finally { if (mounted.current && request === version.current) setLoading(false); }
+    } finally {
+      if (pendingRead.current === request) pendingRead.current = null;
+      if (mounted.current && request === version.current) setLoading(false);
+    }
   }, [router, soundEnabled, selectedSound]);
   useEffect(() => {
     mounted.current = true;
     const initial = setTimeout(() => void load(), 0);
     const stopPolling = startVisiblePolling(() => { setNow(Date.now()); if (!working.current.size) void load(); }, 8000);
-    return () => { mounted.current = false; clearTimeout(initial); stopPolling(); };
+    return () => { mounted.current = false; ++version.current; clearTimeout(initial); stopPolling(); };
   }, [load]);
 
   async function update(id: string, body: Record<string, unknown>) {
@@ -132,7 +139,7 @@ function KitchenOrderBoard() {
       const response = await fetch("/api/orders/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || "เปลี่ยนสถานะไม่สำเร็จ");
-      await load();
+      await load(true);
     } catch (error) { setError(error instanceof Error ? error.message : "ทำรายการไม่สำเร็จ"); }
     finally { working.current.delete(id); if (mounted.current) setBusy([...working.current]); }
   }

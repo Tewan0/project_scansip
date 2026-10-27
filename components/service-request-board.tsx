@@ -58,8 +58,12 @@ export function ServiceRequestBoard() {
     if (next) playServiceBellSound();
   };
 
-  const load = useCallback(async () => {
+  const pendingRead = useRef<number | null>(null);
+  const load = useCallback(async (afterMutation = false) => {
+    // Polls share a pending read; each completed mutation needs a fresh snapshot.
+    if (!afterMutation && pendingRead.current === version.current.value) return;
     const current = ++version.current.value;
+    pendingRead.current = current;
     try {
       const response = await fetch("/api/service-requests", { cache: "no-store" });
       const result = await response.json();
@@ -77,7 +81,10 @@ export function ServiceRequestBoard() {
       setUpdatedAt(Date.now());
       setRequests(list); setError("");
     } catch (error) { if (mounted.current && current === version.current.value) setError(error instanceof Error ? error.message : "เชื่อมต่อไม่ได้ กรุณาลองใหม่"); }
-    finally { if (mounted.current && current === version.current.value) setLoading(false); }
+    finally {
+      if (pendingRead.current === current) pendingRead.current = null;
+      if (mounted.current && current === version.current.value) setLoading(false);
+    }
   }, [soundEnabled]);
 
   useEffect(() => {
@@ -95,7 +102,7 @@ export function ServiceRequestBoard() {
       const response = await fetch(`/api/service-requests/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "resolved" }) });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || "บันทึกไม่สำเร็จ");
-      await load();
+      await load(true);
     } catch (error) { if (mounted.current) setError(error instanceof Error ? error.message : "บันทึกไม่สำเร็จ กรุณาลองใหม่"); }
     finally { working.current.delete(id); if (mounted.current) setBusy([...working.current]); }
   }

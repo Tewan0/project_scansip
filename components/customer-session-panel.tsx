@@ -21,8 +21,12 @@ export function CustomerSessionPanel({ storeSlug, tableNumber, sessionToken, ena
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const mounted = useRef(false), version = useRef({ value: 0 }), submitting = useRef(false);
-  const load = useCallback(async () => {
+  const pendingRead = useRef<number | null>(null);
+  const load = useCallback(async (afterMutation = false) => {
+    // Polls share a pending read; each completed mutation needs a fresh snapshot.
+    if (!afterMutation && pendingRead.current === version.current.value) return;
     const current = ++version.current.value;
+    pendingRead.current = current;
     try {
       const response = await fetch(`/api/customer/session?store=${encodeURIComponent(storeSlug)}&table=${encodeURIComponent(tableNumber)}`, {
         cache: "no-store", headers: { Authorization: `Bearer ${sessionToken}` },
@@ -34,7 +38,10 @@ export function CustomerSessionPanel({ storeSlug, tableNumber, sessionToken, ena
       setOrders(result.data.orders); setRequests(result.data.requests); setError("");
     } catch (error) {
       if (mounted.current && current === version.current.value) setError(error instanceof Error ? error.message : "เชื่อมต่อไม่ได้ ข้อมูลที่แสดงอาจยังไม่เป็นปัจจุบัน");
-    } finally { if (mounted.current && current === version.current.value) setLoading(false); }
+    } finally {
+      if (pendingRead.current === current) pendingRead.current = null;
+      if (mounted.current && current === version.current.value) setLoading(false);
+    }
   }, [storeSlug, tableNumber, sessionToken, onSessionExpired]);
 
   useEffect(() => {
@@ -58,7 +65,7 @@ export function CustomerSessionPanel({ storeSlug, tableNumber, sessionToken, ena
       if (!response.ok || !result.success) throw new Error(result.error || "ส่งคำขอไม่สำเร็จ");
       setRequests((previous) => [result.data, ...previous.filter((request) => request.id !== result.data.id)]);
       setMessage("แจ้งหน้าร้านแล้ว กรุณารอพนักงานสักครู่");
-      await load();
+      await load(true);
     } catch (error) {
       if (mounted.current) setMessage(error instanceof Error ? error.message : "ยืนยันการส่งไม่ได้ กดอัปเดตสถานะเพื่อตรวจสอบคำขอก่อนลองอีกครั้ง");
     } finally { submitting.current = false; if (mounted.current) setSending(false); }

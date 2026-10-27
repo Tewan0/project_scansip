@@ -153,3 +153,30 @@ test("real add-menu form reaches the route with and without an image, preserves 
     assert.ok(!find(node => node.type === "form"));
   }
 });
+
+
+test("ambiguous menu insert keeps the image when the row actually committed", async () => {
+  const f = setup();
+  const insert = f.db.insert;
+  f.db.insert = table => ({ values: values => ({ returning: async () => {
+    await insert(table).values(values).returning();
+    throw Error("private acknowledgement lost");
+  } }) });
+  const response = await f.post(formRequest({}, imageFile()));
+  assert.equal(response.status, 500);
+  assert.equal(f.state.menuItems.length, 1);
+  assert.ok(f.state.menuItems[0].imageUrl.endsWith(f.uploads[0].path));
+  assert.deepEqual(f.removed, []);
+  assert.doesNotMatch(await response.text(), /private|acknowledgement/);
+});
+
+test("failed menu insert retains its image if checking references is unavailable", async () => {
+  const f = setup();
+  f.db.insert = () => { throw Error("private insert failure"); };
+  f.db.query.menuItems.findFirst = async () => { throw Error("private verification outage"); };
+  const response = await f.post(formRequest({}, imageFile()));
+  assert.equal(response.status, 500);
+  assert.equal(f.uploads.length, 1);
+  assert.deepEqual(f.removed, []);
+  assert.doesNotMatch(await response.text(), /private|verification/);
+});
