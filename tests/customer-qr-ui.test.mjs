@@ -5,6 +5,13 @@ const nodes = tree => Array.isArray(tree) ? tree.flatMap(nodes) : tree?.props ? 
 const text = tree => typeof tree === "string" || typeof tree === "number" ? String(tree) : Array.isArray(tree) ? tree.map(text).join("") : tree?.props ? text(tree.props.children) : "";
 function screen({ expired = true } = {}) {
   const slots = [], effects = [], requests = [], confirmations = []; let cursor = 0;
+  const intervals = new Map(), listeners = new Map();
+  let timerId = 0;
+  const browser = {
+    location: { origin: "http://localhost:3000" },
+    addEventListener(name, callback) { listeners.set(name, callback); },
+    removeEventListener(name, callback) { if (listeners.get(name) === callback) listeners.delete(name); },
+  };
   const table = { id: "table-a", tableNumber: 1, status: "occupied", currentSessionToken: "private-round",
     currentQrToken: "public-qr-old", sessionStartedAt: new Date(Date.now() - 86_400_000).toISOString(), qrExpiresAt: new Date(Date.now() + (expired ? -1000 : 86_400_000)).toISOString() };
   const react = {
@@ -22,7 +29,10 @@ function screen({ expired = true } = {}) {
     "@/components/ui/card": ui(["Card", "CardContent", "CardHeader", "CardTitle"]),
     "@/components/ui/dialog": ui(["Dialog", "DialogContent", "DialogDescription", "DialogHeader", "DialogTitle"]),
     "@/components/ui/input": ui(["Input"]), "@/components/ui/skeleton": ui(["Skeleton"]),
-  }, { window: { location: { origin: "http://localhost:3000" } }, fetch: async (_url, init) => {
+  }, { window: browser,
+    setInterval(callback) { const id = ++timerId; intervals.set(id, callback); return id; },
+    clearInterval(id) { intervals.delete(id); },
+    fetch: async (_url, init) => {
     if (init?.method !== "POST") return Response.json({ success: true, data: [table], store: { slug: "cafe", name: "Cafe" }, canManageTables: true });
     requests.push(JSON.parse(init.body));
     throw new Error("Unexpected table mutation");
@@ -30,7 +40,11 @@ function screen({ expired = true } = {}) {
   const Page = f.load("app/dashboard/tables/page.tsx").default;
   const page = { render() { cursor = 0; return Page(); }, requests, confirmations,
     async ready() { page.render(); effects.splice(0).forEach(fn => fn()); await new Promise(resolve => setTimeout(resolve, 20)); },
-    dispose() { slots.forEach(slot => slot?.cleanup?.()); },
+    dispose() {
+      slots.forEach(slot => slot?.cleanup?.());
+      assert.equal(intervals.size, 0, "unmount must clear polling intervals");
+      assert.equal(listeners.size, 0, "unmount must remove browser listeners");
+    },
   };
   return page;
 }
